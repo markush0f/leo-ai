@@ -6,6 +6,7 @@ license.workspace = true
 description = "Acceso unificado a APIs de IA: Grok, GPT, Ollama y Claude"
 
 [dependencies]
+dotenvy.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true

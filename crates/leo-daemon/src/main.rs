@@ -16,6 +16,7 @@ use crate::config::{ensure_dirs, FileConfig};
 
 #[tokio::main]
 async fn main() {
+    leo_llm::load_dotenv();
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),

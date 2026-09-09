@@ -1,11 +1,13 @@
 mod claude;
 mod client;
+mod dotenv;
 mod error;
 mod ollama;
 mod openai_compat;
 mod types;
 
 pub use client::{extract_error_message, Client};
+pub use dotenv::load_dotenv;
 pub use error::LlmError;
 pub use ollama::parse_tags as parse_ollama_tags;
 pub use types::{ChatMessage, ChatRequest, ChatResponse, ProviderId, Role};

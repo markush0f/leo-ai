@@ -37,6 +37,7 @@ impl Drop for Restore {
 
 #[tokio::main]
 async fn main() {
+    leo_llm::load_dotenv();
     if let Err(err) = run().await {
         eprintln!("error: {err}");
         std::process::exit(1);
