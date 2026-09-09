@@ -1,0 +1,46 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+thiserror = "2"
+tracing = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "io-util",
+    "sync",
+    "time",
+    "signal",
+] }
+clap = { version = "4", features = ["derive"] }
+crossterm = { version = "0.28", features = ["event-stream"] }
+futures = "0.3"
+ratatui = "0.29"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+toml = "0.8"
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "uuid",
+] }
+uuid = { version = "1", features = ["v4"] }
+webrtc-vad = "0.4"
+dirs = "6"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
+leo-audio = { path = "crates/leo-audio" }
+leo-llm = { path = "crates/leo-llm" }
+leo-vad = { path = "crates/leo-vad" }
+leo-wake = { path = "crates/leo-wake" }
+leo-stt = { path = "crates/leo-stt" }
+leo-tts = { path = "crates/leo-tts" }
+leo-core = { path = "crates/leo-core" }
+leo-ipc = { path = "crates/leo-ipc" }
