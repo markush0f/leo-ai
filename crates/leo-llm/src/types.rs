@@ -69,12 +69,33 @@ pub enum Role {
     System,
     User,
     Assistant,
+    Tool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolSpec {
+    pub name: String,
+    pub description: String,
+    pub parameters: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ToolCall {
+    pub id: String,
+    pub name: String,
+    pub arguments: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: Role,
     pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tool_calls: Vec<ToolCall>,
 }
 
 impl ChatMessage {
@@ -82,6 +103,9 @@ impl ChatMessage {
         Self {
             role: Role::System,
             content: content.into(),
+            tool_call_id: None,
+            name: None,
+            tool_calls: Vec::new(),
         }
     }
 
@@ -89,6 +113,9 @@ impl ChatMessage {
         Self {
             role: Role::User,
             content: content.into(),
+            tool_call_id: None,
+            name: None,
+            tool_calls: Vec::new(),
         }
     }
 
@@ -96,6 +123,29 @@ impl ChatMessage {
         Self {
             role: Role::Assistant,
             content: content.into(),
+            tool_call_id: None,
+            name: None,
+            tool_calls: Vec::new(),
+        }
+    }
+
+    pub fn assistant_tools(content: impl Into<String>, tool_calls: Vec<ToolCall>) -> Self {
+        Self {
+            role: Role::Assistant,
+            content: content.into(),
+            tool_call_id: None,
+            name: None,
+            tool_calls,
+        }
+    }
+
+    pub fn tool(id: impl Into<String>, name: impl Into<String>, content: impl Into<String>) -> Self {
+        Self {
+            role: Role::Tool,
+            content: content.into(),
+            tool_call_id: Some(id.into()),
+            name: Some(name.into()),
+            tool_calls: Vec::new(),
         }
     }
 }
@@ -106,6 +156,7 @@ pub struct ChatRequest {
     pub model: Option<String>,
     pub temperature: Option<f32>,
     pub max_tokens: Option<u32>,
+    pub tools: Vec<ToolSpec>,
 }
 
 impl ChatRequest {
@@ -121,8 +172,28 @@ impl ChatRequest {
         self
     }
 
+    pub fn with_history(
+        system: &str,
+        history: impl IntoIterator<Item = ChatMessage>,
+    ) -> Self {
+        let mut messages = Vec::new();
+        if !system.is_empty() {
+            messages.push(ChatMessage::system(system));
+        }
+        messages.extend(history);
+        Self {
+            messages,
+            ..Self::default()
+        }
+    }
+
     pub fn model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
+        self
+    }
+
+    pub fn with_tools(mut self, tools: Vec<ToolSpec>) -> Self {
+        self.tools = tools;
         self
     }
 }
@@ -132,4 +203,16 @@ pub struct ChatResponse {
     pub provider: ProviderId,
     pub model: String,
     pub text: String,
+    pub tool_calls: Vec<ToolCall>,
+}
+
+impl ChatResponse {
+    pub fn new(provider: ProviderId, model: impl Into<String>, text: impl Into<String>) -> Self {
+        Self {
+            provider,
+            model: model.into(),
+            text: text.into(),
+            tool_calls: Vec::new(),
+        }
+    }
 }

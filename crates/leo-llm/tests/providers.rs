@@ -115,3 +115,127 @@ fn parses_claude_blocks() {
     assert_eq!(resp.text, "hola");
     assert_eq!(resp.provider, ProviderId::Claude);
 }
+
+fn sample_tool() -> leo_llm::ToolSpec {
+    leo_llm::ToolSpec {
+        name: "appflowy_write".into(),
+        description: "Crea una página en AppFlowy".into(),
+        parameters: serde_json::json!({
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"},
+                "markdown": {"type": "string"}
+            },
+            "required": ["title", "markdown"]
+        }),
+    }
+}
+
+#[test]
+fn openai_body_includes_tools() {
+    let req = ChatRequest::user("guarda esto").with_tools(vec![sample_tool()]);
+    let body = leo_llm::protocol::openai_body("grok-4.6", &req).unwrap();
+    assert_eq!(body["tools"][0]["type"], "function");
+    assert_eq!(body["tools"][0]["function"]["name"], "appflowy_write");
+    assert!(body["tools"][0]["function"]["parameters"].is_object());
+}
+
+#[test]
+fn openai_omits_empty_tools() {
+    let req = ChatRequest::user("hola");
+    let body = leo_llm::protocol::openai_body("grok-4.6", &req).unwrap();
+    assert!(body.get("tools").is_none());
+}
+
+#[test]
+fn parses_openai_tool_calls() {
+    let raw = r#"{
+        "model": "grok-4.6",
+        "choices": [{
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                        "name": "appflowy_write",
+                        "arguments": "{\"title\":\"Nota\"}"
+                    }
+                }]
+            }
+        }]
+    }"#;
+    let resp = leo_llm::protocol::parse_openai(ProviderId::Grok, "grok-4.6", raw).unwrap();
+    assert_eq!(resp.text, "");
+    assert_eq!(resp.tool_calls.len(), 1);
+    assert_eq!(resp.tool_calls[0].name, "appflowy_write");
+    assert!(resp.tool_calls[0].arguments.contains("Nota"));
+}
+
+#[test]
+fn openai_wires_tool_result_messages() {
+    let req = ChatRequest {
+        messages: vec![
+            leo_llm::ChatMessage::assistant_tools(
+                "",
+                vec![leo_llm::ToolCall {
+                    id: "call_1".into(),
+                    name: "appflowy_write".into(),
+                    arguments: r#"{"title":"x"}"#.into(),
+                }],
+            ),
+            leo_llm::ChatMessage::tool("call_1", "appflowy_write", r#"{"view_id":"abc"}"#),
+        ],
+        ..ChatRequest::default()
+    };
+    let body = leo_llm::protocol::openai_body("grok-4.6", &req).unwrap();
+    assert_eq!(body["messages"][0]["role"], "assistant");
+    assert_eq!(body["messages"][0]["tool_calls"][0]["id"], "call_1");
+    assert_eq!(body["messages"][1]["role"], "tool");
+    assert_eq!(body["messages"][1]["tool_call_id"], "call_1");
+}
+
+#[test]
+fn claude_body_uses_input_schema() {
+    let req = ChatRequest::user("guarda").with_tools(vec![sample_tool()]);
+    let body = leo_llm::protocol::claude_body("claude-sonnet-5", &req).unwrap();
+    assert_eq!(body["tools"][0]["name"], "appflowy_write");
+    assert!(body["tools"][0]["input_schema"].is_object());
+}
+
+#[test]
+fn parses_claude_tool_use() {
+    let raw = r#"{
+        "model": "claude-sonnet-5",
+        "content": [
+            {"type": "text", "text": "voy"},
+            {"type": "tool_use", "id": "tu_1", "name": "appflowy_write", "input": {"title": "Nota"}}
+        ]
+    }"#;
+    let resp = leo_llm::protocol::parse_claude("claude-sonnet-5", raw).unwrap();
+    assert_eq!(resp.text, "voy");
+    assert_eq!(resp.tool_calls[0].id, "tu_1");
+    assert!(resp.tool_calls[0].arguments.contains("Nota"));
+}
+
+#[test]
+fn parses_ollama_tool_calls() {
+    let raw = r#"{
+        "model": "llama3.2",
+        "message": {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{
+                "function": {
+                    "name": "appflowy_write",
+                    "arguments": {"title": "Nota"}
+                }
+            }]
+        },
+        "done": true
+    }"#;
+    let resp = leo_llm::protocol::parse_ollama("llama3.2", raw).unwrap();
+    assert_eq!(resp.tool_calls[0].name, "appflowy_write");
+    assert!(resp.tool_calls[0].arguments.contains("Nota"));
+}

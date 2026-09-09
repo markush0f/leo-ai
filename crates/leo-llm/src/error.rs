@@ -14,4 +14,6 @@ pub enum LlmError {
     Network(#[from] reqwest::Error),
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("demasiadas vueltas de tools")]
+    ToolLoop,
 }

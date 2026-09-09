@@ -10,7 +10,7 @@ pub use client::{extract_error_message, Client};
 pub use dotenv::load_dotenv;
 pub use error::LlmError;
 pub use ollama::parse_tags as parse_ollama_tags;
-pub use types::{ChatMessage, ChatRequest, ChatResponse, ProviderId, Role};
+pub use types::{ChatMessage, ChatRequest, ChatResponse, ProviderId, Role, ToolCall, ToolSpec};
 
 /// Construcción y parseo de payloads HTTP. La usa el cliente y los tests.
 pub mod protocol {

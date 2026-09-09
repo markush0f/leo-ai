@@ -344,7 +344,10 @@ impl App {
             text: text.clone(),
         });
         self.history.push(ChatMessage::user(text));
-        self.pending_chat = Some(build_request(self.system(), &self.history));
+        self.pending_chat = Some(ChatRequest::with_history(
+            self.system(),
+            self.history.clone(),
+        ));
         self.busy = true;
         self.follow = true;
     }
@@ -356,18 +359,6 @@ impl App {
 
     fn scroll_down(&mut self) {
         self.scroll = self.scroll.saturating_add(1);
-    }
-}
-
-pub fn build_request(system: &str, history: &[ChatMessage]) -> ChatRequest {
-    let mut messages = Vec::with_capacity(history.len() + 1);
-    if !system.is_empty() {
-        messages.push(ChatMessage::system(system));
-    }
-    messages.extend(history.iter().cloned());
-    ChatRequest {
-        messages,
-        ..ChatRequest::default()
     }
 }
 
@@ -410,11 +401,11 @@ mod tests {
         let mut app = app("");
         app.history.push(ChatMessage::user("hola"));
         app.busy = true;
-        app.on_reply(Ok(ChatResponse {
-            provider: leo_llm::ProviderId::Grok,
-            model: "grok-4.6".into(),
-            text: "hey".into(),
-        }));
+        app.on_reply(Ok(ChatResponse::new(
+            leo_llm::ProviderId::Grok,
+            "grok-4.6",
+            "hey",
+        )));
         assert!(!app.busy);
         assert_eq!(app.history.last().unwrap().role, Role::Assistant);
         assert_eq!(app.history.last().unwrap().content, "hey");
