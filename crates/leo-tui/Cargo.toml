@@ -15,6 +15,7 @@ crossterm.workspace = true
 futures.workspace = true
 leo-llm.workspace = true
 leo-store.workspace = true
+leo-tools.workspace = true
 ratatui.workspace = true
 sqlx.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time"] }

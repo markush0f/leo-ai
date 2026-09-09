@@ -60,6 +60,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let snapshot = db::load(&pool).await?;
 
     let mut client = try_client(&snapshot);
+    let tools = leo_tools::Registry::from_env();
     let mut app = App::new(snapshot);
     let mut terminal = ratatui::init();
     let _restore = Restore;
@@ -79,8 +80,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             match client.clone() {
                 Some(client) => {
                     let tx = tx.clone();
+                    let tools = tools.clone();
                     tokio::spawn(async move {
-                        let _ = tx.send(client.chat(req).await);
+                        let _ = tx.send(leo_tools::chat(&client, req, &tools).await);
                     });
                 }
                 None => {
