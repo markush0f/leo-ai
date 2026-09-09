@@ -46,3 +46,4 @@ leo-tts = { path = "crates/leo-tts" }
 leo-core = { path = "crates/leo-core" }
 leo-ipc = { path = "crates/leo-ipc" }
 leo-store = { path = "crates/leo-store" }
+leo-tools = { path = "crates/leo-tools" }
