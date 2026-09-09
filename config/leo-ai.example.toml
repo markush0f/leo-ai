@@ -26,6 +26,10 @@ provider = "ollama"
 # model = "grok-4.6"
 system = "Eres Leo, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta."
 
-# Tools (TUI and Telegram). AppFlowy is configured via env: APPFLOWY_BASE_URL
-# + APPFLOWY_EMAIL/APPFLOWY_PASSWORD (or APPFLOWY_ACCESS_TOKEN).
-# Optional: APPFLOWY_WORKSPACE_ID, APPFLOWY_PARENT_VIEW_ID, APPFLOWY_GOTRUE_URL.
+[telegram]
+# Opcional: el bot lee TELEGRAM_BOT_TOKEN y TELEGRAM_ALLOW_USERS del `.env`.
+# allow_users = [111]
+
+# Tools (TUI y Telegram). AppFlowy se configura por env: APPFLOWY_BASE_URL
+# + APPFLOWY_EMAIL/APPFLOWY_PASSWORD (o APPFLOWY_ACCESS_TOKEN).
+# Opcional: APPFLOWY_WORKSPACE_ID, APPFLOWY_PARENT_VIEW_ID, APPFLOWY_GOTRUE_URL.

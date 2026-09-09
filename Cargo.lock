@@ -1092,6 +1092,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "leo-telegram"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "dirs",
+ "leo-llm",
+ "leo-store",
+ "leo-tools",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "leo-tools"
 version = "0.1.0"
 dependencies = [
@@ -1121,6 +1142,7 @@ dependencies = [
  "futures",
  "leo-llm",
  "leo-store",
+ "leo-tools",
  "ratatui",
  "sqlx",
  "tokio",
