@@ -410,7 +410,6 @@ fn statements(sql: &str) -> impl Iterator<Item = &str> {
     sql.split(';').map(str::trim).filter(|s| !s.is_empty())
 }
 
-#[cfg(test)]
 pub fn stub_snapshot(provider: &str, model: &str, system: &str) -> Snapshot {
     let pid = Uuid::from_u128(1);
     let mid = Uuid::from_u128(2);

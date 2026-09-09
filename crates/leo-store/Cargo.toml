@@ -1,0 +1,14 @@
+[package]
+name = "leo-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Catálogo de proveedores y modelos en Postgres"
+
+[dependencies]
+leo-llm.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

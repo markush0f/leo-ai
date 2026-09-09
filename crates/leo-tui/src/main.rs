@@ -1,5 +1,4 @@
 mod app;
-mod db;
 mod input;
 mod settings;
 mod slash;
@@ -17,12 +16,12 @@ use leo_llm::Client;
 use tokio::sync::mpsc;
 
 use crate::app::App;
-use crate::db::{database_url, Snapshot};
+use leo_store::{self as db, database_url, Snapshot};
 
 #[derive(Parser)]
 #[command(name = "leo", about = "Pregúntale al LLM desde la terminal")]
 struct Cli {
-    /// URL de Postgres (si no, LEO_DATABASE_URL / DATABASE_URL)
+    /// URL de Postgres (si no, DATABASE_URL en .env)
     #[arg(long)]
     database_url: Option<String>,
 }

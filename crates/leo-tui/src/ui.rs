@@ -516,7 +516,7 @@ mod tests {
 
     #[test]
     fn empty_chat_has_header_rule_and_prompt() {
-        let mut app = crate::app::App::new(crate::db::stub_snapshot("grok", "grok-4.6", "x"));
+        let mut app = crate::app::App::new(leo_store::stub_snapshot("grok", "grok-4.6", "x"));
         let text = screen_text(&mut app, 48, 12);
         assert!(text.contains("leo"));
         assert!(text.contains("grok · grok-4.6"));
@@ -527,7 +527,7 @@ mod tests {
 
     #[test]
     fn settings_uses_section_rules() {
-        let mut app = crate::app::App::new(crate::db::stub_snapshot("grok", "grok-4.6", "x"));
+        let mut app = crate::app::App::new(leo_store::stub_snapshot("grok", "grok-4.6", "x"));
         app.screen = crate::app::Screen::Settings;
         let text = screen_text(&mut app, 48, 16);
         assert!(text.contains("proveedores"));
@@ -537,7 +537,7 @@ mod tests {
 
     #[test]
     fn chat_and_slash_layout() {
-        let mut app = crate::app::App::new(crate::db::stub_snapshot("grok", "grok-4.6", "x"));
+        let mut app = crate::app::App::new(leo_store::stub_snapshot("grok", "grok-4.6", "x"));
         app.bubbles.push(crate::app::Bubble {
             kind: crate::app::Kind::User,
             text: "hola".into(),

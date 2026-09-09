@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use crate::db::{DbOp, Snapshot};
+use leo_store::{DbOp, Snapshot};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SlashItem {
@@ -263,25 +263,25 @@ fn strip_prefix_cmd(q: &str, cmds: &[&str]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::stub_snapshot;
+    use leo_store::stub_snapshot;
 
     fn snap() -> Snapshot {
         let mut s = stub_snapshot("grok", "grok-4.6", "x");
         let pid = s.providers[0].id;
-        s.models.push(crate::db::ModelRow {
+        s.models.push(leo_store::ModelRow {
             id: Uuid::from_u128(3),
             provider_id: pid,
             name: "grok-4.5".into(),
         });
         let other = Uuid::from_u128(9);
-        s.providers.push(crate::db::ProviderRow {
+        s.providers.push(leo_store::ProviderRow {
             id: other,
             name: "gpt".into(),
             kind: "gpt".into(),
             base_url: None,
             api_key: None,
         });
-        s.models.push(crate::db::ModelRow {
+        s.models.push(leo_store::ModelRow {
             id: Uuid::from_u128(10),
             provider_id: other,
             name: "gpt-4.1".into(),

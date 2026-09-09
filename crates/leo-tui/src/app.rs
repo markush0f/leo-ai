@@ -1,7 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use leo_llm::{ChatMessage, ChatRequest, ChatResponse, LlmError};
 
-use crate::db::{DbOp, Snapshot};
+use leo_store::{DbOp, Snapshot};
 use crate::input::LineEdit;
 use crate::settings::SettingsState;
 use crate::slash::{self, SlashItem};
@@ -374,7 +374,7 @@ pub fn build_request(system: &str, history: &[ChatMessage]) -> ChatRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::stub_snapshot;
+    use leo_store::stub_snapshot;
     use leo_llm::Role;
 
     fn app(system: &str) -> App {

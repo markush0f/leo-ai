@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use leo_llm::ProviderId;
 use uuid::Uuid;
 
-use crate::db::{DbOp, Snapshot};
+use leo_store::{DbOp, Snapshot};
 use crate::input::LineEdit;
 
 #[derive(Clone, Debug)]
@@ -298,7 +298,7 @@ fn next_kind(kind: &str) -> &'static str {
     }
 }
 
-fn key_status(provider: &crate::db::ProviderRow) -> String {
+fn key_status(provider: &leo_store::ProviderRow) -> String {
     if provider
         .api_key
         .as_ref()
@@ -329,7 +329,7 @@ fn preview(text: &str, max: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::stub_snapshot;
+    use leo_store::stub_snapshot;
 
     fn key(code: KeyCode) -> KeyEvent {
         KeyEvent::from(code)
