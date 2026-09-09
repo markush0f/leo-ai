@@ -1,0 +1,27 @@
+[audio]
+source = "@DEFAULT_SOURCE@"
+sink = "@DEFAULT_SINK@"
+
+[vad]
+# hangover de silencio para cerrar la frase (ms)
+hangover_ms = 500
+
+[barge_in]
+enabled = true
+rms_threshold = 0.035
+
+[wake]
+# Reservado para el modelo “Leo” (.rpw). Mientras el detector no esté
+# cableado, activa con `leo-ctl listen` (atajo de teclado en GNOME/KDE).
+# model = "/home/YOU/.config/leo-ai/wake/leo.rpw"
+
+[stt]
+# Grok Speech-to-Text (XAI_API_KEY). language = auto si lo dejas vacío.
+language = "es"
+
+[llm]
+# grok | gpt | ollama | claude  (por defecto grok, XAI_API_KEY)
+# Lo usa el daemon de voz. El TUI `leo` guarda providers y modelos en Postgres.
+provider = "ollama"
+# model = "grok-4.6"
+system = "Eres Leo, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta."

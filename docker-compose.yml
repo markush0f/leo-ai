@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: leo
+      POSTGRES_PASSWORD: leo
+      POSTGRES_DB: leo
+    ports:
+      - "5432:5432"
+    volumes:
+      - leo-pg:/var/lib/postgresql/data
+      - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leo -d leo"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  leo-pg:
