@@ -1,0 +1,20 @@
+[package]
+name = "leo-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TUI mínima para hablar con el LLM"
+
+[[bin]]
+name = "leo"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+crossterm.workspace = true
+futures.workspace = true
+leo-llm.workspace = true
+ratatui.workspace = true
+sqlx.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time"] }
+uuid.workspace = true
