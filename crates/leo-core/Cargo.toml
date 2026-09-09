@@ -1,0 +1,19 @@
+[package]
+name = "leo-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Máquina de sesión: wake, VAD, barge-in, STT/TTS"
+
+[dependencies]
+thiserror.workspace = true
+tracing.workspace = true
+leo-audio.workspace = true
+leo-vad.workspace = true
+leo-wake.workspace = true
+leo-stt.workspace = true
+leo-tts.workspace = true
+
+[dev-dependencies]
+leo-audio.workspace = true
+leo-vad.workspace = true
