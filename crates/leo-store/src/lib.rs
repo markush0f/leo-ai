@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 const SCHEMA: &str = include_str!("../../../deploy/postgres/init.sql");
 
-pub const DEFAULT_DATABASE_URL: &str = "postgres://leo:leo@127.0.0.1:5432/leo?sslmode=disable";
+pub const DEFAULT_DATABASE_URL: &str = "postgres://leo:leo@127.0.0.1:5439/leo?sslmode=disable";
 
 #[derive(Debug, Clone)]
 pub struct ProviderRow {
