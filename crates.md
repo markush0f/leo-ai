@@ -81,15 +81,22 @@ No ejecuta tools: solo las serializa y parsea. El bucle está en `leo-tools`.
 
 ### `leo-tools`
 
-Tools que el LLM puede llamar, más el bucle: el modelo pide una función → se ejecuta → se le devuelve el resultado (hasta 8 vueltas).
+Núcleo: trait `Tool`, `Registry`, `Context` y el bucle (el modelo pide una función → se ejecuta → se le devuelve el resultado, hasta 8 vueltas). TUI y Telegram usan este crate; el daemon de voz no.
 
-Hoy el registro (`Registry`) se arma en `from_env()`:
+Las implementaciones viven en `crates/tools/*`. `Registry::from_env()` registra las locales siempre y las de APIs solo si hay credenciales:
 
-| Tool | Cuándo aparece | Qué hace |
+| Crate | Tools | Cuándo |
 |---|---|---|
-| `appflowy_write` | Si hay `APPFLOWY_BASE_URL` y credenciales | Crea una página en AppFlowy Cloud (markdown → bloques) |
-
-Sin config de AppFlowy el registro queda vacío y el chat es un `client.chat` normal. TUI y Telegram usan este crate; el daemon de voz no.
+| `leo-tools-files` | `read_file`, `write_file`, `list_directory`, `search_files`, `move_file`, `copy_file`, `remove_file` | siempre |
+| `leo-tools-shell` | `execute_command`, `execute_script` | siempre |
+| `leo-tools-system` | procesos y escritorio (`list_processes`, `open_url`, portapapeles, …) | siempre |
+| `leo-tools-weather` | `get_weather`, `get_forecast` | siempre (Open-Meteo) |
+| `leo-tools-appflowy` | páginas (`appflowy_create_page`, `appflowy_write`, …) | `APPFLOWY_BASE_URL` + credenciales |
+| `leo-tools-github` | issues y pull requests | `GITHUB_TOKEN` o `GH_TOKEN` |
+| `leo-tools-google` | Google Calendar | `GOOGLE_ACCESS_TOKEN` o `GOOGLE_API_KEY` |
+| `leo-tools-home-assistant` | estados y servicios | `HOME_ASSISTANT_URL`/`HASS_URL` + token |
+| `leo-tools-notion` | — | pendiente |
+| `leo-tools-spotify` | — | pendiente |
 
 ---
 
@@ -159,7 +166,7 @@ Trait `TtsEngine`. Hoy `NullTts`: un beep cuya duración escala un poco con el t
 ```
 leo            → leo-store, leo-llm, leo-tools
 leo-telegram   → leo-store, leo-llm, leo-tools
-leo-tools      → leo-llm
+leo-tools      → leo-llm, leo-tools-{files,shell,system,weather,appflowy,github,google,home-assistant}
 leo-store      → leo-llm
 leo-daemon     → leo-core, leo-ipc, leo-llm, leo-stt, leo-tts, leo-wake, leo-audio
 leo-ctl        → leo-ipc
