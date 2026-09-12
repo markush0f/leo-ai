@@ -32,6 +32,7 @@ El daemon de voz **no** usa `leo-store` ni `leo-tools`: lee `~/.config/leo-ai/co
 |---|---|---|
 | `leo-tui` | `leo` | Chat en terminal |
 | `leo-telegram` | `leo-telegram` | Chat por Telegram |
+| `leo-desktop` | `npm run tauri dev` (en `desktop/`) | Chat y catálogo en una ventana (Tauri) |
 | `leo-daemon` | `leo-daemon` | Asistente de voz en segundo plano |
 | `leo-ctl` | `leo-ctl` | Mandar órdenes al daemon (`listen`, `stop`, `speak`, …) |
 
@@ -58,11 +59,15 @@ Bot por long-poll. Mismo catálogo y mismas tools que `leo`.
 
 La librería (`src/lib.rs`) parsea comandos y el historial; el binario (`main.rs` + `tg.rs`) habla con la API de Telegram.
 
+### `leo-desktop` → ventana
+
+App Tauri 2 (`desktop/`): React + Vite. El mismo catálogo y el mismo `leo-tools::chat` que la TUI. Desde el borde (Tab) se editan proveedores, modelos, keys y el system prompt. Controles de voz: `escuchar`, `parar`, `decir`, `apagar` vía `leo-ipc`.
+
 ### `leo-store`
 
 Catálogo en Postgres: proveedores, modelos, modelo activo y system prompt.
 
-- URL: `LEO_DATABASE_URL` o `DATABASE_URL` (por defecto `postgres://leo:leo@127.0.0.1:5432/leo`).
+- URL: `LEO_DATABASE_URL` o `DATABASE_URL` (por defecto `postgres://leo:leo@127.0.0.1:5439/leo`).
 - `Snapshot` es la foto que usan TUI y Telegram. `Snapshot::client()` arma el `leo-llm::Client` del modelo activo.
 - `DbOp` son los cambios (activar modelo, guardar API key, etc.).
 - Si el proveedor activo es Ollama, sincroniza `/api/tags` con la tabla `models`.
@@ -166,6 +171,7 @@ Trait `TtsEngine`. Hoy `NullTts`: un beep cuya duración escala un poco con el t
 ```
 leo            → leo-store, leo-llm, leo-tools
 leo-telegram   → leo-store, leo-llm, leo-tools
+leo-desktop    → leo-store, leo-llm, leo-tools, leo-ipc
 leo-tools      → leo-llm, leo-tools-{files,shell,system,weather,appflowy,github,google,home-assistant}
 leo-store      → leo-llm
 leo-daemon     → leo-core, leo-ipc, leo-llm, leo-stt, leo-tts, leo-wake, leo-audio
