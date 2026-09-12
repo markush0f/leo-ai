@@ -72,7 +72,10 @@ struct Tag {
 
 pub fn origin(base: &str) -> String {
     let b = base.trim().trim_end_matches('/');
-    b.strip_suffix("/v1").unwrap_or(b).trim_end_matches('/').to_string()
+    b.strip_suffix("/v1")
+        .unwrap_or(b)
+        .trim_end_matches('/')
+        .to_string()
 }
 
 pub fn build_body(model: &str, req: &ChatRequest) -> Result<serde_json::Value, LlmError> {
@@ -156,18 +159,13 @@ pub fn parse_response(fallback_model: &str, body: &str) -> Result<ChatResponse, 
         .as_ref()
         .map(parse_tool_calls)
         .unwrap_or_default();
-    let text = parsed
-        .message
-        .and_then(|m| m.content)
-        .unwrap_or_default();
+    let text = parsed.message.and_then(|m| m.content).unwrap_or_default();
     if text.is_empty() && tool_calls.is_empty() {
         return Err(LlmError::Empty(ProviderId::Ollama.as_str()));
     }
     Ok(ChatResponse {
         provider: ProviderId::Ollama,
-        model: parsed
-            .model
-            .unwrap_or_else(|| fallback_model.to_string()),
+        model: parsed.model.unwrap_or_else(|| fallback_model.to_string()),
         text,
         tool_calls,
     })

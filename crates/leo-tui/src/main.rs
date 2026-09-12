@@ -16,7 +16,7 @@ use leo_llm::Client;
 use tokio::sync::mpsc;
 
 use crate::app::App;
-use leo_store::{self as db, database_url, Snapshot};
+use leo_store::{self as db, Snapshot, database_url};
 
 #[derive(Parser)]
 #[command(name = "leo", about = "Pregúntale al LLM desde la terminal")]
@@ -142,11 +142,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn refresh_ollama(
-    pool: &sqlx::PgPool,
-    app: &mut App,
-    client: &mut Option<Client>,
-) {
+async fn refresh_ollama(pool: &sqlx::PgPool, app: &mut App, client: &mut Option<Client>) {
     if db::sync_ollama_providers(pool).await.is_err() {
         return;
     }

@@ -1,4 +1,4 @@
-use leo_audio::{f32_to_i16, samples_per_frame, ML_RATE};
+use leo_audio::{ML_RATE, f32_to_i16, samples_per_frame};
 use thiserror::Error;
 use webrtc_vad::{SampleRate, Vad as WebrtcVad, VadMode};
 
@@ -52,8 +52,7 @@ impl Vad {
 
     pub fn reset(&mut self) {
         self.inner.reset();
-        self.inner
-            .set_sample_rate(SampleRate::Rate16kHz);
+        self.inner.set_sample_rate(SampleRate::Rate16kHz);
         self.inner.set_mode(VadMode::Quality);
         self.in_speech = false;
         self.speech_frames = 0;

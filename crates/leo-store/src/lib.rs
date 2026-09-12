@@ -5,8 +5,7 @@ use uuid::Uuid;
 
 const SCHEMA: &str = include_str!("../../../deploy/postgres/init.sql");
 
-pub const DEFAULT_DATABASE_URL: &str =
-    "postgres://leo:leo@127.0.0.1:5432/leo?sslmode=disable";
+pub const DEFAULT_DATABASE_URL: &str = "postgres://leo:leo@127.0.0.1:5432/leo?sslmode=disable";
 
 #[derive(Debug, Clone)]
 pub struct ProviderRow {
@@ -96,10 +95,7 @@ pub fn database_url() -> String {
 }
 
 pub async fn connect(url: &str) -> Result<PgPool, sqlx::Error> {
-    PgPoolOptions::new()
-        .max_connections(5)
-        .connect(url)
-        .await
+    PgPoolOptions::new().max_connections(5).connect(url).await
 }
 
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
@@ -126,33 +122,30 @@ pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
 }
 
 pub async fn load(pool: &PgPool) -> Result<Snapshot, sqlx::Error> {
-    let providers = sqlx::query(
-        "SELECT id, name, kind, base_url, api_key FROM providers ORDER BY name",
-    )
-    .fetch_all(pool)
-    .await?
-    .into_iter()
-    .map(|row| ProviderRow {
-        id: row.get("id"),
-        name: row.get("name"),
-        kind: row.get("kind"),
-        base_url: row.get("base_url"),
-        api_key: row.get("api_key"),
-    })
-    .collect();
+    let providers =
+        sqlx::query("SELECT id, name, kind, base_url, api_key FROM providers ORDER BY name")
+            .fetch_all(pool)
+            .await?
+            .into_iter()
+            .map(|row| ProviderRow {
+                id: row.get("id"),
+                name: row.get("name"),
+                kind: row.get("kind"),
+                base_url: row.get("base_url"),
+                api_key: row.get("api_key"),
+            })
+            .collect();
 
-    let models = sqlx::query(
-        "SELECT id, provider_id, name FROM models ORDER BY name",
-    )
-    .fetch_all(pool)
-    .await?
-    .into_iter()
-    .map(|row| ModelRow {
-        id: row.get("id"),
-        provider_id: row.get("provider_id"),
-        name: row.get("name"),
-    })
-    .collect();
+    let models = sqlx::query("SELECT id, provider_id, name FROM models ORDER BY name")
+        .fetch_all(pool)
+        .await?
+        .into_iter()
+        .map(|row| ModelRow {
+            id: row.get("id"),
+            provider_id: row.get("provider_id"),
+            name: row.get("name"),
+        })
+        .collect();
 
     let settings = sqlx::query("SELECT active_model_id, system_prompt FROM settings WHERE id = 1")
         .fetch_optional(pool)
@@ -220,24 +213,20 @@ pub async fn apply(pool: &PgPool, op: DbOp) -> Result<Snapshot, sqlx::Error> {
         }
         DbOp::NewProvider { name } => {
             let id = Uuid::new_v4();
-            sqlx::query(
-                "INSERT INTO providers (id, name, kind) VALUES ($1, $2, 'grok')",
-            )
-            .bind(id)
-            .bind(name)
-            .execute(pool)
-            .await?;
+            sqlx::query("INSERT INTO providers (id, name, kind) VALUES ($1, $2, 'grok')")
+                .bind(id)
+                .bind(name)
+                .execute(pool)
+                .await?;
         }
         DbOp::NewModel { provider_id, name } => {
             let id = Uuid::new_v4();
-            sqlx::query(
-                "INSERT INTO models (id, provider_id, name) VALUES ($1, $2, $3)",
-            )
-            .bind(id)
-            .bind(provider_id)
-            .bind(name)
-            .execute(pool)
-            .await?;
+            sqlx::query("INSERT INTO models (id, provider_id, name) VALUES ($1, $2, $3)")
+                .bind(id)
+                .bind(provider_id)
+                .bind(name)
+                .execute(pool)
+                .await?;
         }
         DbOp::RenameProvider { id, name } => {
             sqlx::query("UPDATE providers SET name = $2 WHERE id = $1")
@@ -331,12 +320,11 @@ async fn replace_models(
         .map(|row| (row.get("id"), row.get("name")))
         .collect();
 
-    let active: Option<Uuid> = sqlx::query_scalar::<_, Option<Uuid>>(
-        "SELECT active_model_id FROM settings WHERE id = 1",
-    )
-    .fetch_optional(pool)
-    .await?
-    .flatten();
+    let active: Option<Uuid> =
+        sqlx::query_scalar::<_, Option<Uuid>>("SELECT active_model_id FROM settings WHERE id = 1")
+            .fetch_optional(pool)
+            .await?
+            .flatten();
     let active_was_ours = existing.iter().any(|(id, _)| Some(*id) == active);
     let active_name = existing
         .iter()
@@ -366,17 +354,14 @@ async fn replace_models(
 
     if active_was_ours {
         let keep = active_name.filter(|n| names.iter().any(|x| x == n));
-        let chosen = keep
-            .as_deref()
-            .or_else(|| pick_preferred(names));
+        let chosen = keep.as_deref().or_else(|| pick_preferred(names));
         if let Some(name) = chosen {
-            let id: Option<Uuid> = sqlx::query_scalar(
-                "SELECT id FROM models WHERE provider_id = $1 AND name = $2",
-            )
-            .bind(provider_id)
-            .bind(name)
-            .fetch_optional(pool)
-            .await?;
+            let id: Option<Uuid> =
+                sqlx::query_scalar("SELECT id FROM models WHERE provider_id = $1 AND name = $2")
+                    .bind(provider_id)
+                    .bind(name)
+                    .fetch_optional(pool)
+                    .await?;
             if let Some(id) = id {
                 set_active(pool, Some(id)).await?;
             }
@@ -463,21 +448,13 @@ mod tests {
         };
         migrate(&pool).await.expect("migrate");
         let snap = load(&pool).await.expect("load");
-        assert!(
-            snap.providers.iter().any(|p| p.kind == "grok"),
-            "seed grok"
-        );
+        assert!(snap.providers.iter().any(|p| p.kind == "grok"), "seed grok");
         assert!(snap.active_model().is_some());
 
         let name = format!("test-{}", Uuid::new_v4());
-        let snap = apply(
-            &pool,
-            DbOp::NewProvider {
-                name: name.clone(),
-            },
-        )
-        .await
-        .expect("new provider");
+        let snap = apply(&pool, DbOp::NewProvider { name: name.clone() })
+            .await
+            .expect("new provider");
         let id = snap
             .providers
             .iter()

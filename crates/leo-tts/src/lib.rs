@@ -1,4 +1,4 @@
-use leo_audio::{sine_beep, ML_RATE};
+use leo_audio::{ML_RATE, sine_beep};
 use thiserror::Error;
 
 #[derive(Debug, Error)]

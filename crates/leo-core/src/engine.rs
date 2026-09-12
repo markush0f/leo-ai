@@ -1,7 +1,7 @@
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::Duration;
 
-use leo_audio::{play_beep, AudioFrame, Capture, Player, ML_RATE};
+use leo_audio::{AudioFrame, Capture, ML_RATE, Player, play_beep};
 use leo_stt::SttEngine;
 use leo_tts::TtsEngine;
 use leo_vad::{Vad, VadConfig};

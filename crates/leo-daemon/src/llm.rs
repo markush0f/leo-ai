@@ -10,11 +10,7 @@ pub struct BlockingLlm {
 
 impl BlockingLlm {
     pub fn new(client: Client, system: String, rt: Handle) -> Self {
-        Self {
-            client,
-            system,
-            rt,
-        }
+        Self { client, system, rt }
     }
 }
 

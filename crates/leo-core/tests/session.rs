@@ -16,9 +16,10 @@ fn listen_speech_endpoint_transcribe() {
     assert_eq!(s.state, State::Listening);
     let (_a, ev) = s.on_frame(&frame(0.2), VadEvent::Speech);
     assert_eq!(s.state, State::Recording);
-    assert!(ev
-        .iter()
-        .any(|e| matches!(e, SessionEvent::State(State::Recording))));
+    assert!(
+        ev.iter()
+            .any(|e| matches!(e, SessionEvent::State(State::Recording)))
+    );
     let (actions, _) = s.on_frame(&frame(0.0), VadEvent::SpeechEnded);
     assert!(matches!(actions[0], Action::Transcribe(_)));
     assert_eq!(s.state, State::Transcribing);
@@ -48,16 +49,20 @@ fn transcript_goes_to_llm_then_speech() {
     let (actions, events) = s.on_transcript(Some("qué hora es".into()));
     assert_eq!(s.state, State::Thinking);
     assert!(matches!(actions[0], Action::AskLlm(ref t) if t == "qué hora es"));
-    assert!(events
-        .iter()
-        .any(|e| matches!(e, SessionEvent::Transcript(t) if t == "qué hora es")));
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, SessionEvent::Transcript(t) if t == "qué hora es"))
+    );
 
     let (actions, events) = s.on_llm_reply("las tres".into());
     assert_eq!(s.state, State::Speaking);
     assert!(matches!(actions[0], Action::Synthesize(ref t) if t == "las tres"));
-    assert!(events
-        .iter()
-        .any(|e| matches!(e, SessionEvent::Reply(t) if t == "las tres")));
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, SessionEvent::Reply(t) if t == "las tres"))
+    );
 }
 
 #[test]

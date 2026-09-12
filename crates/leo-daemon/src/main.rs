@@ -1,8 +1,8 @@
 mod config;
 mod llm;
 
-use leo_core::{spawn_engine, Command, LlmEngine, NullLlm, SessionEvent};
-use leo_ipc::{bind, read_request, socket_path, write_response, Request, Response};
+use leo_core::{Command, LlmEngine, NullLlm, SessionEvent, spawn_engine};
+use leo_ipc::{Request, Response, bind, read_request, socket_path, write_response};
 use leo_llm::{Client, ProviderId};
 use leo_stt::{GrokStt, NullStt, SttEngine};
 use leo_tts::NullTts;
@@ -12,7 +12,7 @@ use tracing_subscriber::EnvFilter;
 
 use crate::llm::BlockingLlm;
 
-use crate::config::{ensure_dirs, FileConfig};
+use crate::config::{FileConfig, ensure_dirs};
 
 #[tokio::main]
 async fn main() {

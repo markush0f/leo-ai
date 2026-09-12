@@ -29,9 +29,7 @@ pub enum Outcome {
 pub fn parse_command(text: &str) -> Option<(&str, &str)> {
     let t = text.trim();
     let rest = t.strip_prefix('/')?;
-    let (cmd, args) = rest
-        .split_once(char::is_whitespace)
-        .unwrap_or((rest, ""));
+    let (cmd, args) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
     let cmd = cmd.split('@').next().unwrap_or(cmd);
     if cmd.is_empty() {
         return None;
@@ -90,7 +88,10 @@ fn command_model(snap: &Snapshot, args: &str) -> Outcome {
     }
     let hits = match_models(snap, args);
     match hits.len() {
-        0 => Outcome::Text(format!("no hay modelo «{args}»\n{}", list_models(snap, None))),
+        0 => Outcome::Text(format!(
+            "no hay modelo «{args}»\n{}",
+            list_models(snap, None)
+        )),
         1 => {
             let m = hits[0];
             let provider = provider_name(snap, m.provider_id);
@@ -274,11 +275,7 @@ pub fn parse_allow_users(raw: &str) -> Vec<i64> {
     raw.split(|c: char| c == ',' || c.is_whitespace())
         .filter_map(|s| {
             let s = s.trim();
-            if s.is_empty() {
-                None
-            } else {
-                s.parse().ok()
-            }
+            if s.is_empty() { None } else { s.parse().ok() }
         })
         .collect()
 }
@@ -351,7 +348,10 @@ mod tests {
         let mut session = Session::default();
         let snap = snap();
         match on_text(&mut session, &snap, "/model grok-4.5", true) {
-            Outcome::Db { op: DbOp::ActivateModel(id), note } => {
+            Outcome::Db {
+                op: DbOp::ActivateModel(id),
+                note,
+            } => {
                 assert_eq!(id, Uuid::from_u128(3));
                 assert!(note.contains("grok-4.5"));
             }

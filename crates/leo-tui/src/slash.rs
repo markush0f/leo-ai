@@ -77,9 +77,7 @@ impl SlashItem {
             Self::Header(_) => String::new(),
             Self::Command { key, hint, .. } => format!("{key} {hint}"),
             Self::Provider { name, .. } => name.clone(),
-            Self::Model {
-                name, provider, ..
-            } => format!("{name} {provider}"),
+            Self::Model { name, provider, .. } => format!("{name} {provider}"),
             Self::Config => "config configuración settings".into(),
             Self::System => "sistema system prompt".into(),
             Self::Clear => "limpiar clear borrar".into(),
@@ -292,8 +290,18 @@ mod tests {
     #[test]
     fn root_shows_commands() {
         let items = items(&snap(), "/", None);
-        assert!(items.iter().any(|i| matches!(i, SlashItem::Command { key: "model", .. })));
-        assert!(items.iter().any(|i| matches!(i, SlashItem::Command { key: "providers", .. })));
+        assert!(
+            items
+                .iter()
+                .any(|i| matches!(i, SlashItem::Command { key: "model", .. }))
+        );
+        assert!(items.iter().any(|i| matches!(
+            i,
+            SlashItem::Command {
+                key: "providers",
+                ..
+            }
+        )));
         assert!(!items.iter().any(|i| matches!(i, SlashItem::Model { .. })));
     }
 
@@ -301,16 +309,36 @@ mod tests {
     fn model_lists_all_models() {
         let items = items(&snap(), "/model", None);
         assert!(matches!(&items[0], SlashItem::Header(h) if h == "modelos"));
-        assert!(items.iter().any(|i| matches!(i, SlashItem::Model { name, .. } if name == "grok-4.6")));
-        assert!(items.iter().any(|i| matches!(i, SlashItem::Model { name, .. } if name == "gpt-4.1")));
-        assert!(!items.iter().any(|i| matches!(i, SlashItem::Provider { .. })));
+        assert!(
+            items
+                .iter()
+                .any(|i| matches!(i, SlashItem::Model { name, .. } if name == "grok-4.6"))
+        );
+        assert!(
+            items
+                .iter()
+                .any(|i| matches!(i, SlashItem::Model { name, .. } if name == "gpt-4.1"))
+        );
+        assert!(
+            !items
+                .iter()
+                .any(|i| matches!(i, SlashItem::Provider { .. }))
+        );
     }
 
     #[test]
     fn providers_lists_only_providers() {
         let items = items(&snap(), "/providers", None);
-        assert!(items.iter().any(|i| matches!(i, SlashItem::Header(h) if h == "proveedores")));
-        assert!(items.iter().any(|i| matches!(i, SlashItem::Provider { name, .. } if name == "gpt")));
+        assert!(
+            items
+                .iter()
+                .any(|i| matches!(i, SlashItem::Header(h) if h == "proveedores"))
+        );
+        assert!(
+            items
+                .iter()
+                .any(|i| matches!(i, SlashItem::Provider { name, .. } if name == "gpt"))
+        );
         assert!(!items.iter().any(|i| matches!(i, SlashItem::Model { .. })));
     }
 
@@ -319,16 +347,36 @@ mod tests {
         let snap = snap();
         let gpt = snap.providers.iter().find(|p| p.name == "gpt").unwrap().id;
         let items = items(&snap, "/providers", Some(gpt));
-        assert!(items.iter().any(|i| matches!(i, SlashItem::Header(h) if h.contains("gpt"))));
-        assert!(items.iter().any(|i| matches!(i, SlashItem::Model { name, .. } if name == "gpt-4.1")));
-        assert!(!items.iter().any(|i| matches!(i, SlashItem::Model { name, .. } if name == "grok-4.6")));
+        assert!(
+            items
+                .iter()
+                .any(|i| matches!(i, SlashItem::Header(h) if h.contains("gpt")))
+        );
+        assert!(
+            items
+                .iter()
+                .any(|i| matches!(i, SlashItem::Model { name, .. } if name == "gpt-4.1"))
+        );
+        assert!(
+            !items
+                .iter()
+                .any(|i| matches!(i, SlashItem::Model { name, .. } if name == "grok-4.6"))
+        );
     }
 
     #[test]
     fn model_filter() {
         let items = items(&snap(), "/model grok-4.5", None);
-        assert!(items.iter().any(|i| matches!(i, SlashItem::Model { name, .. } if name == "grok-4.5")));
-        assert!(!items.iter().any(|i| matches!(i, SlashItem::Model { name, .. } if name == "gpt-4.1")));
+        assert!(
+            items
+                .iter()
+                .any(|i| matches!(i, SlashItem::Model { name, .. } if name == "grok-4.5"))
+        );
+        assert!(
+            !items
+                .iter()
+                .any(|i| matches!(i, SlashItem::Model { name, .. } if name == "gpt-4.1"))
+        );
     }
 
     #[test]

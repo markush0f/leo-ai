@@ -105,7 +105,8 @@ fn default_provider() -> String {
 }
 
 fn default_system() -> String {
-    "Eres Leo, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta.".into()
+    "Eres Leo, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta."
+        .into()
 }
 
 impl Default for LlmSection {

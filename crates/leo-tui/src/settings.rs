@@ -2,20 +2,42 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use leo_llm::ProviderId;
 use uuid::Uuid;
 
-use leo_store::{DbOp, Snapshot};
 use crate::input::LineEdit;
+use leo_store::{DbOp, Snapshot};
 
 #[derive(Clone, Debug)]
 pub enum Row {
     Header(String),
-    Provider { id: Uuid, name: String, kind: String, active: bool },
-    Model { id: Uuid, name: String, active: bool },
+    Provider {
+        id: Uuid,
+        name: String,
+        kind: String,
+        active: bool,
+    },
+    Model {
+        id: Uuid,
+        name: String,
+        active: bool,
+    },
     NewProvider,
-    NewModel { provider_id: Uuid },
-    Kind { provider_id: Uuid, kind: String },
-    ApiKey { provider_id: Uuid, status: String },
-    BaseUrl { provider_id: Uuid, url: String },
-    System { preview: String },
+    NewModel {
+        provider_id: Uuid,
+    },
+    Kind {
+        provider_id: Uuid,
+        kind: String,
+    },
+    ApiKey {
+        provider_id: Uuid,
+        status: String,
+    },
+    BaseUrl {
+        provider_id: Uuid,
+        url: String,
+    },
+    System {
+        preview: String,
+    },
 }
 
 impl Row {
@@ -84,10 +106,7 @@ impl SettingsState {
             });
             rows.push(Row::BaseUrl {
                 provider_id: provider.id,
-                url: provider
-                    .base_url
-                    .clone()
-                    .unwrap_or_else(|| "—".into()),
+                url: provider.base_url.clone().unwrap_or_else(|| "—".into()),
             });
         } else {
             rows.push(Row::Header("modelos".into()));
@@ -179,16 +198,17 @@ impl SettingsState {
                 kind: next_kind(kind).into(),
             }),
             Row::ApiKey { provider_id, .. } => {
-                self.edit = Some((
-                    EditTarget::ApiKey { id: *provider_id },
-                    LineEdit::default(),
-                ));
+                self.edit = Some((EditTarget::ApiKey { id: *provider_id }, LineEdit::default()));
                 None
             }
             Row::BaseUrl {
                 provider_id, url, ..
             } => {
-                let initial = if url == "—" { String::new() } else { url.clone() };
+                let initial = if url == "—" {
+                    String::new()
+                } else {
+                    url.clone()
+                };
                 self.edit = Some((
                     EditTarget::BaseUrl { id: *provider_id },
                     LineEdit::from(initial),
@@ -272,7 +292,12 @@ impl SettingsState {
 }
 
 fn submit_edit(target: EditTarget, text: String) -> Option<DbOp> {
-    if text.is_empty() && !matches!(target, EditTarget::ApiKey { .. } | EditTarget::BaseUrl { .. } | EditTarget::System) {
+    if text.is_empty()
+        && !matches!(
+            target,
+            EditTarget::ApiKey { .. } | EditTarget::BaseUrl { .. } | EditTarget::System
+        )
+    {
         return None;
     }
     match target {

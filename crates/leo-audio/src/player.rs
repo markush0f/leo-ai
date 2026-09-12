@@ -1,10 +1,10 @@
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Sender};
-use std::sync::Arc;
 use std::thread;
 
 use crate::error::AudioError;
-use crate::pcm::{resample_mono, samples_per_frame, DEVICE_RATE, ML_RATE};
+use crate::pcm::{DEVICE_RATE, ML_RATE, resample_mono, samples_per_frame};
 use crate::pulse::PulseStream;
 
 const APP: &str = "leo-ai";

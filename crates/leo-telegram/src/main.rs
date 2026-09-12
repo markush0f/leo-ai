@@ -11,7 +11,7 @@ use tracing_subscriber::EnvFilter;
 
 use crate::config::BotConfig;
 use crate::tg::Telegram;
-use leo_telegram::{allowed, cap_history, on_text, Outcome, Session};
+use leo_telegram::{Outcome, Session, allowed, cap_history, on_text};
 
 #[derive(Parser)]
 #[command(name = "leo-telegram", about = "Pregúntale al LLM desde Telegram")]
@@ -179,7 +179,9 @@ async fn reply_llm(
     let req = ChatRequest::with_history(&snap.system, session.history.clone());
     match leo_tools::chat(&client, req, tools).await {
         Ok(resp) => {
-            session.history.push(ChatMessage::assistant(resp.text.clone()));
+            session
+                .history
+                .push(ChatMessage::assistant(resp.text.clone()));
             cap_history(&mut session.history);
             tg.send_text(chat_id, &resp.text).await?;
         }

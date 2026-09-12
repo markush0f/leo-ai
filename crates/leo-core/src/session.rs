@@ -1,4 +1,4 @@
-use leo_audio::{rms, AudioFrame};
+use leo_audio::{AudioFrame, rms};
 use leo_vad::VadEvent;
 use leo_wake::WakeHit;
 
@@ -116,7 +116,11 @@ impl Session {
         )
     }
 
-    pub fn on_frame(&mut self, frame: &AudioFrame, vad: VadEvent) -> (Vec<Action>, Vec<SessionEvent>) {
+    pub fn on_frame(
+        &mut self,
+        frame: &AudioFrame,
+        vad: VadEvent,
+    ) -> (Vec<Action>, Vec<SessionEvent>) {
         match self.state {
             State::Idle => (Vec::new(), Vec::new()),
             State::Listening => self.on_listening(frame, vad),
@@ -246,10 +250,7 @@ impl Session {
             self.utterance_frames = 1;
             return (
                 vec![Action::StopPlayback],
-                vec![
-                    SessionEvent::BargeIn,
-                    SessionEvent::State(State::Recording),
-                ],
+                vec![SessionEvent::BargeIn, SessionEvent::State(State::Recording)],
             );
         }
         (Vec::new(), Vec::new())

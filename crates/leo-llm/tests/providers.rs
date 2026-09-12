@@ -19,15 +19,17 @@ fn grok_is_default_xai_endpoint() {
 fn ollama_from_env_does_not_need_a_key() {
     let client = Client::from_env(ProviderId::Ollama).unwrap();
     assert_eq!(client.provider(), ProviderId::Ollama);
-    assert_eq!(ProviderId::Ollama.default_base_url(), "http://127.0.0.1:11434");
+    assert_eq!(
+        ProviderId::Ollama.default_base_url(),
+        "http://127.0.0.1:11434"
+    );
 }
 
 #[test]
 fn parses_ollama_tags() {
-    let names = leo_llm::parse_ollama_tags(
-        r#"{"models":[{"name":"gemma3:latest"},{"name":"gemma3:4b"}]}"#,
-    )
-    .unwrap();
+    let names =
+        leo_llm::parse_ollama_tags(r#"{"models":[{"name":"gemma3:latest"},{"name":"gemma3:4b"}]}"#)
+            .unwrap();
     assert_eq!(names, vec!["gemma3:latest", "gemma3:4b"]);
 }
 

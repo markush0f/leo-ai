@@ -1,4 +1,4 @@
-use leo_audio::{resample_mono, rms, DEVICE_RATE, ML_RATE};
+use leo_audio::{DEVICE_RATE, ML_RATE, resample_mono, rms};
 
 #[test]
 fn downsample_48k_is_exact_third() {

@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use leo_ipc::{send, socket_path, Request};
+use leo_ipc::{Request, send, socket_path};
 
 #[derive(Parser)]
 #[command(name = "leo-ctl", about = "Controla el daemon leo-ai")]

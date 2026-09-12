@@ -1,4 +1,4 @@
-use leo_audio::{samples_per_frame, ML_RATE};
+use leo_audio::{ML_RATE, samples_per_frame};
 use leo_vad::{Vad, VadConfig, VadEvent};
 
 #[test]

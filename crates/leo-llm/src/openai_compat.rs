@@ -144,20 +144,14 @@ pub fn parse_response(
         .as_ref()
         .and_then(|c| c.first())
         .and_then(|c| c.message.as_ref());
-    let tool_calls = message
-        .map(parse_tool_calls)
-        .unwrap_or_default();
-    let text = message
-        .and_then(|m| m.content.clone())
-        .unwrap_or_default();
+    let tool_calls = message.map(parse_tool_calls).unwrap_or_default();
+    let text = message.and_then(|m| m.content.clone()).unwrap_or_default();
     if text.is_empty() && tool_calls.is_empty() {
         return Err(LlmError::Empty(provider.as_str()));
     }
     Ok(ChatResponse {
         provider,
-        model: parsed
-            .model
-            .unwrap_or_else(|| fallback_model.to_string()),
+        model: parsed.model.unwrap_or_else(|| fallback_model.to_string()),
         text,
         tool_calls,
     })

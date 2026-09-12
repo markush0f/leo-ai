@@ -139,7 +139,11 @@ impl ChatMessage {
         }
     }
 
-    pub fn tool(id: impl Into<String>, name: impl Into<String>, content: impl Into<String>) -> Self {
+    pub fn tool(
+        id: impl Into<String>,
+        name: impl Into<String>,
+        content: impl Into<String>,
+    ) -> Self {
         Self {
             role: Role::Tool,
             content: content.into(),
@@ -172,10 +176,7 @@ impl ChatRequest {
         self
     }
 
-    pub fn with_history(
-        system: &str,
-        history: impl IntoIterator<Item = ChatMessage>,
-    ) -> Self {
+    pub fn with_history(system: &str, history: impl IntoIterator<Item = ChatMessage>) -> Self {
         let mut messages = Vec::new();
         if !system.is_empty() {
             messages.push(ChatMessage::system(system));

@@ -1,4 +1,4 @@
-use std::ffi::{c_char, c_int, c_void, CStr, CString};
+use std::ffi::{CStr, CString, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::error::AudioError;
@@ -117,8 +117,20 @@ impl PulseStream {
         Ok(Self { ptr })
     }
 
-    pub fn record(app: &str, device: &str, rate: u32, latency_bytes: u32) -> Result<Self, AudioError> {
-        Self::open(app, "micrófono", device, PA_STREAM_RECORD, rate, latency_bytes)
+    pub fn record(
+        app: &str,
+        device: &str,
+        rate: u32,
+        latency_bytes: u32,
+    ) -> Result<Self, AudioError> {
+        Self::open(
+            app,
+            "micrófono",
+            device,
+            PA_STREAM_RECORD,
+            rate,
+            latency_bytes,
+        )
     }
 
     pub fn playback(
@@ -127,14 +139,20 @@ impl PulseStream {
         rate: u32,
         latency_bytes: u32,
     ) -> Result<Self, AudioError> {
-        Self::open(app, "altavoces", device, PA_STREAM_PLAYBACK, rate, latency_bytes)
+        Self::open(
+            app,
+            "altavoces",
+            device,
+            PA_STREAM_PLAYBACK,
+            rate,
+            latency_bytes,
+        )
     }
 
     pub fn read(&self, buf: &mut [u8]) -> Result<(), AudioError> {
         let mut error = 0;
-        let rc = unsafe {
-            pa_simple_read(self.ptr, buf.as_mut_ptr().cast(), buf.len(), &mut error)
-        };
+        let rc =
+            unsafe { pa_simple_read(self.ptr, buf.as_mut_ptr().cast(), buf.len(), &mut error) };
         if rc < 0 {
             Err(AudioError::pulse(pulse_error(error)))
         } else {
@@ -144,9 +162,7 @@ impl PulseStream {
 
     pub fn write(&self, buf: &[u8]) -> Result<(), AudioError> {
         let mut error = 0;
-        let rc = unsafe {
-            pa_simple_write(self.ptr, buf.as_ptr().cast(), buf.len(), &mut error)
-        };
+        let rc = unsafe { pa_simple_write(self.ptr, buf.as_ptr().cast(), buf.len(), &mut error) };
         if rc < 0 {
             Err(AudioError::pulse(pulse_error(error)))
         } else {

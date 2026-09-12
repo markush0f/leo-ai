@@ -1,10 +1,10 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use leo_llm::{ChatMessage, ChatRequest, ChatResponse, LlmError};
 
-use leo_store::{DbOp, Snapshot};
 use crate::input::LineEdit;
 use crate::settings::SettingsState;
 use crate::slash::{self, SlashItem};
+use leo_store::{DbOp, Snapshot};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -278,7 +278,9 @@ impl App {
                 self.slash_cursor = 0;
                 self.clamp_slash();
             }
-            SlashItem::Command { key: "providers", .. } => {
+            SlashItem::Command {
+                key: "providers", ..
+            } => {
                 self.slash_pick = None;
                 self.input = LineEdit::from("/providers");
                 self.slash_cursor = 0;
@@ -365,8 +367,8 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leo_store::stub_snapshot;
     use leo_llm::Role;
+    use leo_store::stub_snapshot;
 
     fn app(system: &str) -> App {
         App::new(stub_snapshot("grok", "grok-4.6", system))
@@ -466,13 +468,20 @@ mod tests {
         let mut app = app("x");
         app.input.paste("/model grok-4.6");
         let items = app.slash_items();
-        assert!(items.iter().any(|i| matches!(i, SlashItem::Model { name, .. } if name == "grok-4.6")));
+        assert!(
+            items
+                .iter()
+                .any(|i| matches!(i, SlashItem::Model { name, .. } if name == "grok-4.6"))
+        );
         app.slash_cursor = items
             .iter()
             .position(|i| matches!(i, SlashItem::Model { name, .. } if name == "grok-4.6"))
             .unwrap();
         app.on_key(KeyEvent::from(KeyCode::Enter));
-        assert!(matches!(app.take_pending_db(), Some(DbOp::ActivateModel(_))));
+        assert!(matches!(
+            app.take_pending_db(),
+            Some(DbOp::ActivateModel(_))
+        ));
     }
 
     #[test]
@@ -486,9 +495,16 @@ mod tests {
             .unwrap();
         app.on_key(KeyEvent::from(KeyCode::Enter));
         assert!(app.slash_picking());
-        assert!(app.slash_items().iter().any(|i| matches!(i, SlashItem::Model { name, .. } if name == "grok-4.6")));
+        assert!(
+            app.slash_items()
+                .iter()
+                .any(|i| matches!(i, SlashItem::Model { name, .. } if name == "grok-4.6"))
+        );
         app.on_key(KeyEvent::from(KeyCode::Enter));
-        assert!(matches!(app.take_pending_db(), Some(DbOp::ActivateModel(_))));
+        assert!(matches!(
+            app.take_pending_db(),
+            Some(DbOp::ActivateModel(_))
+        ));
         assert!(!app.slash_picking());
     }
 }

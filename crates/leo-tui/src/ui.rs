@@ -1,8 +1,8 @@
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 use crate::app::{App, Kind, Screen};
 use crate::input::LineEdit;
@@ -27,11 +27,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
 fn draw_chat(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
     let slash = app.slash_open();
-    let items = if slash {
-        app.slash_items()
-    } else {
-        Vec::new()
-    };
+    let items = if slash { app.slash_items() } else { Vec::new() };
     let drop_h = if slash {
         items.len().clamp(1, 12) as u16 + 1
     } else {
@@ -292,12 +288,11 @@ fn bubble_lines(kind: Kind, text: &str, width: usize) -> Vec<Line<'static>> {
     let indent = "  ";
     let inner = width.saturating_sub(indent.chars().count()).max(8);
     let mut lines = vec![Line::from(Span::styled(label, label_style))];
-    lines.extend(wrap(text, inner).into_iter().map(|chunk| {
-        Line::from(vec![
-            Span::raw(indent),
-            Span::styled(chunk, body_style),
-        ])
-    }));
+    lines.extend(
+        wrap(text, inner)
+            .into_iter()
+            .map(|chunk| Line::from(vec![Span::raw(indent), Span::styled(chunk, body_style)])),
+    );
     lines
 }
 

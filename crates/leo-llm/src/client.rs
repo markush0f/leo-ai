@@ -21,11 +21,7 @@ impl Client {
     }
 
     pub fn ollama(host: impl Into<String>) -> Self {
-        Self::new(
-            ProviderId::Ollama,
-            None,
-            Some(ollama::origin(&host.into())),
-        )
+        Self::new(ProviderId::Ollama, None, Some(ollama::origin(&host.into())))
     }
 
     pub fn claude(api_key: impl Into<String>) -> Self {
@@ -98,10 +94,7 @@ impl Client {
     }
 
     pub async fn chat(&self, req: ChatRequest) -> Result<ChatResponse, LlmError> {
-        let model = req
-            .model
-            .as_deref()
-            .unwrap_or(self.default_model.as_str());
+        let model = req.model.as_deref().unwrap_or(self.default_model.as_str());
         match self.provider {
             ProviderId::Grok | ProviderId::Gpt => self.chat_openai(model, &req).await,
             ProviderId::Ollama => self.chat_ollama(model, &req).await,
@@ -109,13 +102,12 @@ impl Client {
         }
     }
 
-    async fn chat_openai(
-        &self,
-        model: &str,
-        req: &ChatRequest,
-    ) -> Result<ChatResponse, LlmError> {
+    async fn chat_openai(&self, model: &str, req: &ChatRequest) -> Result<ChatResponse, LlmError> {
         let url = format!("{}/chat/completions", self.base_url);
-        let mut builder = self.http.post(&url).json(&openai_compat::build_body(model, req)?);
+        let mut builder = self
+            .http
+            .post(&url)
+            .json(&openai_compat::build_body(model, req)?);
         if let Some(key) = &self.api_key {
             builder = builder.bearer_auth(key);
         }
@@ -128,11 +120,7 @@ impl Client {
         openai_compat::parse_response(self.provider, model, &body)
     }
 
-    async fn chat_ollama(
-        &self,
-        model: &str,
-        req: &ChatRequest,
-    ) -> Result<ChatResponse, LlmError> {
+    async fn chat_ollama(&self, model: &str, req: &ChatRequest) -> Result<ChatResponse, LlmError> {
         let url = format!("{}/api/chat", ollama::origin(&self.base_url));
         let response = self
             .http
@@ -163,11 +151,7 @@ impl Client {
         ollama::parse_tags(&body)
     }
 
-    async fn chat_claude(
-        &self,
-        model: &str,
-        req: &ChatRequest,
-    ) -> Result<ChatResponse, LlmError> {
+    async fn chat_claude(&self, model: &str, req: &ChatRequest) -> Result<ChatResponse, LlmError> {
         let url = format!("{}/messages", self.base_url);
         let mut builder = self
             .http
