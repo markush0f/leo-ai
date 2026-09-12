@@ -13,6 +13,8 @@ struct OpenAiRequest<'a> {
     max_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     tools: Vec<OpenAiTool<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning_effort: Option<&'a str>,
 }
 
 #[derive(Serialize)]
@@ -77,6 +79,7 @@ pub fn build_body(model: &str, req: &ChatRequest) -> Result<serde_json::Value, L
         temperature: req.temperature,
         max_tokens: req.max_tokens,
         tools,
+        reasoning_effort: req.reasoning_effort.as_deref(),
     })?)
 }
 

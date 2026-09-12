@@ -161,6 +161,8 @@ pub struct ChatRequest {
     pub temperature: Option<f32>,
     pub max_tokens: Option<u32>,
     pub tools: Vec<ToolSpec>,
+    /// Grok 4.5/4.6: `low` | `medium` | `high` | `xhigh`. No se puede apagar del todo.
+    pub reasoning_effort: Option<String>,
 }
 
 impl ChatRequest {

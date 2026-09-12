@@ -84,6 +84,15 @@ fn openai_body_includes_messages() {
     assert_eq!(body["model"], "grok-4.6");
     assert_eq!(body["messages"][0]["role"], "system");
     assert_eq!(body["messages"][1]["content"], "hola");
+    assert!(body.get("reasoning_effort").is_none());
+}
+
+#[test]
+fn openai_body_sets_reasoning_effort() {
+    let mut req = ChatRequest::user("hola");
+    req.reasoning_effort = Some("low".into());
+    let body = leo_llm::protocol::openai_body("grok-4.6", &req).unwrap();
+    assert_eq!(body["reasoning_effort"], "low");
 }
 
 #[test]
