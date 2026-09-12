@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*"]
+members = ["crates/leo-*", "crates/tools/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -20,6 +20,8 @@ tokio = { version = "1", features = [
     "sync",
     "time",
     "signal",
+    "fs",
+    "process",
 ] }
 clap = { version = "4", features = ["derive"] }
 crossterm = { version = "0.28", features = ["event-stream"] }
