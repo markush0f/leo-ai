@@ -1,0 +1,25 @@
+[package]
+name = "leo-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Chat y catálogo de Leo en una ventana"
+
+[lib]
+name = "leo_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+leo-ipc.workspace = true
+leo-llm.workspace = true
+leo-store.workspace = true
+leo-tools.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+uuid.workspace = true

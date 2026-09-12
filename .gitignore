@@ -1,3 +1,8 @@
 /target
 .env
 .codegraph/
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/decision/
+desktop/dist
+desktop/src-tauri/target
