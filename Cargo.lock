@@ -1117,12 +1117,117 @@ name = "leo-tools"
 version = "0.1.0"
 dependencies = [
  "leo-llm",
+ "leo-tools-appflowy",
+ "leo-tools-files",
+ "leo-tools-github",
+ "leo-tools-google",
+ "leo-tools-home-assistant",
+ "leo-tools-shell",
+ "leo-tools-system",
+ "leo-tools-weather",
  "reqwest",
  "serde",
  "serde_json",
  "thiserror",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "leo-tools-appflowy"
+version = "0.1.0"
+dependencies = [
+ "leo-llm",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "leo-tools-files"
+version = "0.1.0"
+dependencies = [
+ "leo-llm",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "leo-tools-github"
+version = "0.1.0"
+dependencies = [
+ "leo-llm",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "leo-tools-google"
+version = "0.1.0"
+dependencies = [
+ "leo-llm",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "leo-tools-home-assistant"
+version = "0.1.0"
+dependencies = [
+ "leo-llm",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "leo-tools-notion"
+version = "0.1.0"
+
+[[package]]
+name = "leo-tools-shell"
+version = "0.1.0"
+dependencies = [
+ "leo-llm",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "leo-tools-spotify"
+version = "0.1.0"
+
+[[package]]
+name = "leo-tools-system"
+version = "0.1.0"
+dependencies = [
+ "leo-llm",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "leo-tools-weather"
+version = "0.1.0"
+dependencies = [
+ "leo-llm",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

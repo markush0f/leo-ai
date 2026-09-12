@@ -49,3 +49,11 @@ leo-core = { path = "crates/leo-core" }
 leo-ipc = { path = "crates/leo-ipc" }
 leo-store = { path = "crates/leo-store" }
 leo-tools = { path = "crates/leo-tools" }
+leo-tools-appflowy = { path = "crates/tools/leo-tools-appflowy" }
+leo-tools-files = { path = "crates/tools/leo-tools-files" }
+leo-tools-github = { path = "crates/tools/leo-tools-github" }
+leo-tools-google = { path = "crates/tools/leo-tools-google" }
+leo-tools-home-assistant = { path = "crates/tools/leo-tools-home-assistant" }
+leo-tools-shell = { path = "crates/tools/leo-tools-shell" }
+leo-tools-system = { path = "crates/tools/leo-tools-system" }
+leo-tools-weather = { path = "crates/tools/leo-tools-weather" }
