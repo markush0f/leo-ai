@@ -1,0 +1,16 @@
+[package]
+name = "leo-tools-files"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tools de sistema de archivos"
+
+[dependencies]
+leo-llm.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
