@@ -1,0 +1,17 @@
+[package]
+name = "leo-tools-appflowy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tools de AppFlowy Cloud"
+
+[dependencies]
+leo-llm.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync", "time"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
