@@ -1,3 +1,8 @@
+//! PostgreSQL catalog shared by the chat interfaces.
+//!
+//! Persists provider credentials, model selection, and system prompts, but not
+//! conversations. The schema is embedded from `deploy/postgres/init.sql`.
+
 use leo_llm::{Client, LlmError, ProviderId};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgPool, Row};
@@ -24,6 +29,10 @@ pub struct ModelRow {
 }
 
 #[derive(Debug, Clone)]
+/// In-memory catalog and settings snapshot; does not contain chat history.
+///
+/// Contains provider credentials. Interfaces should convert it to presentation
+/// DTOs rather than exposing those keys directly.
 pub struct Snapshot {
     pub providers: Vec<ProviderRow>,
     pub models: Vec<ModelRow>,
@@ -32,6 +41,7 @@ pub struct Snapshot {
 }
 
 #[derive(Debug, Clone)]
+/// Persistent catalog mutation shared by chat interfaces.
 pub enum DbOp {
     ActivateProvider(Uuid),
     ActivateModel(Uuid),
@@ -73,6 +83,9 @@ impl Snapshot {
         }
     }
 
+    /// Builds the active model's client with stored or environment credentials.
+    ///
+    /// Fails if the model, provider, or required key is missing; performs no network I/O.
     pub fn client(&self) -> Result<Client, LlmError> {
         let model = self
             .active_model()
@@ -88,6 +101,7 @@ impl Snapshot {
     }
 }
 
+/// Resolves `LEO_DATABASE_URL`, then `DATABASE_URL`, then the local default URL.
 pub fn database_url() -> String {
     std::env::var("LEO_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
@@ -166,6 +180,10 @@ pub async fn load(pool: &PgPool) -> Result<Snapshot, sqlx::Error> {
     })
 }
 
+/// Applies a mutation and reloads the catalog.
+///
+/// Provider activation, URL changes, and kind changes attempt an Ollama sync;
+/// sync failure does not prevent returning the persisted catalog.
 pub async fn apply(pool: &PgPool, op: DbOp) -> Result<Snapshot, sqlx::Error> {
     let should_sync = matches!(
         op,
