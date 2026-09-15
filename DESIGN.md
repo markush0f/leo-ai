@@ -1,6 +1,6 @@
 ---
 name: Leo
-description: Chat tipo Grok — rail, canvas vacío, composer — en claro y oscuro.
+description: Grok-style chat — rail, empty canvas, composer — in light and dark themes.
 colors:
   bg: "#0c0c0d"
   sidebar: "#141416"

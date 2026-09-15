@@ -24,7 +24,7 @@ One catalog (Postgres) and one tool registry feed every surface. The desktop app
 
 ## Operating Context
 
-- Chat and catalog live in Postgres (`docker compose up -d`).
+- The catalog lives in Postgres (`docker compose up -d`); chat history stays in memory.
 - Voice is a separate process (`leo-daemon`) controlled over a Unix socket (`leo-ctl`: status, listen, stop, speak, shutdown).
 - Tools register from the environment (files, shell, system, weather always; AppFlowy/GitHub/Google/Home Assistant when credentials exist).
 - Keys may sit in the catalog or in env (`XAI_API_KEY`, etc.).
@@ -42,7 +42,7 @@ Confirmed for this surface:
 ## Brand Commitments
 
 - Name: Leo.
-- Voice: Spanish, claro y directo.
+- Voice: Spanish, clear and direct.
 - Existing surfaces: TUI (`leo`), Telegram (`leo-telegram`), voice daemon (`leo-daemon` + `leo-ctl`).
 
 ## Evidence on Hand
