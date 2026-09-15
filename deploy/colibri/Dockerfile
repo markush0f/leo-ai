@@ -13,7 +13,7 @@ RUN curl -fsSL \
     mkdir /opt/colibri && \
     tar -xzf /tmp/colibri.tar.gz -C /opt/colibri
 
-FROM debian:bookworm-slim AS runtime
+FROM debian:stable-slim AS runtime
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libgomp1 python3 && \

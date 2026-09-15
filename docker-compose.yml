@@ -5,19 +5,22 @@ services:
       dockerfile: deploy/colibri/Dockerfile
     image: leo-ai-colibri:1.11.0
     environment:
-      COLI_RAM: "${COLIBRI_RAM:-24}"
+      COLI_ALLOW_INSECURE_BIND: "1"
+      COLI_RAM: "${COLIBRI_RAM:-16}"
     ports:
       - "127.0.0.1:${COLIBRI_PORT:-8081}:5000"
     volumes:
-      - "${COLIBRI_MODEL_DIR:?define COLIBRI_MODEL_DIR con la ruta del modelo}:/model:ro"
+      - "${COLIBRI_MODEL_DIR:-${HOME}/models/olmoe-colibri}:/model"
     command:
       - serve
       - --host
       - 0.0.0.0
+      - --port
+      - "5000"
       - --model-id
-      - "${COLIBRI_MODEL_ID:-glm-5.2}"
+      - "${COLIBRI_MODEL_ID:-olmoe}"
       - --ram
-      - "${COLIBRI_RAM:-24}"
+      - "${COLIBRI_RAM:-16}"
     shm_size: "2gb"
     restart: unless-stopped
 
