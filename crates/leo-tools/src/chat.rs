@@ -6,6 +6,7 @@ use crate::registry::Registry;
 
 const MAX_ROUNDS: usize = 8;
 
+/// Runs a turn with the real client and resolves requested tool calls.
 pub async fn chat(
     client: &leo_llm::Client,
     req: ChatRequest,
@@ -14,6 +15,11 @@ pub async fn chat(
     run(|r| client.chat(r), req, tools).await
 }
 
+/// Chat loop with an injectable transport, also suitable for offline tests.
+///
+/// Executes tool calls in order and preserves their IDs in follow-up history.
+/// Eight responses that still request tools produce `LlmError::ToolLoop`.
+/// LLM failures abort the turn; tool failures return to the model as JSON content.
 pub async fn run<F, Fut>(
     mut chat: F,
     mut req: ChatRequest,

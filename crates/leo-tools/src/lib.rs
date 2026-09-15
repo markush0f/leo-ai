@@ -1,3 +1,9 @@
+//! Tool registration and execution during a chat turn.
+//!
+//! [`Registry::from_env`] gathers local tools and configured integrations.
+//! [`chat`] feeds their results back to the model until a final response or the
+//! round limit is reached. Each integration lives in a separate crate.
+
 mod args;
 mod catalog;
 mod chat;

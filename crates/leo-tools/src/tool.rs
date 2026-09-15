@@ -9,13 +9,19 @@ use crate::error::ToolError;
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+/// Contract connecting a model-visible function description to local execution.
 pub trait Tool: Send + Sync {
+    /// Name, description, and argument JSON Schema sent to the model.
     fn spec(&self) -> ToolSpec;
 
     fn name(&self) -> String {
         self.spec().name
     }
 
+    /// Executes JSON arguments and returns content for the model.
+    ///
+    /// Implementations validate arguments; the registry turns failures into
+    /// JSON results so the model can respond to them.
     fn invoke(
         &self,
         ctx: &Context,
@@ -28,6 +34,7 @@ type RunFn = dyn Fn(Context, serde_json::Value) -> BoxFuture<'static, Result<Str
     + Sync;
 
 #[derive(Clone)]
+/// Adapts an async function into a tool with shared ownership through `Arc`.
 pub struct DynTool {
     spec: ToolSpec,
     run: Arc<RunFn>,

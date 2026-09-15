@@ -8,6 +8,7 @@ use crate::error::ToolError;
 use crate::tool::{DynTool, Tool};
 
 #[derive(Clone, Default)]
+/// Cloneable catalog with shared tools; an empty registry offers no tools.
 pub struct Registry {
     ctx: Context,
     tools: Arc<Vec<DynTool>>,
@@ -21,6 +22,7 @@ impl Registry {
         }
     }
 
+    /// Registers local tools and integrations enabled by environment settings.
     pub fn from_env() -> Self {
         let mut b = Self::builder(Context::from_env());
         catalog::register(&mut b);
@@ -39,6 +41,7 @@ impl Registry {
         self.tools.iter().map(|t| t.name()).collect()
     }
 
+    /// Invokes the first matching name; failures are returned as JSON content.
     pub async fn call(&self, name: &str, args: serde_json::Value) -> String {
         match self.tools.iter().find(|t| t.name() == name) {
             Some(tool) => match tool.invoke(&self.ctx, args).await {
