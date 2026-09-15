@@ -1,7 +1,11 @@
+//! Bridge from the synchronous voice engine to the async provider client.
+
 use leo_core::LlmEngine;
 use leo_llm::{ChatRequest, Client};
 use tokio::runtime::Handle;
 
+/// Single-turn voice client: each request contains only system and current user text.
+/// Call from a blocking thread while the associated Tokio runtime remains active.
 pub struct BlockingLlm {
     client: Client,
     system: String,

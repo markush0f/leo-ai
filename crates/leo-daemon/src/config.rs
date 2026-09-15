@@ -138,6 +138,7 @@ impl Default for SttSection {
 }
 
 impl FileConfig {
+    /// Loads voice TOML, falling back to defaults if reading or parsing fails.
     pub fn load() -> Self {
         let path = config_path();
         let Ok(text) = std::fs::read_to_string(&path) else {
@@ -153,6 +154,7 @@ impl FileConfig {
         }
     }
 
+    /// Converts silence milliseconds into 20 ms frames, with a minimum of one frame.
     pub fn engine(&self) -> EngineConfig {
         let hangover_frames = (self.vad.hangover_ms / 20).max(1);
         EngineConfig {

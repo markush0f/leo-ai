@@ -1,3 +1,8 @@
+//! Voice daemon entry point and Unix-socket command server.
+//!
+//! Loads file-based voice settings, builds providers, and starts the engine.
+//! The voice LLM is independent of the PostgreSQL chat catalog and tool loop.
+
 mod config;
 mod llm;
 
