@@ -1,3 +1,8 @@
+//! Audio synthesis decoupled from playback.
+//!
+//! The available implementation, [`NullTts`], emits a confirmation tone;
+//! it does not turn text into intelligible speech.
+
 use leo_audio::{ML_RATE, sine_beep};
 use thiserror::Error;
 
@@ -7,17 +12,19 @@ pub enum TtsError {
     Failed(String),
 }
 
+/// Generated mono audio and its sample rate in hertz, ready for the player.
 pub struct Pcm {
     pub samples: Vec<f32>,
     pub sample_rate: u32,
 }
 
-/// Síntesis local. Piper/Kokoro se enchufan aquí; el player vive en `leo-audio`.
+/// Synthesis extension point for backends such as Piper or Kokoro; playback lives in `leo-audio`.
 pub trait TtsEngine: Send {
+    /// Synchronously generates the complete audio without playing it.
     fn synthesize(&self, text: &str) -> Result<Pcm, TtsError>;
 }
 
-/// Sin modelo: un beep cuya duración escala un poco con el texto.
+/// Model-free fallback: a beep whose duration grows with the text's byte length.
 pub struct NullTts;
 
 impl TtsEngine for NullTts {
