@@ -1,10 +1,22 @@
+//! Async filesystem tools returning JSON values for model consumption.
+//!
+//! Each operation exposes `spec` for its model-facing schema and `run` for typed
+//! execution. `leo-tools` resolves user paths and adapts JSON arguments to these APIs.
+
+/// Copies a file to a destination path.
 pub mod copy_file;
 mod error;
+/// Lists entries in a directory.
 pub mod list_directory;
+/// Moves or renames a filesystem entry.
 pub mod move_file;
+/// Reads file contents for inclusion in a tool result.
 pub mod read_file;
+/// Removes files or directories according to the requested mode.
 pub mod remove_file;
+/// Searches filesystem entries.
 pub mod search_files;
+/// Writes or appends text to a file.
 pub mod write_file;
 
 pub use error::Error;

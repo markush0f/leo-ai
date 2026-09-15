@@ -1,4 +1,12 @@
+//! Command and script execution with timeouts and captured output.
+//!
+//! Results include exit status, stdout, and stderr. Output is clipped after
+//! collection to 24,000 and 8,000 characters respectively; these limits do not
+//! bound the child's buffered output while it runs.
+
+/// Executes a shell command.
 pub mod execute_command;
+/// Executes a script through its selected interpreter.
 pub mod execute_script;
 
 use std::path::Path;
@@ -20,6 +28,8 @@ impl Error {
     }
 }
 
+/// Captures a child process and drops it on timeout with `kill_on_drop` enabled.
+/// A nonzero exit is a result with `ok: false`, not an execution error.
 pub(crate) async fn run_command(
     mut cmd: Command,
     timeout: Duration,
