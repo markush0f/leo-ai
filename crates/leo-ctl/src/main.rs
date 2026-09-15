@@ -1,3 +1,8 @@
+//! CLI adapter for the voice daemon's newline-delimited JSON protocol.
+//!
+//! Each invocation sends one request over the shared Unix socket, prints the
+//! response state, and exits unsuccessfully on transport or daemon errors.
+
 use clap::{Parser, Subcommand};
 use leo_ipc::{Request, send, socket_path};
 
@@ -10,15 +15,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Estado de la sesión
+    /// Show the session state.
     Status,
-    /// Empieza a escuchar (hotkey / “Leo”)
+    /// Start listening; suitable for a desktop keyboard shortcut.
     Listen,
-    /// Cancela la escucha o el habla
+    /// Request cancellation of listening or playback.
     Stop,
-    /// Reproduce texto (TTS o beep si no hay modelo)
+    /// Synthesize text, or play a beep when no speech model is configured.
     Speak { text: Vec<String> },
-    /// Apaga el daemon
+    /// Shut down the daemon.
     Shutdown,
 }
 

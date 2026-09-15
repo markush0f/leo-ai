@@ -1,3 +1,8 @@
+//! One-request/one-response JSON protocol over a Unix domain socket.
+//!
+//! Messages are newline-delimited. The daemon serves requests; CLI and desktop
+//! callers use [`send`] to control the voice session independently of chat.
+
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -17,6 +22,7 @@ pub enum IpcError {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "cmd", rename_all = "snake_case")]
+/// JSON command tagged with `cmd` and serialized using `snake_case` names.
 pub enum Request {
     Status,
     Listen,
@@ -51,6 +57,7 @@ impl Response {
     }
 }
 
+/// Socket path: `$XDG_RUNTIME_DIR/leo-ai.sock`, falling back to `/tmp/leo-ai.sock`.
 pub fn socket_path() -> PathBuf {
     if let Ok(dir) = std::env::var("XDG_RUNTIME_DIR") {
         return PathBuf::from(dir).join("leo-ai.sock");
@@ -58,6 +65,9 @@ pub fn socket_path() -> PathBuf {
     PathBuf::from("/tmp/leo-ai.sock")
 }
 
+/// Removes the previous filesystem entry and binds the listening socket.
+///
+/// The caller must ensure no other daemon is using this path.
 pub async fn bind(path: &Path) -> Result<UnixListener, IpcError> {
     let _ = std::fs::remove_file(path);
     if let Some(parent) = path.parent() {
@@ -66,6 +76,10 @@ pub async fn bind(path: &Path) -> Result<UnixListener, IpcError> {
     Ok(UnixListener::bind(path)?)
 }
 
+/// Opens a connection, sends newline-delimited JSON, and reads one response.
+///
+/// Any connection failure becomes `NotRunning`. No timeout is imposed;
+/// callers can wrap the operation to bound the wait.
 pub async fn send(path: &Path, req: &Request) -> Result<Response, IpcError> {
     let stream = UnixStream::connect(path)
         .await
