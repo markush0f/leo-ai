@@ -1,3 +1,8 @@
+/**
+ * Frontend contracts mirrored by the Rust DTOs in `src-tauri/src/lib.rs`.
+ * Keep field names and tagged operation variants synchronized across the bridge.
+ */
+/** Credential availability only; never the actual provider secret. */
 export type KeyStatus = "db" | "env" | "falta" | "none";
 
 export type Provider = {
@@ -29,6 +34,7 @@ export type Voice = {
   message: string | null;
 };
 
+/** Model-visible history, excluding display-only errors and bubble IDs. */
 export type ChatTurn = {
   role: "user" | "assistant";
   content: string;
@@ -40,6 +46,7 @@ export type Bubble = {
   text: string;
 };
 
+/** Catalog mutation serialized with the `op` discriminator expected by Tauri. */
 export type Op =
   | { op: "activate_provider"; id: string }
   | { op: "activate_model"; id: string }

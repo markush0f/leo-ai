@@ -1,3 +1,9 @@
+//! Native bridge for the React desktop application.
+//!
+//! Commands expose catalog DTOs, chat turns, and voice-daemon requests.
+//! Provider secrets remain behind the DTO boundary; the frontend receives only
+//! their availability status. Chat uses PostgreSQL, while voice uses Unix IPC.
+
 use leo_ipc::{Request, Response};
 use leo_llm::{ChatMessage, ChatRequest, ProviderId};
 use leo_store::{self as db, DbOp, ProviderRow, Snapshot};
@@ -94,6 +100,7 @@ impl From<Op> for DbOp {
     }
 }
 
+/// Converts internal rows into the frontend contract without returning API keys.
 fn dto(snap: Snapshot, tools: &[String]) -> SnapshotDto {
     SnapshotDto {
         providers: snap
@@ -235,11 +242,7 @@ async fn voice_speak(text: String) -> VoiceDto {
 
 async fn voice_req(req: Request) -> VoiceDto {
     match leo_ipc::send(&leo_ipc::socket_path(), &req).await {
-        Ok(Response {
-            ok,
-            state,
-            message,
-        }) => VoiceDto {
+        Ok(Response { ok, state, message }) => VoiceDto {
             running: true,
             ok,
             state,

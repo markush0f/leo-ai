@@ -1,3 +1,8 @@
+/**
+ * Frontend transport boundary. Tauri commands reach native services; browser
+ * preview uses an in-memory catalog. Keep command names and DTOs aligned with
+ * `src-tauri/src/lib.rs` when extending this API.
+ */
 import { invoke } from "@tauri-apps/api/core";
 import type { ChatTurn, Op, Snapshot, Voice } from "./types";
 
@@ -47,11 +52,13 @@ function mockSnap(): Snapshot {
 
 let mock: Snapshot = mockSnap();
 
+/** Loads the catalog; preview callers receive a clone rather than shared mutable state. */
 export async function loadSnapshot(): Promise<Snapshot> {
   if (inTauri) return invoke<Snapshot>("snapshot");
   return structuredClone(mock);
 }
 
+/** Applies a catalog mutation and returns the updated snapshot. */
 export async function applyOp(op: Op): Promise<Snapshot> {
   if (inTauri) return invoke<Snapshot>("apply", { op });
   mock = applyMock(mock, op);

@@ -1,3 +1,8 @@
+/**
+ * Desktop shell coordinating chat history, catalog edits, theme, and voice status.
+ * Model history is separate from display bubbles so UI errors are not sent back
+ * as assistant replies. Service calls go through `api.ts`.
+ */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyOp,

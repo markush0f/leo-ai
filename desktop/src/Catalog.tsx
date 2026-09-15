@@ -1,3 +1,8 @@
+/**
+ * Catalog editor. Local state holds form drafts; `onOp` persists changes and the
+ * parent supplies the refreshed snapshot. Key fields accept replacements without
+ * exposing stored secrets.
+ */
 import { useState } from "react";
 import type { Model, Op, Provider, Snapshot } from "./types";
 
