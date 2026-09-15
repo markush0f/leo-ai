@@ -3,11 +3,22 @@ services:
     build:
       context: .
       dockerfile: deploy/colibri/Dockerfile
+    image: leo-ai-colibri:1.11.0
     environment:
-      COLIBRI_BIND: 0.0.0.0:8080
-      COLIBRI_HEALTH_ADDR: 127.0.0.1:8080
+      COLI_RAM: "${COLIBRI_RAM:-24}"
     ports:
-      - "${COLIBRI_PORT:-8080}:8080"
+      - "127.0.0.1:${COLIBRI_PORT:-8081}:5000"
+    volumes:
+      - "${COLIBRI_MODEL_DIR:?define COLIBRI_MODEL_DIR con la ruta del modelo}:/model:ro"
+    command:
+      - serve
+      - --host
+      - 0.0.0.0
+      - --model-id
+      - "${COLIBRI_MODEL_ID:-glm-5.2}"
+      - --ram
+      - "${COLIBRI_RAM:-24}"
+    shm_size: "2gb"
     restart: unless-stopped
 
   postgres:
