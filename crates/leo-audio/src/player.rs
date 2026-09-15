@@ -1,3 +1,5 @@
+//! Queued playback on a dedicated Pulse thread, with frame-boundary cancellation.
+
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Sender};
@@ -15,6 +17,9 @@ enum Cmd {
     Shutdown,
 }
 
+/// Command handle for mono playback, resampled to the device rate as needed.
+///
+/// Dropping any clone requests shutdown of the shared playback thread.
 #[derive(Clone)]
 pub struct Player {
     tx: Sender<Cmd>,
@@ -43,6 +48,7 @@ impl Player {
         Ok(Self { tx, stop, playing })
     }
 
+    /// Enqueues owned PCM; success confirms delivery, not completed playback.
     pub fn play(&self, pcm: Vec<f32>, sample_rate: u32) -> Result<(), AudioError> {
         self.stop.store(false, Ordering::SeqCst);
         self.tx
@@ -55,6 +61,7 @@ impl Player {
         self.tx.send(Cmd::Stop).map_err(|_| AudioError::Closed)
     }
 
+    /// Reports whether the worker is writing audio, not whether the device has drained.
     pub fn is_playing(&self) -> bool {
         self.playing.load(Ordering::Relaxed)
     }

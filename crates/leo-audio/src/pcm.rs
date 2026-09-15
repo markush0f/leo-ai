@@ -1,11 +1,17 @@
+//! Mono signal utilities; all sample rates are expressed in hertz.
+
+/// Sample rate used for device capture and playback.
 pub const DEVICE_RATE: u32 = 48_000;
+/// Input sample rate for voice processing.
 pub const ML_RATE: u32 = 16_000;
+/// Duration of each audio frame in milliseconds.
 pub const FRAME_MS: u32 = 20;
 
 pub fn samples_per_frame(rate: u32) -> usize {
     (rate * FRAME_MS / 1000) as usize
 }
 
+/// Root mean square amplitude of a frame; empty input returns zero.
 pub fn rms(samples: &[f32]) -> f32 {
     if samples.is_empty() {
         return 0.0;
@@ -14,6 +20,7 @@ pub fn rms(samples: &[f32]) -> f32 {
     (sum / samples.len() as f32).sqrt()
 }
 
+/// Quantizes samples to PCM16, clamping amplitudes outside `[-1, 1]`.
 pub fn f32_to_i16(samples: &[f32]) -> Vec<i16> {
     samples
         .iter()
@@ -28,7 +35,11 @@ pub fn i16_to_f32(samples: &[i16]) -> Vec<f32> {
         .collect()
 }
 
-/// Linear resample of mono f32. Exact 3:1 (48k→16k) averages triples.
+/// Resamples mono PCM; both sample rates must be greater than zero.
+///
+/// The 48-to-16 kHz path averages triples and drops any incomplete trailing group.
+/// Other conversions use linear interpolation, not band-limited antialias
+/// filtering. Empty input remains empty.
 pub fn resample_mono(input: &[f32], from: u32, to: u32) -> Vec<f32> {
     if from == to || input.is_empty() {
         return input.to_vec();

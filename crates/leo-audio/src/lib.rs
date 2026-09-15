@@ -1,3 +1,8 @@
+//! Mono capture and playback through PulseAudio or PipeWire's Pulse compatibility layer.
+//!
+//! Devices run at 48 kHz; VAD and STT receive 16 kHz audio in 20 ms frames.
+//! PCM utilities are also available without opening an audio device.
+
 mod capture;
 mod error;
 mod pcm;

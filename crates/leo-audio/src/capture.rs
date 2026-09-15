@@ -1,3 +1,5 @@
+//! Dedicated capture thread with a bounded, lossy handoff to the voice engine.
+
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
 use std::sync::{
     Arc,
@@ -12,18 +14,23 @@ use crate::pulse::PulseStream;
 
 const APP: &str = "leo-ai";
 
+/// Mono floating-point samples and their sample rate in hertz.
 #[derive(Clone, Debug)]
 pub struct AudioFrame {
     pub samples: Vec<f32>,
     pub sample_rate: u32,
 }
 
+/// Receiver for 16 kHz, 20 ms frames captured from a 48 kHz device stream.
+/// Dropping it requests shutdown; it does not join the capture thread.
 pub struct Capture {
     rx: Receiver<AudioFrame>,
     stop: Arc<AtomicBool>,
 }
 
 impl Capture {
+    /// Spawns capture with an eight-frame queue, dropping new frames when full.
+    /// Success means the thread started; device errors are logged by that thread.
     pub fn start(device: &str) -> Result<Self, AudioError> {
         let (tx, rx) = mpsc::sync_channel(8);
         let stop = Arc::new(AtomicBool::new(false));
