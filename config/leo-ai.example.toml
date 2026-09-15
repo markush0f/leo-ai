@@ -1,9 +1,12 @@
+# Voice daemon settings. Copy to ~/.config/leo-ai/config.toml by default.
+# Chat interfaces use the PostgreSQL catalog instead of this [llm] section.
+
 [audio]
 source = "@DEFAULT_SOURCE@"
 sink = "@DEFAULT_SINK@"
 
 [vad]
-# hangover de silencio para cerrar la frase (ms)
+# Silence hangover before closing an utterance, in milliseconds.
 hangover_ms = 500
 
 [barge_in]
@@ -11,25 +14,25 @@ enabled = true
 rms_threshold = 0.035
 
 [wake]
-# Reservado para el modelo “Leo” (.rpw). Mientras el detector no esté
-# cableado, activa con `leo-ctl listen` (atajo de teclado en GNOME/KDE).
+# Reserved wake-word model path. Detection is not integrated yet;
+# activate with `leo-ctl listen`, optionally through a desktop shortcut.
 # model = "/home/YOU/.config/leo-ai/wake/leo.rpw"
 
 [stt]
-# Grok Speech-to-Text (XAI_API_KEY). language = auto si lo dejas vacío.
+# Grok Speech-to-Text (XAI_API_KEY). Forwarded to the API as the language field.
 language = "es"
 
 [llm]
-# grok | gpt | ollama | claude  (por defecto grok, XAI_API_KEY)
-# Lo usa el daemon de voz. El TUI `leo` guarda providers y modelos en Postgres.
+# grok | gpt | ollama | claude. The code default is grok (XAI_API_KEY);
+# this template explicitly selects Ollama. Chat models are stored in PostgreSQL.
 provider = "ollama"
 # model = "grok-4.6"
 system = "Eres Leo, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta."
 
 [telegram]
-# Opcional: el bot lee TELEGRAM_BOT_TOKEN y TELEGRAM_ALLOW_USERS del `.env`.
+# Optional: the bot reads TELEGRAM_BOT_TOKEN and TELEGRAM_ALLOW_USERS from `.env`.
 # allow_users = [111]
 
-# Tools (TUI y Telegram). AppFlowy se configura por env: APPFLOWY_BASE_URL
-# + APPFLOWY_EMAIL/APPFLOWY_PASSWORD (o APPFLOWY_ACCESS_TOKEN).
-# Opcional: APPFLOWY_WORKSPACE_ID, APPFLOWY_PARENT_VIEW_ID, APPFLOWY_GOTRUE_URL.
+# Chat tools: AppFlowy uses APPFLOWY_BASE_URL plus APPFLOWY_EMAIL/APPFLOWY_PASSWORD
+# or APPFLOWY_ACCESS_TOKEN from the environment.
+# Optional: APPFLOWY_WORKSPACE_ID, APPFLOWY_PARENT_VIEW_ID, APPFLOWY_GOTRUE_URL.
