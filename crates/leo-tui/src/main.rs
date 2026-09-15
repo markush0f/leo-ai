@@ -1,3 +1,9 @@
+//! Terminal chat entry point.
+//!
+//! Loads the shared PostgreSQL catalog and dispatches model turns asynchronously.
+//! `app` owns UI state, `input` and `slash` interpret input, `settings` manages
+//! catalog editing, and `ui` renders the current state with Ratatui.
+
 mod app;
 mod input;
 mod settings;
@@ -21,7 +27,7 @@ use leo_store::{self as db, Snapshot, database_url};
 #[derive(Parser)]
 #[command(name = "leo", about = "Pregúntale al LLM desde la terminal")]
 struct Cli {
-    /// URL de Postgres (si no, DATABASE_URL en .env)
+    /// PostgreSQL URL override; otherwise resolved from environment or local defaults.
     #[arg(long)]
     database_url: Option<String>,
 }
