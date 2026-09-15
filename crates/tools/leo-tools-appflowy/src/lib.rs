@@ -1,10 +1,22 @@
+//! AppFlowy page tools and Markdown conversion.
+//!
+//! The client handles server configuration and authentication; operation
+//! modules expose schemas and typed execution for the shared tool registry.
+
+/// AppFlowy configuration, authentication, and HTTP transport.
 pub mod client;
+/// Creates pages and exposes the write operation's schema.
 pub mod create_page;
+/// Deletes a page.
 pub mod delete_page;
 mod error;
+/// Retrieves page data.
 pub mod get_page;
+/// Converts Markdown content for AppFlowy documents.
 pub mod markdown;
+/// Searches workspace pages.
 pub mod search_pages;
+/// Updates page content.
 pub mod update_page;
 
 pub use client::{Client, Config};
