@@ -1,3 +1,5 @@
+//! Telegram HTTP transport, response decoding, and typing-indicator lifetime.
+
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -62,7 +64,7 @@ pub struct Telegram {
     base: String,
 }
 
-/// Mantiene el “escribiendo…” de Telegram hasta que se suelta.
+/// Keeps refreshing Telegram's typing indicator until this guard is dropped.
 pub struct Typing {
     handle: tokio::task::JoinHandle<()>,
 }
@@ -119,7 +121,7 @@ impl Telegram {
         Ok(())
     }
 
-    /// Telegram apaga el indicador a los ~5s; lo renovamos hasta Drop.
+    /// Refreshes every four seconds because Telegram expires the indicator after about five.
     pub fn keep_typing(&self, chat_id: i64) -> Typing {
         let tg = self.clone();
         Typing {

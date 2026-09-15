@@ -1,3 +1,9 @@
+//! Telegram long-polling runner with an explicit user allowlist.
+//!
+//! Connects transport updates to the library's command/session logic, persists
+//! catalog changes in PostgreSQL, and resolves model turns through `leo-tools`.
+//! An empty allowlist accepts no users.
+
 mod config;
 mod tg;
 
@@ -16,10 +22,10 @@ use leo_telegram::{Outcome, Session, allowed, cap_history, on_text};
 #[derive(Parser)]
 #[command(name = "leo-telegram", about = "Pregúntale al LLM desde Telegram")]
 struct Cli {
-    /// URL de Postgres (si no, DATABASE_URL en .env)
+    /// PostgreSQL URL override; otherwise resolved from environment or local defaults.
     #[arg(long)]
     database_url: Option<String>,
-    /// Token del bot (si no, TELEGRAM_BOT_TOKEN en .env)
+    /// Bot token override; otherwise read from TELEGRAM_BOT_TOKEN.
     #[arg(long)]
     token: Option<String>,
 }

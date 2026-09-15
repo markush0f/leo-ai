@@ -1,3 +1,9 @@
+//! Telegram command routing and in-memory conversation state.
+//!
+//! Produces outcomes for the runner to execute rather than performing Telegram
+//! HTTP requests. Plain text starts model turns only in private chats; group
+//! chats are command-only. The runner applies user authorization separately.
+
 use leo_llm::ChatMessage;
 use leo_store::{DbOp, Snapshot};
 
@@ -19,6 +25,7 @@ pub struct Session {
 }
 
 #[derive(Debug)]
+/// Routing decision for the transport runner, including deferred database operations.
 pub enum Outcome {
     Ignore,
     Text(String),
@@ -37,6 +44,7 @@ pub fn parse_command(text: &str) -> Option<(&str, &str)> {
     Some((cmd, args.trim()))
 }
 
+/// Routes text and updates history; callers must authorize the sender first.
 pub fn on_text(session: &mut Session, snap: &Snapshot, text: &str, private: bool) -> Outcome {
     let text = text.trim();
     if text.is_empty() {
