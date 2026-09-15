@@ -73,6 +73,7 @@ pub enum Role {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Model-visible function description; `parameters` contains its JSON Schema.
 pub struct ToolSpec {
     pub name: String,
     pub description: String,
@@ -80,6 +81,7 @@ pub struct ToolSpec {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+/// Model request; `arguments` preserves the provider's serialized JSON arguments.
 pub struct ToolCall {
     pub id: String,
     pub name: String,
@@ -155,13 +157,14 @@ impl ChatMessage {
 }
 
 #[derive(Debug, Clone, Default)]
+/// Provider-independent request; `model: None` uses the client's default model.
 pub struct ChatRequest {
     pub messages: Vec<ChatMessage>,
     pub model: Option<String>,
     pub temperature: Option<f32>,
     pub max_tokens: Option<u32>,
     pub tools: Vec<ToolSpec>,
-    /// Grok 4.5/4.6: `low` | `medium` | `high` | `xhigh`. No se puede apagar del todo.
+    /// Grok 4.5/4.6: `low` | `medium` | `high` | `xhigh`; reasoning cannot be fully disabled.
     pub reasoning_effort: Option<String>,
 }
 
@@ -202,6 +205,7 @@ impl ChatRequest {
 }
 
 #[derive(Debug, Clone)]
+/// Normalized response containing text, tool calls, or both.
 pub struct ChatResponse {
     pub provider: ProviderId,
     pub model: String,

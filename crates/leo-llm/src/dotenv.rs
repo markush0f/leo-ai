@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
-/// Carga el primer `.env` que encuentre subiendo desde el cwd.
-/// No pisa variables ya exportadas en el entorno.
+/// Loads the first `.env` found while walking up from the working directory.
+/// Checks at most 16 directories, preserves exported variables, and ignores load errors.
 pub fn load_dotenv() {
     if let Some(path) = find_dotenv() {
         let _ = dotenvy::from_path(&path);

@@ -3,6 +3,7 @@ use crate::types::{ChatRequest, ChatResponse, ProviderId};
 use crate::{claude, ollama, openai_compat};
 
 #[derive(Clone)]
+/// Cloneable HTTP client for one provider and a default model.
 pub struct Client {
     provider: ProviderId,
     http: reqwest::Client,
@@ -32,7 +33,11 @@ impl Client {
         Self::connect(provider, None, None)
     }
 
-    /// Construye el cliente con clave/url guardadas; si faltan, usa el entorno.
+    /// Builds the client without making network requests.
+    ///
+    /// Empty keys are treated as missing and resolved from the environment.
+    /// Explicit URLs take precedence; Ollama also supports `OLLAMA_HOST`.
+    /// Other providers use their default URL when no override is supplied.
     pub fn connect(
         provider: ProviderId,
         api_key: Option<String>,
