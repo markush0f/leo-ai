@@ -46,6 +46,7 @@ leo-wake = { path = "crates/leo-wake" }
 leo-stt = { path = "crates/leo-stt" }
 leo-tts = { path = "crates/leo-tts" }
 leo-core = { path = "crates/leo-core" }
+leo-engine = { path = "crates/leo-engine" }
 leo-ipc = { path = "crates/leo-ipc" }
 leo-store = { path = "crates/leo-store" }
 leo-tools = { path = "crates/leo-tools" }
