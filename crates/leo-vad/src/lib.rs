@@ -1,3 +1,8 @@
+//! Stateful 16 kHz WebRTC voice detection with minimum speech and silence hangover.
+//!
+//! Thresholds count frames, not samples. The voice pipeline supplies 20 ms
+//! frames, making the default 25-frame hangover equivalent to 500 ms.
+
 use leo_audio::{ML_RATE, f32_to_i16, samples_per_frame};
 use thiserror::Error;
 use webrtc_vad::{SampleRate, Vad as WebrtcVad, VadMode};
@@ -9,6 +14,7 @@ pub enum VadError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Frame classification; `SpeechEnded` marks segment closure after the hangover.
 pub enum VadEvent {
     Silence,
     Speech,
@@ -16,20 +22,22 @@ pub enum VadEvent {
 }
 
 pub struct VadConfig {
+    /// Silent frames required to close a speech segment.
     pub hangover_frames: u32,
+    /// Minimum voiced frames required for a valid segment.
     pub min_speech_frames: u32,
 }
 
 impl Default for VadConfig {
     fn default() -> Self {
         Self {
-            hangover_frames: 25, // 500 ms a 20 ms/frame
+            hangover_frames: 25, // 500 ms at 20 ms/frame
             min_speech_frames: 8,
         }
     }
 }
 
-/// WebRTC VAD + hangover. `webrtc_vad::Vad` no es `Send`; vive en el hilo de audio.
+/// WebRTC VAD with hangover. `webrtc_vad::Vad` is not `Send`; it stays on the audio thread.
 pub struct Vad {
     inner: WebrtcVad,
     cfg: VadConfig,

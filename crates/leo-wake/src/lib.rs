@@ -1,3 +1,8 @@
+//! Wake-word detection interface.
+//!
+//! The current loader returns [`NoopWake`]; providing a model file does not
+//! enable detection. An external command must start listening.
+
 use std::path::Path;
 
 use thiserror::Error;
@@ -14,7 +19,9 @@ pub struct WakeHit {
     pub score: f32,
 }
 
+/// Incremental detector receiving mono frames from the voice pipeline.
 pub trait WakeSpotter: Send {
+    /// Consumes a frame and returns a hit only when activation is detected.
     fn push(&mut self, samples: &[f32]) -> Option<WakeHit>;
 }
 
@@ -26,8 +33,8 @@ impl WakeSpotter for NoopWake {
     }
 }
 
-/// rustpotter 3.0.2 arrastra candle-core 0.2, que no compila en Rust 1.98.
-/// El trait queda listo; mientras tanto la activación es `leo-ctl listen`.
+/// Returns a no-op detector until a wake-word backend is integrated.
+/// Use `leo-ctl listen` to activate the session in the meantime.
 pub fn load_wake(model_path: Option<&Path>) -> Result<Box<dyn WakeSpotter>, WakeError> {
     if let Some(path) = model_path {
         if path.exists() {
