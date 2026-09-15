@@ -1,182 +1,178 @@
-# Crates
+# Architecture and crate map
 
-Leo es un workspace Cargo (`crates/*`). Hay dos caminos que casi no se mezclan:
+Leo is a Cargo workspace containing `crates/leo-*`, integration crates under
+`crates/tools/*`, and the Tauri backend in `desktop/src-tauri`.
 
-1. **Voz** — micrófono → transcripción → LLM → altavoz. Lo orquesta `leo-daemon`; lo controlas con `leo-ctl`.
-2. **Chat** — texto en la TUI (`leo`) o en Telegram. Comparten Postgres (`leo-store`), el cliente LLM (`leo-llm`) y las tools (`leo-tools`).
+## Two execution paths
 
-El daemon de voz **no** usa `leo-store` ni `leo-tools`: lee `~/.config/leo-ai/config.toml` y habla con un único modelo.
+```text
+Chat
+  TUI / Telegram / React → Tauri
+          │                 │
+          ├─────────────────┘
+          ▼
+      leo-store → PostgreSQL catalog
+          │
+          ▼
+      leo-tools → integration crates
+          │
+          ▼
+       leo-llm → provider HTTP API
 
-```
-                    ┌─────────────┐
-                    │  leo-llm    │◄──────────────┐
-                    └──────┬──────┘               │
-                           │                      │
-         voz               │              chat    │
-                           │                      │
-  leo-audio  leo-vad       │         leo-store    │
-  leo-wake   leo-stt       │         leo-tools    │
-  leo-tts                  │                      │
-         \                 │                 /    │
-          \                │                /     │
-           ▼               ▼               ▼      │
-        leo-core      leo-daemon        leo-tui ──┘  (bin: leo)
-           ▲               ▲            leo-telegram (bin: leo-telegram)
-           │               │
-        leo-ipc ◄──────────┴── leo-ctl
-```
-
-## Binarios
-
-| Crate | Comando | Para qué |
-|---|---|---|
-| `leo-tui` | `leo` | Chat en terminal |
-| `leo-telegram` | `leo-telegram` | Chat por Telegram |
-| `leo-desktop` | `npm run tauri dev` (en `desktop/`) | Chat y catálogo en una ventana (Tauri) |
-| `leo-daemon` | `leo-daemon` | Asistente de voz en segundo plano |
-| `leo-ctl` | `leo-ctl` | Mandar órdenes al daemon (`listen`, `stop`, `speak`, …) |
-
-El resto son librerías.
-
----
-
-## Chat
-
-### `leo-tui` → `leo`
-
-TUI con ratatui. Burbujas de chat, `/model` `/providers`, pantalla de ajustes (Tab).
-
-Lee el catálogo de Postgres, construye el cliente LLM y pasa cada mensaje por `leo-tools::chat`. El historial de la sesión vive en memoria; proveedor, modelo y system prompt viven en `leo-store`.
-
-### `leo-telegram` → `leo-telegram`
-
-Bot por long-poll. Mismo catálogo y mismas tools que `leo`.
-
-- Allowlist: `TELEGRAM_ALLOW_USERS` (si está vacía, no habla con nadie).
-- En privado, el texto suelto va al LLM. En grupos ignora el texto y solo atiende comandos.
-- Comandos: `/help`, `/status`, `/model`, `/providers`, `/clear`, `/system`.
-- Mientras el modelo piensa, renueva `sendChatAction(typing)` para que Telegram muestre “escribiendo…”.
-
-La librería (`src/lib.rs`) parsea comandos y el historial; el binario (`main.rs` + `tg.rs`) habla con la API de Telegram.
-
-### `leo-desktop` → ventana
-
-App Tauri 2 (`desktop/`): React + Vite. El mismo catálogo y el mismo `leo-tools::chat` que la TUI. Desde el borde (Tab) se editan proveedores, modelos, keys y el system prompt. Controles de voz: `escuchar`, `parar`, `decir`, `apagar` vía `leo-ipc`.
-
-### `leo-store`
-
-Catálogo en Postgres: proveedores, modelos, modelo activo y system prompt.
-
-- URL: `LEO_DATABASE_URL` o `DATABASE_URL` (por defecto `postgres://leo:leo@127.0.0.1:5439/leo`).
-- `Snapshot` es la foto que usan TUI y Telegram. `Snapshot::client()` arma el `leo-llm::Client` del modelo activo.
-- `DbOp` son los cambios (activar modelo, guardar API key, etc.).
-- Si el proveedor activo es Ollama, sincroniza `/api/tags` con la tabla `models`.
-
-El esquema está en `deploy/postgres/init.sql`. Arranca la bbdd con `docker compose up -d`.
-
-### `leo-llm`
-
-Cliente HTTP unificado: **Grok**, **GPT**, **Ollama**, **Claude**.
-
-- `Client::chat` manda un `ChatRequest` y devuelve `ChatResponse` (texto y, si aplica, `tool_calls`).
-- Grok y GPT usan el protocolo OpenAI; Claude el suyo; Ollama `/api/chat`.
-- También carga el `.env` (`load_dotenv`) y lista modelos de Ollama.
-
-No ejecuta tools: solo las serializa y parsea. El bucle está en `leo-tools`.
-
-### `leo-tools`
-
-Núcleo: trait `Tool`, `Registry`, `Context` y el bucle (el modelo pide una función → se ejecuta → se le devuelve el resultado, hasta 8 vueltas). TUI y Telegram usan este crate; el daemon de voz no.
-
-Las implementaciones viven en `crates/tools/*`. `Registry::from_env()` registra las locales siempre y las de APIs solo si hay credenciales:
-
-| Crate | Tools | Cuándo |
-|---|---|---|
-| `leo-tools-files` | `read_file`, `write_file`, `list_directory`, `search_files`, `move_file`, `copy_file`, `remove_file` | siempre |
-| `leo-tools-shell` | `execute_command`, `execute_script` | siempre |
-| `leo-tools-system` | procesos y escritorio (`list_processes`, `open_url`, portapapeles, …) | siempre |
-| `leo-tools-weather` | `get_weather`, `get_forecast` | siempre (Open-Meteo) |
-| `leo-tools-appflowy` | páginas (`appflowy_create_page`, `appflowy_write`, …) | `APPFLOWY_BASE_URL` + credenciales |
-| `leo-tools-github` | issues y pull requests | `GITHUB_TOKEN` o `GH_TOKEN` |
-| `leo-tools-google` | Google Calendar | `GOOGLE_ACCESS_TOKEN` o `GOOGLE_API_KEY` |
-| `leo-tools-home-assistant` | estados y servicios | `HOME_ASSISTANT_URL`/`HASS_URL` + token |
-| `leo-tools-notion` | — | pendiente |
-| `leo-tools-spotify` | — | pendiente |
-
----
-
-## Voz
-
-### `leo-daemon` → `leo-daemon`
-
-Proceso de fondo. Carga `~/.config/leo-ai/config.toml` (plantilla: `config/leo-ai.example.toml`), monta captura/player, STT, LLM y TTS, y escucha el socket UNIX de `leo-ipc`.
-
-El LLM del daemon es el de `[llm]` en el toml (por defecto Ollama), **no** el de Postgres. STT: Grok si hay `XAI_API_KEY`; si no, la voz no se transcribe. TTS: `NullTts` (beep) hasta que haya Piper/Kokoro.
-
-### `leo-ctl` → `leo-ctl`
-
-CLI del daemon. Manda un JSON por el socket y pinta el estado.
-
-```
-leo-ctl status | listen | stop | speak hola | shutdown
+Voice
+  leo-ctl / Tauri → leo-ipc → leo-daemon
+                                 │
+                             leo-core
+                                 │
+             capture → VAD → STT → LLM → TTS → playback
 ```
 
-`listen` es hoy la forma de “despertar” a Leo (el wake word aún no está cableado).
+Chat surfaces share persistent provider/model settings, not conversation history.
+The voice daemon reads TOML configuration and does not use `leo-store` or the
+`leo-tools` chat loop.
 
-### `leo-ipc`
+## Applications
 
-Protocolo JSON por socket UNIX (`$XDG_RUNTIME_DIR/leo-ai.sock`, o `/tmp/leo-ai.sock`).
+| Crate / directory | Entry point | Responsibility |
+| --- | --- | --- |
+| `leo-tui` | `leo` | Ratatui chat and catalog editor. `app` owns state; `input` and `slash` route input; `settings` and `ui` handle editing and rendering. |
+| `leo-telegram` | `leo-telegram` | Long polling, allowlist enforcement, per-session history, and shared chat tools. Library routing is separate from `tg` HTTP transport. |
+| `desktop/` | `npm run tauri dev` | React shell and native commands for chat, catalog editing, and voice control. |
+| `leo-daemon` | `leo-daemon` | Loads voice settings, builds providers, starts the engine, and serves Unix IPC. |
+| `leo-ctl` | `leo-ctl` | Sends one voice command and prints the daemon response. |
 
-Órdenes: `status`, `listen`, `stop`, `speak`, `shutdown`. Lo usan `leo-daemon` (servidor) y `leo-ctl` (cliente).
+## Shared chat layer
 
-### `leo-core`
+### `leo-store`: catalog persistence
 
-Máquina de sesión de voz: estados `idle → listening → recording → transcribing → thinking → speaking`.
+PostgreSQL stores providers, model names, active selection, and system prompt.
+The schema and seed data live in `deploy/postgres/init.sql`.
 
-- Wake (o `leo-ctl listen`) abre la escucha.
-- VAD cierra la frase; STT transcribe; LLM responde; TTS habla.
-- Barge-in: si hablas mientras Leo habla, corta la reproducción.
+- `Snapshot` is an in-memory catalog copy, including internal provider credentials.
+- `Snapshot::client()` builds the active model's client without network I/O.
+- `DbOp` represents edits; `apply` persists one operation and reloads the catalog.
+- `sync_ollama_providers` discovers models from configured Ollama providers.
+  An unavailable provider is skipped; database errors can still propagate.
+- Empty API keys fall back to provider environment variables through `leo-llm`.
 
-No sabe de Pulse ni de HTTP: recibe traits (`WakeSpotter`, `SttEngine`, `LlmEngine`, `TtsEngine`) y frames de `leo-audio`.
+Desktop DTOs expose credential status rather than actual key values. Do not pass
+internal database rows directly across the frontend boundary.
 
-### `leo-audio`
+### `leo-llm`: provider transport
 
-Captura y reproducción por Pulse/PipeWire (`libpulse-simple`).
+`Client` owns provider settings and a reusable HTTP client. `ChatRequest`,
+`ChatResponse`, and tool types form the provider-independent contract.
 
-- Captura a 48 kHz, resample a 16 kHz (`ML_RATE`) para VAD/STT.
-- Player para PCM del TTS.
-- RMS y beep de fallback.
-- El `build.rs` enlaza las `.so` versionadas de Pulse.
+| Adapter | Providers | Role |
+| --- | --- | --- |
+| `openai_compat` | Grok, GPT | OpenAI-compatible messages and tool calls. |
+| `ollama` | Ollama | Native chat and model discovery. |
+| `claude` | Claude | Anthropic messages and tool-use translation. |
 
-### `leo-vad`
+`protocol` exposes payload builders and parsers for offline tests. The client
+transports tool calls but never executes them. `load_dotenv` loads environment
+defaults without overwriting exported variables.
 
-WebRTC VAD a 16 kHz, frames de 20 ms, hangover de silencio para decidir cuándo acabó la frase. Eventos: `Speech`, `Silence`, `SpeechEnded`.
+### `leo-tools`: tool orchestration
 
-### `leo-wake`
+1. `Registry::from_env()` captures the execution context and registers available tools.
+2. `chat` supplies their schemas to the model.
+3. `run` executes requested calls sequentially and appends results with matching call IDs.
+4. The next model request includes those results until a final response is returned.
 
-Trait `WakeSpotter` + `NoopWake`. El detector real (rustpotter) no está cableado: candle-core 0.2 no compila en el Rust actual. La activación es `leo-ctl listen` (atajo de teclado del escritorio).
+The loop permits eight model responses. If all still request tools, it returns
+`LlmError::ToolLoop`. Provider failures abort the turn. Tool errors become JSON
+content so the model can handle them. Invalid argument JSON currently becomes
+an empty object before individual tool validation.
 
-### `leo-stt`
+`Context::resolve` joins relative paths to the captured working directory. It
+does not canonicalize paths or provide a filesystem sandbox.
 
-Trait `SttEngine`. Implementación: **Grok Speech-to-Text** (`GrokStt`, necesita `XAI_API_KEY`). `NullStt` no inventa texto. Convierte PCM a WAV para la API.
+### Integration crates
 
-### `leo-tts`
+Operation modules generally pair `spec()` (model-facing JSON Schema) with
+`run(...)` (typed async execution). `leo-tools/src/catalog.rs` adapts raw JSON
+arguments, resolves paths, and registers these implementations.
 
-Trait `TtsEngine`. Hoy `NullTts`: un beep cuya duración escala un poco con el texto. Aquí irán Piper/Kokoro; el altavoz sigue en `leo-audio`.
+| Crate suffix | Operations | Registration requirements |
+| --- | --- | --- |
+| `files` | Read, write, list, search, copy, move, remove | Always registered. |
+| `shell` | Commands and scripts | Always registered; timeout and captured output. |
+| `system` | Processes, applications, URLs, notifications, clipboard | Always registered; host utilities determine availability. |
+| `weather` | Current weather and forecast | Open-Meteo; no API key. |
+| `appflowy` | Page creation, retrieval, search, update, deletion | AppFlowy server configuration and credentials. |
+| `github` | Issues and pull requests | `GITHUB_TOKEN` or `GH_TOKEN`. |
+| `google` | Calendars and events | `GOOGLE_ACCESS_TOKEN` or `GOOGLE_API_KEY`. |
+| `home-assistant` | Entity states and service calls | Server URL and token. |
+| `notion`, `spotify` | None | Placeholder crates, not registered. |
 
----
+## Voice layer
 
-## Quién usa a quién
+### `leo-core`: state machine and engine
 
+```text
+idle → listening → recording → transcribing → thinking → speaking
 ```
-leo            → leo-store, leo-llm, leo-tools
-leo-telegram   → leo-store, leo-llm, leo-tools
-leo-desktop    → leo-store, leo-llm, leo-tools, leo-ipc
-leo-tools      → leo-llm, leo-tools-{files,shell,system,weather,appflowy,github,google,home-assistant}
-leo-store      → leo-llm
-leo-daemon     → leo-core, leo-ipc, leo-llm, leo-stt, leo-tts, leo-wake, leo-audio
-leo-ctl        → leo-ipc
-leo-core       → leo-audio, leo-vad, leo-wake, leo-stt, leo-tts
-leo-vad        → leo-audio
-leo-tts        → leo-audio
+
+`Session` contains transition logic and accumulated utterance audio. It returns
+`Action` values for side effects and `SessionEvent` values for observers.
+`spawn_engine` runs those actions on a dedicated thread with injected providers.
+Provider calls are synchronous, so commands wait while those calls are running.
+
+VAD silence closes an utterance. Empty transcripts or replies return the session
+to idle. During playback, configured barge-in detection can stop playback and
+reopen listening. Frame-based limits assume 20 ms blocks.
+
+### Audio and speech crates
+
+| Crate | Contract and behavior |
+| --- | --- |
+| `leo-audio` | Pulse capture/playback at 48 kHz; capture emits 16 kHz mono frames. An eight-frame capture queue drops new frames when full. |
+| `leo-vad` | WebRTC VAD at 16 kHz with minimum speech and silence hangover thresholds. Detector stays on its owning thread. |
+| `leo-wake` | `WakeSpotter` extension point; the loader currently returns `NoopWake`. |
+| `leo-stt` | Synchronous `SttEngine`; Grok uploads mono PCM16 WAV, while `NullStt` returns no transcript. |
+| `leo-tts` | Synchronous `TtsEngine` returns mono PCM with a sample rate; `NullTts` generates a tone. |
+
+`GrokStt` and the daemon's `BlockingLlm` bridge async HTTP with
+`tokio::runtime::Handle::block_on`. Call them from blocking threads while the
+runtime remains active, not from async tasks. Voice LLM requests contain the
+current user input and system prompt rather than persistent chat history.
+
+### `leo-ipc`: daemon control
+
+The Unix socket lives at `$XDG_RUNTIME_DIR/leo-ai.sock`, falling back to
+`/tmp/leo-ai.sock`. Each exchange contains a newline-terminated JSON request and
+response. Requests use a `cmd` discriminator:
+
+```json
+{"cmd":"speak","text":"Hello"}
 ```
+
+Commands are `status`, `listen`, `stop`, `speak`, and `shutdown`. The client does
+not impose a timeout. Server binding removes the existing socket entry, so the
+caller must ensure another daemon is not already using it.
+
+## Desktop boundary
+
+- `src/App.tsx`: conversation state, display bubbles, voice polling, theme, and catalog visibility.
+- `src/Catalog.tsx`: local form drafts and catalog operations.
+- `src/api.ts`: Tauri invocation or browser-preview mocks.
+- `src/types.ts`: frontend DTOs and tagged operations mirrored by Rust.
+- `src/theme.ts`: saved theme preference and root CSS selector.
+- `src-tauri/src/lib.rs`: native commands, database access, tool-enabled chat, and voice IPC.
+
+Keep frontend field names, operation tags, and native DTOs synchronized. Browser
+preview validates interaction and layout, not live provider, database, or IPC behavior.
+
+## Extending the code
+
+- **New tool:** implement its schema and typed operation in an integration crate,
+  then register argument conversion in `leo-tools/src/catalog.rs`.
+- **New LLM provider:** extend provider identity/defaults, client dispatch, and a
+  protocol adapter; add offline payload and response tests.
+- **New speech backend:** implement the relevant voice trait and wire it in the
+  daemon, keeping playback in `leo-audio`.
+- **New catalog operation:** update `DbOp`, persistence, and affected UI adapters;
+  desktop also requires matching TypeScript and Rust operation variants.
+
+See [README.md](README.md#development-checks) for build, documentation, and test commands.
