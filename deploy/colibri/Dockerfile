@@ -25,7 +25,6 @@ WORKDIR /app
 USER colibri
 EXPOSE 5000
 ENV COLI_MODEL=/model \
-    COLI_ENGINE=/app/colibri \
     PYTHONUNBUFFERED=1
 
 ENTRYPOINT ["python3", "/app/coli"]
