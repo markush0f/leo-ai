@@ -1,4 +1,10 @@
-/// WAV PCM16 mono a partir de f32 en [-1, 1].
+//! In-memory WAV encoding without audio-device dependencies.
+
+/// Builds a little-endian, mono PCM16 RIFF WAV with a 44-byte header.
+///
+/// Clamps samples to `[-1, 1]` before quantization. `sample_rate` is in hertz
+/// and only describes the audio: this function does not resample. Callers must
+/// supply a valid rate and audio that fits RIFF's 32-bit size fields.
 pub fn pcm_f32_to_wav(samples: &[f32], sample_rate: u32) -> Vec<u8> {
     let mut pcm16 = Vec::with_capacity(samples.len() * 2);
     for s in samples {

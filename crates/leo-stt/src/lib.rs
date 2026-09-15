@@ -1,3 +1,8 @@
+//! Mono audio transcription through a synchronous interface.
+//!
+//! [`GrokStt`] uploads PCM16 WAV to xAI; [`NullStt`] represents an unconfigured
+//! transcriber. `Option` and `Result` distinguish missing text from failures.
+
 mod grok;
 mod wav;
 
@@ -12,11 +17,16 @@ pub enum SttError {
     Failed(String),
 }
 
+/// Transcriber transferable to the voice thread; calls may block until completion.
 pub trait SttEngine: Send {
+    /// Transcribes mono PCM normalized to `[-1, 1]`, with sample rate in hertz.
+    ///
+    /// Returns `Ok(None)` when no usable text is available. Transport and provider
+    /// failures return errors rather than fabricated transcripts.
     fn transcribe(&self, pcm: &[f32], sample_rate: u32) -> Result<Option<String>, SttError>;
 }
 
-/// Sin clave/API: no inventa texto para no mandar basura al LLM.
+/// Disabled transcriber: returns no text rather than sending fabricated input to the LLM.
 pub struct NullStt;
 
 impl SttEngine for NullStt {

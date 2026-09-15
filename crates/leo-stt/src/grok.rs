@@ -1,3 +1,5 @@
+//! xAI STT adapter: PCM → WAV → multipart HTTP → normalized text.
+
 use reqwest::multipart::{Form, Part};
 use serde::Deserialize;
 use tokio::runtime::Handle;
@@ -12,6 +14,10 @@ struct SttResponse {
     text: Option<String>,
 }
 
+/// Remote transcriber with a reusable HTTP client and a Tokio runtime handle.
+///
+/// The synchronous implementation uses `Handle::block_on`: call it from a blocking
+/// thread, not inside an async task. The runtime must remain active during requests.
 pub struct GrokStt {
     http: reqwest::Client,
     api_key: String,
@@ -20,6 +26,9 @@ pub struct GrokStt {
 }
 
 impl GrokStt {
+    /// Prepares the client without making requests or validating the API key.
+    ///
+    /// `language` is forwarded unchanged to the provider; `None` omits the field.
     pub fn new(api_key: impl Into<String>, rt: Handle, language: Option<String>) -> Self {
         Self {
             http: reqwest::Client::new(),
@@ -29,6 +38,7 @@ impl GrokStt {
         }
     }
 
+    /// Skips empty input and preserves response bodies in HTTP status errors.
     async fn transcribe_async(
         &self,
         pcm: &[f32],
