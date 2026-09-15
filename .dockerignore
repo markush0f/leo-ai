@@ -1,0 +1,7 @@
+.git
+.codegraph
+.impeccable
+target
+desktop/node_modules
+desktop/dist
+*.log

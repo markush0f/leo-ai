@@ -6,3 +6,7 @@ license.workspace = true
 description = "Motores y proveedores para ejecutar modelos de IA"
 
 [dependencies]
+
+[[bin]]
+name = "colibri"
+path = "src/bin/colibri.rs"

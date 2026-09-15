@@ -2424,6 +2424,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "leo-engine"
+version = "0.1.0"
+
+[[package]]
 name = "leo-ipc"
 version = "0.1.0"
 dependencies = [
