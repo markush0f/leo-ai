@@ -28,12 +28,20 @@ impl Default for EngineConfig {
     }
 }
 
+/// Control and observation channels for the voice thread.
+///
+/// `state` is the latest published state. Sending a command does not mean the
+/// thread has processed it yet, especially while a provider call is in progress.
 pub struct EngineHandle {
     pub cmds: Sender<Command>,
     pub events: Receiver<SessionEvent>,
     pub state: std::sync::Arc<std::sync::Mutex<State>>,
 }
 
+/// Spawns the thread that owns the providers and processes the voice session.
+///
+/// Success confirms thread creation, not device initialization. Subsequent
+/// failures are reported through `tracing`.
 pub fn spawn_engine(
     cfg: EngineConfig,
     wake: Box<dyn WakeSpotter>,
@@ -82,7 +90,7 @@ fn run_engine(
     loop {
         while let Ok(cmd) = cmds.try_recv() {
             if matches!(cmd, Command::Stop) && session.state == State::Idle {
-                // Stop en idle no apaga el daemon; solo cancela escucha.
+                // Stop cancels the session; it never shuts down the daemon.
             }
             let actions = session.on_command(cmd);
             apply_actions(

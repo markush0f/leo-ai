@@ -33,6 +33,7 @@ pub enum Command {
 }
 
 #[derive(Debug, Clone)]
+/// Side effects the engine must execute after a session transition.
 pub enum Action {
     Play { pcm: Vec<f32>, sample_rate: u32 },
     StopPlayback,
@@ -42,6 +43,7 @@ pub enum Action {
 }
 
 #[derive(Debug, Clone)]
+/// Observer notifications, distinct from engine commands.
 pub enum SessionEvent {
     State(State),
     Wake { name: String, score: f32 },
@@ -51,6 +53,7 @@ pub enum SessionEvent {
 }
 
 #[derive(Debug, Clone)]
+/// Session thresholds; frame-based limits assume 20 ms audio frames.
 pub struct SessionConfig {
     pub barge_in: bool,
     pub barge_in_rms: f32,
@@ -69,6 +72,10 @@ impl Default for SessionConfig {
     }
 }
 
+/// I/O-free state machine that accumulates audio and returns actions and events.
+///
+/// The engine must deliver STT, LLM, and playback results in order.
+/// This type neither executes providers nor manages their concurrency.
 pub struct Session {
     pub state: State,
     cfg: SessionConfig,
