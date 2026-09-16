@@ -4,5 +4,6 @@
 .impeccable/review/
 .impeccable/mocks/
 .impeccable/decision/
+.impeccable/questions/
 desktop/dist
 desktop/src-tauri/target
