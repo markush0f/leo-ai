@@ -21,6 +21,7 @@ Leo — escribe y te responde el modelo activo (el mismo catálogo que `leo`).
 
 #[derive(Debug, Default)]
 pub struct Session {
+    pub conversation_id: uuid::Uuid,
     pub history: Vec<ChatMessage>,
 }
 
@@ -30,6 +31,7 @@ pub enum Outcome {
     Ignore,
     Text(String),
     AskLlm,
+    Clear,
     Db { op: DbOp, note: String },
 }
 
@@ -67,7 +69,7 @@ fn on_command(session: &mut Session, snap: &Snapshot, cmd: &str, args: &str) -> 
         "status" => Outcome::Text(status_line(snap)),
         "clear" => {
             session.history.clear();
-            Outcome::Text("conversación nueva".into())
+            Outcome::Clear
         }
         "system" => {
             if args.is_empty() {
@@ -398,7 +400,10 @@ mod tests {
         let mut session = Session::default();
         let snap = snap();
         on_text(&mut session, &snap, "hola", true);
-        on_text(&mut session, &snap, "/clear", true);
+        assert!(matches!(
+            on_text(&mut session, &snap, "/clear", true),
+            Outcome::Clear
+        ));
         assert!(session.history.is_empty());
     }
 

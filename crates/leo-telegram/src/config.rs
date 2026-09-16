@@ -33,9 +33,7 @@ impl BotConfig {
         let token = nonempty(token_flag)
             .or_else(|| nonempty(std::env::var("TELEGRAM_BOT_TOKEN").ok()))
             .or_else(|| file.telegram.token.clone().and_then(|s| nonempty(Some(s))))
-            .ok_or_else(|| {
-                "falta TELEGRAM_BOT_TOKEN (en .env, el entorno o --token)".to_string()
-            })?;
+            .unwrap_or_default();
 
         let allow_users = std::env::var("TELEGRAM_ALLOW_USERS")
             .ok()

@@ -1,8 +1,45 @@
-//! Telegram long-polling runner with an explicit user allowlist.
+//! Telegram long-polling binary (`leo-telegram`).
 //!
-//! Connects transport updates to the library's command/session logic, persists
-//! catalog changes in PostgreSQL, and resolves model turns through `leo-tools`.
-//! An empty allowlist accepts no users.
+//! Pulls Bot API updates, enforces an explicit user allowlist, and applies
+//! library [`leo_telegram::Outcome`] values: send text, persist catalog edits,
+//! start a new conversation, or run a tool-enabled model turn. An empty
+//! allowlist accepts no users. This process does not serve voice IPC.
+//!
+//! # Workspace crates
+//!
+//! - [`leo_store`] — shared PostgreSQL catalog and per-chat Telegram history.
+//!   `connect` / `migrate` prepare the schema; `apply_secrets_to_env` exports
+//!   stored keys; `telegram_token` and settings overlay CLI/env when those
+//!   are empty. `ensure_telegram` / `new_telegram` own the conversation for a
+//!   chat id; `context_messages` / `append_message` persist turns.
+//!   [`leo_store::DbOp`] / `apply` handle `/model`, `/providers`, and
+//!   `/system`. `sync_ollama_providers` runs before Ollama turns.
+//! - [`leo_llm`] — [`leo_llm::Client`] via `Snapshot::client`, plus
+//!   [`leo_llm::ChatRequest`] / [`leo_llm::ChatMessage`]. `load_dotenv` fills
+//!   missing environment keys. Tool calls are data; this crate does not run
+//!   them.
+//! - [`leo_tools`] — [`leo_tools::Registry::from_env`] and [`leo_tools::chat`]
+//!   execute requested tools and feed results back until a final reply or
+//!   [`leo_llm::LlmError::ToolLoop`].
+//! - this crate's library (`leo_telegram`): command routing and in-memory
+//!   [`leo_telegram::Session`]. [`leo_telegram::on_text`] returns outcomes;
+//!   it does not call Telegram HTTP. Plain text reaches the model only in
+//!   private chats; groups are command-only. Authorization is applied here
+//!   before routing.
+//!
+//! # Local modules
+//!
+//! - `config`: token, allowlist, and database URL from flags, env, optional
+//!   TOML, then Postgres overlay.
+//! - `tg`: Bot API transport (`getUpdates`, `sendMessage`, typing). Splits
+//!   replies with [`leo_telegram::split_telegram`].
+//!
+//! # Startup
+//!
+//! Token: `--token`, else `TELEGRAM_BOT_TOKEN`, else config file, else the
+//! `telegram_bot_token` secret. Database URL follows the same store
+//! precedence as the TUI. Missing token exits; empty allowlist warns and
+//! stays idle.
 
 mod config;
 mod tg;
@@ -12,7 +49,7 @@ use std::time::Duration;
 
 use clap::Parser;
 use leo_llm::{ChatMessage, ChatRequest};
-use leo_store::{self as store, Snapshot};
+use leo_store::{self as store, CONTEXT_LIMIT, NewMessage, Snapshot, telegram_token};
 use tracing_subscriber::EnvFilter;
 
 use crate::config::BotConfig;
@@ -47,13 +84,7 @@ async fn main() {
 
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
-    let cfg = BotConfig::load(cli.token, cli.database_url)?;
-    if cfg.allow_users.is_empty() {
-        tracing::warn!(
-            "TELEGRAM_ALLOW_USERS vacío: el bot no habla con nadie hasta que pongas tu user id"
-        );
-    }
-
+    let mut cfg = BotConfig::load(cli.token, cli.database_url)?;
     let pool = match store::connect(&cfg.database_url).await {
         Ok(pool) => pool,
         Err(err) => {
@@ -65,7 +96,17 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
     store::migrate(&pool).await?;
+    let _ = store::apply_secrets_to_env(&pool).await;
     let _ = store::sync_ollama_providers(&pool).await;
+    overlay_bot_config(&pool, &mut cfg).await?;
+    if cfg.token.trim().is_empty() {
+        return Err("falta TELEGRAM_BOT_TOKEN (en postgres, .env, el entorno o --token)".into());
+    }
+    if cfg.allow_users.is_empty() {
+        tracing::warn!(
+            "allowlist vacía: el bot no habla con nadie hasta que pongas tu user id en settings o TELEGRAM_ALLOW_USERS"
+        );
+    }
 
     let tools = leo_tools::Registry::from_env();
     let tg = Telegram::new(&cfg.token)?;
@@ -112,7 +153,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
                                     chat_id,
                                     &format!(
                                         "no estás en la lista. tu id es {user_id}.\n\
-                                         export TELEGRAM_ALLOW_USERS={user_id}"
+                                         guarda TELEGRAM_ALLOW_USERS={user_id} o ponlo en settings"
                                     ),
                                 )
                                 .await;
@@ -121,10 +162,22 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     let mut snap = refresh(&pool).await?;
-                    let session = sessions.entry(chat_id).or_default();
+                    let session = match load_session(&pool, &mut sessions, chat_id).await {
+                        Ok(s) => s,
+                        Err(err) => {
+                            tracing::warn!(%err, "sesión");
+                            continue;
+                        }
+                    };
                     match on_text(session, &snap, text, private) {
                         Outcome::Ignore => {}
                         Outcome::Text(reply) => tg.send_text(chat_id, &reply).await?,
+                        Outcome::Clear => {
+                            let conv = store::new_telegram(&pool, chat_id).await?;
+                            session.conversation_id = conv.id;
+                            session.history.clear();
+                            tg.send_text(chat_id, "conversación nueva").await?;
+                        }
                         Outcome::Db { op, note } => {
                             match store::apply(&pool, op).await {
                                 Ok(next) => {
@@ -182,9 +235,25 @@ async fn reply_llm(
     if store::uses_ollama(snap) {
         let _ = store::sync_ollama_providers(pool).await;
     }
-    let req = ChatRequest::with_history(&snap.system, session.history.clone());
+    if let Some(ChatMessage { content, .. }) = session.history.last() {
+        store::append_message(
+            pool,
+            session.conversation_id,
+            NewMessage::user(content.clone()),
+        )
+        .await?;
+    }
+    let history = store::context_messages(pool, session.conversation_id, CONTEXT_LIMIT).await?;
+    session.history = history.clone();
+    let req = ChatRequest::with_history(&snap.system, history);
     match leo_tools::chat(&client, req, tools).await {
         Ok(resp) => {
+            store::append_message(
+                pool,
+                session.conversation_id,
+                NewMessage::assistant(resp.text.clone(), snap.active_model_id),
+            )
+            .await?;
             session
                 .history
                 .push(ChatMessage::assistant(resp.text.clone()));
@@ -193,8 +262,46 @@ async fn reply_llm(
         }
         Err(err) => {
             session.history.pop();
+            let _ = store::append_message(
+                pool,
+                session.conversation_id,
+                NewMessage::error(err.to_string()),
+            )
+            .await;
             tg.send_text(chat_id, &err.to_string()).await?;
         }
     }
     Ok(())
+}
+
+async fn overlay_bot_config(pool: &sqlx::PgPool, cfg: &mut BotConfig) -> Result<(), sqlx::Error> {
+    if cfg.token.is_empty() {
+        if let Some(token) = telegram_token(pool).await? {
+            cfg.token = token;
+        }
+    }
+    let snap = store::load(pool).await?;
+    if cfg.allow_users.is_empty() && !snap.settings.telegram_allow_users.is_empty() {
+        cfg.allow_users = snap.settings.telegram_allow_users.clone();
+    }
+    Ok(())
+}
+
+async fn load_session<'a>(
+    pool: &sqlx::PgPool,
+    sessions: &'a mut HashMap<i64, Session>,
+    chat_id: i64,
+) -> Result<&'a mut Session, sqlx::Error> {
+    if !sessions.contains_key(&chat_id) {
+        let conv = store::ensure_telegram(pool, chat_id).await?;
+        let history = store::context_messages(pool, conv.id, CONTEXT_LIMIT).await?;
+        sessions.insert(
+            chat_id,
+            Session {
+                conversation_id: conv.id,
+                history,
+            },
+        );
+    }
+    Ok(sessions.get_mut(&chat_id).expect("just inserted"))
 }
