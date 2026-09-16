@@ -62,7 +62,7 @@ Light and dark are first-class. Dark is charcoal like GrokNight; light is paper 
 
 **Key Characteristics:**
 - Rail + canvas + composer card
-- Inverse filled primary vs bordered secondary vs red danger vs green listen
+- Inverse filled primary vs bordered secondary vs red danger
 - Theme toggle persisted in `localStorage`
 - No cloud photograph, no rainbow hairlines
 
@@ -83,7 +83,7 @@ Neutral surfaces, one accent, semantic action colors.
 - **Text / muted** (#f2f2f4 / #9a9aa3)
 
 ### Named Rules
-**The Four-Button Rule.** Primary is filled inverse. Secondary is bordered. Danger is red outline. Listen is green. Never restyle all four as the same pill.
+**The Three-Button Rule.** Primary is filled inverse. Secondary is bordered. Danger is red outline. Never restyle all three as the same pill.
 
 ## Typography
 
@@ -115,19 +115,18 @@ Controls 10px. Composer 22px. User bubble 18px with a square inner corner. Send 
 
 ### Buttons
 - **Primary:** filled inverse (Nuevo chat, Activar, Añadir, Enviar)
-- **Secondary:** elevated + border (Parar, Decir, kind)
-- **Danger:** red outline, fills red on hover (Apagar, Borrar)
-- **Listen:** green outline, fills green when live
+- **Secondary:** elevated + border (kind)
+- **Danger:** red outline, fills red on hover (Borrar)
 - **Ghost:** no border (tema, menú, cerrar)
 
 ### Inputs / Fields
 - Elevated fill, 1px `--border`, 10px radius. Focus: 2px accent outline.
 
 ### Navigation
-- Rail: Nuevo chat, Catálogo, voz, theme. Esc closes catalog and the mobile rail.
+- Rail: Nuevo chat, Catálogo, theme. Esc closes catalog and the mobile rail.
 
 ### Composer
-- Card with textarea, model `<select>`, mic, circular send.
+- Card with textarea, model `<select>`, circular send.
 
 ### Catalog
 - Right settings panel + dim scrim. Same button vocabulary.
@@ -137,7 +136,7 @@ Controls 10px. Composer 22px. User bubble 18px with a square inner corner. Send 
 ### Do:
 - **Do** keep Grok's empty-canvas → docked-composer sequence.
 - **Do** ship light and dark from the same tokens.
-- **Do** make send, listen, danger, and secondary look like different objects.
+- **Do** make send, danger, and secondary look like different objects.
 
 ### Don't:
 - **Don't** put a photograph or iridescent gradient on the chrome.

@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-React + TypeScript + Vite + Tauri 2 + Rust. Confirmed by the user. The UI is a web surface inside a Tauri desktop shell; the Rust side talks to `leo-store`, `leo-llm`, `leo-tools`, and `leo-ipc`. Runtime is a local desktop app, not a hosted site.
+React + TypeScript + Vite + Tauri 2 + Rust. Confirmed by the user. The UI is a web surface inside a Tauri desktop shell; the Rust side talks to `leo-store`, `leo-llm`, and `leo-tools`. Runtime is a local desktop app, not a hosted site.
 
 ## Users
 
@@ -16,16 +16,16 @@ Markus, using Leo as a personal assistant on his Linux workstation. He already t
 
 ## Product Purpose
 
-Leo is a local personal assistant: chat with an LLM that can call tools, pick the model from a shared catalog, and (when the daemon is running) listen and speak. Success is being able to converse and change provider, model, API key, system prompt, and voice-session state without opening the TUI or `leo-ctl`.
+Leo is a local personal assistant: chat with an LLM that can call tools and pick the model from a shared catalog. Success is being able to converse and change provider, model, API key, and system prompt without opening the TUI. Voice (listen/speak via `leo-daemon`) is deferred until chat is solid.
 
 ## Positioning
 
-One catalog (Postgres) and one tool registry feed every surface. The desktop app is another face of that catalog, not a second product with its own keys and history store.
+One catalog and conversation store (Postgres) and one tool registry feed every surface. The desktop app is another face of that catalog, not a second product with its own keys and history store.
 
 ## Operating Context
 
-- The catalog lives in Postgres (`docker compose up -d`); chat history stays in memory.
-- Voice is a separate process (`leo-daemon`) controlled over a Unix socket (`leo-ctl`: status, listen, stop, speak, shutdown).
+- The catalog, engines, settings, and chat history live in Postgres (`docker compose up -d`).
+- Voice crates (`leo-daemon`, `leo-ctl`) exist in the workspace but are out of scope until chat ships.
 - Tools register from the environment (files, shell, system, weather always; AppFlowy/GitHub/Google/Home Assistant when credentials exist).
 - Keys may sit in the catalog or in env (`XAI_API_KEY`, etc.).
 - Copy and UI are in Spanish, matching TUI and Telegram.
@@ -36,14 +36,13 @@ Confirmed for this surface:
 
 - Minimalist chat against the active catalog model, through `leo-tools::chat` (tool loop included).
 - Configure the catalog the TUI configures: providers (kind, API key, base URL, rename, create, delete), models (create, rename, delete, activate), system prompt, clear conversation.
-- Control the voice daemon: status, listen, stop, speak, shutdown.
-- Not in this surface: Telegram token/allowlist, editing `~/.config/leo-ai/config.toml`, wake-word training.
+- Not in this surface: voice daemon control, Telegram token/allowlist, editing `~/.config/leo-ai/config.toml`.
 
 ## Brand Commitments
 
 - Name: Leo.
 - Voice: Spanish, clear and direct.
-- Existing surfaces: TUI (`leo`), Telegram (`leo-telegram`), voice daemon (`leo-daemon` + `leo-ctl`).
+- Existing surfaces: TUI (`leo`), Telegram (`leo-telegram`), desktop. Voice daemon later.
 
 ## Evidence on Hand
 

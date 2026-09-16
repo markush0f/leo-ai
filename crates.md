@@ -27,9 +27,9 @@ Voice
              capture → VAD → STT → LLM → TTS → playback
 ```
 
-Chat surfaces share persistent provider/model settings, not conversation history.
-The voice daemon reads TOML configuration and does not use `leo-store` or the
-`leo-tools` chat loop.
+Chat surfaces share the PostgreSQL catalog (providers, models, engines, settings)
+and conversation history. Voice crates remain in the workspace but are not
+exposed in TUI, Telegram, or desktop until that work is scheduled.
 
 ## Applications
 
@@ -37,18 +37,21 @@ The voice daemon reads TOML configuration and does not use `leo-store` or the
 | --- | --- | --- |
 | `leo-tui` | `leo` | Ratatui chat and catalog editor. `app` owns state; `input` and `slash` route input; `settings` and `ui` handle editing and rendering. |
 | `leo-telegram` | `leo-telegram` | Long polling, allowlist enforcement, per-session history, and shared chat tools. Library routing is separate from `tg` HTTP transport. |
-| `desktop/` | `npm run tauri dev` | React shell and native commands for chat, catalog editing, and voice control. |
-| `leo-daemon` | `leo-daemon` | Loads voice settings, builds providers, starts the engine, and serves Unix IPC. |
-| `leo-ctl` | `leo-ctl` | Sends one voice command and prints the daemon response. |
+| `desktop/` | `npm run tauri dev` | React shell and native commands for chat and catalog editing. |
+| `leo-daemon` | `leo-daemon` | Voice process; deferred. Loads catalog and engines, serves Unix IPC. |
+| `leo-ctl` | `leo-ctl` | Voice CLI; deferred. |
 
 ## Shared chat layer
 
 ### `leo-store`: catalog persistence
 
-PostgreSQL stores providers, model names, active selection, and system prompt.
-The schema and seed data live in `deploy/postgres/init.sql`.
+PostgreSQL stores providers, models, STT/TTS/wake engines, settings (including
+the active model and voice parameters), secrets, and conversations.
+The schema lives in `deploy/postgres/init.sql`; additive changes are versioned
+under `deploy/postgres/migrations/`.
 
-- `Snapshot` is an in-memory catalog copy, including internal provider credentials.
+- `Snapshot` is an in-memory catalog and settings copy, including internal provider credentials.
+- Conversations are loaded separately (`ensure_local`, `context_messages`, `append_message`).
 - `Snapshot::client()` builds the active model's client without network I/O.
 - `DbOp` represents edits; `apply` persists one operation and reloads the catalog.
 - `sync_ollama_providers` discovers models from configured Ollama providers.
@@ -106,7 +109,9 @@ arguments, resolves paths, and registers these implementations.
 | `home-assistant` | Entity states and service calls | Server URL and token. |
 | `notion`, `spotify` | None | Placeholder crates, not registered. |
 
-## Voice layer
+## Voice layer (deferred)
+
+Not wired into chat surfaces. Crates stay for a later pass.
 
 ### `leo-core`: state machine and engine
 
@@ -154,12 +159,12 @@ caller must ensure another daemon is not already using it.
 
 ## Desktop boundary
 
-- `src/App.tsx`: conversation state, display bubbles, voice polling, theme, and catalog visibility.
+- `src/App.tsx`: conversation state, display bubbles, theme, and catalog visibility.
 - `src/Catalog.tsx`: local form drafts and catalog operations.
 - `src/api.ts`: Tauri invocation or browser-preview mocks.
 - `src/types.ts`: frontend DTOs and tagged operations mirrored by Rust.
 - `src/theme.ts`: saved theme preference and root CSS selector.
-- `src-tauri/src/lib.rs`: native commands, database access, tool-enabled chat, and voice IPC.
+- `src-tauri/src/lib.rs`: native commands, database access, and tool-enabled chat.
 
 Keep frontend field names, operation tags, and native DTOs synchronized. Browser
 preview validates interaction and layout, not live provider, database, or IPC behavior.
