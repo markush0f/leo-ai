@@ -1,3 +1,8 @@
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version INT PRIMARY KEY,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS providers (
     id UUID PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
@@ -14,10 +19,74 @@ CREATE TABLE IF NOT EXISTS models (
     UNIQUE (provider_id, name)
 );
 
+CREATE TABLE IF NOT EXISTS engines (
+    id UUID PRIMARY KEY,
+    role TEXT NOT NULL CHECK (role IN ('stt', 'tts', 'wake')),
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    provider_id UUID REFERENCES providers (id) ON DELETE SET NULL,
+    config JSONB NOT NULL DEFAULT '{}',
+    UNIQUE (role, name)
+);
+
+CREATE TABLE IF NOT EXISTS conversations (
+    id UUID PRIMARY KEY,
+    channel TEXT NOT NULL CHECK (channel IN ('local', 'telegram', 'voice')),
+    external_id TEXT,
+    title TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    archived_at TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS conversations_telegram_live
+    ON conversations (external_id)
+    WHERE channel = 'telegram' AND archived_at IS NULL AND external_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS conversations_voice_live
+    ON conversations (channel)
+    WHERE channel = 'voice' AND archived_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS messages (
+    id UUID PRIMARY KEY,
+    conversation_id UUID NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'tool', 'error')),
+    content TEXT NOT NULL,
+    tool_call_id TEXT,
+    name TEXT,
+    tool_calls JSONB NOT NULL DEFAULT '[]',
+    model_id UUID REFERENCES models (id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS messages_conversation_created
+    ON messages (conversation_id, created_at);
+
 CREATE TABLE IF NOT EXISTS settings (
     id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
     active_model_id UUID REFERENCES models (id) ON DELETE SET NULL,
-    system_prompt TEXT NOT NULL
+    system_prompt TEXT NOT NULL,
+    voice_system_prompt TEXT NOT NULL DEFAULT 'Eres Leo, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta.',
+    stt_engine_id UUID REFERENCES engines (id) ON DELETE SET NULL,
+    tts_engine_id UUID REFERENCES engines (id) ON DELETE SET NULL,
+    wake_engine_id UUID REFERENCES engines (id) ON DELETE SET NULL,
+    audio_source TEXT NOT NULL DEFAULT '@DEFAULT_SOURCE@',
+    audio_sink TEXT NOT NULL DEFAULT '@DEFAULT_SINK@',
+    vad_hangover_ms INT NOT NULL DEFAULT 500,
+    barge_in BOOLEAN NOT NULL DEFAULT TRUE,
+    barge_in_rms REAL NOT NULL DEFAULT 0.035,
+    stt_language TEXT NOT NULL DEFAULT 'es',
+    thinking BOOLEAN NOT NULL DEFAULT FALSE,
+    tools_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    active_conversation_id UUID REFERENCES conversations (id) ON DELETE SET NULL,
+    telegram_token TEXT,
+    telegram_allow_users BIGINT[] NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS secrets (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 INSERT INTO providers (id, name, kind, base_url) VALUES
@@ -34,6 +103,26 @@ INSERT INTO models (id, provider_id, name) VALUES
     ('00000000-0000-4000-8000-000000000401', '00000000-0000-4000-8000-000000000004', 'claude-sonnet-5')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO settings (id, active_model_id, system_prompt) VALUES
-    (1, '00000000-0000-4000-8000-000000000101', 'Eres Leo, un asistente. Responde en español, claro y directo.')
+INSERT INTO engines (id, role, kind, name, provider_id) VALUES
+    ('00000000-0000-4000-8000-000000000501', 'stt', 'grok', 'grok-stt', '00000000-0000-4000-8000-000000000001'),
+    ('00000000-0000-4000-8000-000000000502', 'stt', 'null', 'none', NULL),
+    ('00000000-0000-4000-8000-000000000601', 'tts', 'null', 'tone', NULL),
+    ('00000000-0000-4000-8000-000000000701', 'wake', 'noop', 'none', NULL)
 ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO settings (
+    id, active_model_id, system_prompt, voice_system_prompt,
+    stt_engine_id, tts_engine_id, wake_engine_id
+) VALUES (
+    1,
+    '00000000-0000-4000-8000-000000000101',
+    'Eres Leo, un asistente. Responde en español, claro y directo.',
+    'Eres Leo, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta.',
+    '00000000-0000-4000-8000-000000000501',
+    '00000000-0000-4000-8000-000000000601',
+    '00000000-0000-4000-8000-000000000701'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO schema_migrations (version) VALUES (1)
+ON CONFLICT (version) DO NOTHING;

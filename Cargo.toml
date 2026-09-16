@@ -33,6 +33,7 @@ sqlx = { version = "0.8", default-features = false, features = [
     "runtime-tokio-rustls",
     "postgres",
     "uuid",
+    "json",
 ] }
 uuid = { version = "1", features = ["v4", "serde"] }
 webrtc-vad = "0.4"

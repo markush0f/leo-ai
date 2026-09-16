@@ -1,16 +1,70 @@
-//! PostgreSQL catalog shared by the chat interfaces.
+//! PostgreSQL catalog shared by chat, voice, and tools.
 //!
-//! Persists provider credentials, model selection, and system prompts, but not
-//! conversations. The schema is embedded from `deploy/postgres/init.sql`.
+//! Persists providers, models, engines, settings, secrets, and conversations.
+//! The base schema lives in `deploy/postgres/init.sql`; additive changes are
+//! versioned under `deploy/postgres/migrations/`.
+
+mod conversations;
+mod migrate;
+mod secrets;
 
 use leo_llm::{Client, LlmError, ProviderId};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-const SCHEMA: &str = include_str!("../../../deploy/postgres/init.sql");
+pub use conversations::{
+    CHANNEL_LOCAL, CHANNEL_TELEGRAM, CHANNEL_VOICE, CONTEXT_LIMIT, ConversationRow, MessageRow,
+    NewMessage, append_message, archive_conversation, context_messages, conversation_messages,
+    create_conversation, display_kind, ensure_local, ensure_telegram, ensure_voice,
+    get_conversation, list_conversations, new_local, new_telegram, set_active_conversation,
+};
+pub use migrate::migrate;
+pub use secrets::{SecretRow, apply_secrets_to_env, get_secret, list_secrets, set_secret};
 
 pub const DEFAULT_DATABASE_URL: &str = "postgres://leo:leo@127.0.0.1:5439/leo?sslmode=disable";
+
+pub const ENGINE_STT_GROK: Uuid = Uuid::from_u128(0x0000_0000_0000_4000_8000_0000_0000_0501);
+pub const ENGINE_STT_NONE: Uuid = Uuid::from_u128(0x0000_0000_0000_4000_8000_0000_0000_0502);
+pub const ENGINE_TTS_TONE: Uuid = Uuid::from_u128(0x0000_0000_0000_4000_8000_0000_0000_0601);
+pub const ENGINE_WAKE_NONE: Uuid = Uuid::from_u128(0x0000_0000_0000_4000_8000_0000_0000_0701);
+
+const DEFAULT_SYSTEM: &str = "Eres Leo, un asistente. Responde en español, claro y directo.";
+const DEFAULT_VOICE_SYSTEM: &str = "Eres Leo, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta.";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EngineRole {
+    Stt,
+    Tts,
+    Wake,
+}
+
+impl EngineRole {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Stt => "stt",
+            Self::Tts => "tts",
+            Self::Wake => "wake",
+        }
+    }
+
+    pub fn parse(name: &str) -> Option<Self> {
+        match name.trim().to_ascii_lowercase().as_str() {
+            "stt" => Some(Self::Stt),
+            "tts" => Some(Self::Tts),
+            "wake" => Some(Self::Wake),
+            _ => None,
+        }
+    }
+
+    fn column(self) -> &'static str {
+        match self {
+            Self::Stt => "stt_engine_id",
+            Self::Tts => "tts_engine_id",
+            Self::Wake => "wake_engine_id",
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ProviderRow {
@@ -29,13 +83,70 @@ pub struct ModelRow {
 }
 
 #[derive(Debug, Clone)]
-/// In-memory catalog and settings snapshot; does not contain chat history.
+pub struct EngineRow {
+    pub id: Uuid,
+    pub role: String,
+    pub kind: String,
+    pub name: String,
+    pub provider_id: Option<Uuid>,
+    pub config: serde_json::Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct SettingsRow {
+    pub active_model_id: Option<Uuid>,
+    pub system_prompt: String,
+    pub voice_system_prompt: String,
+    pub stt_engine_id: Option<Uuid>,
+    pub tts_engine_id: Option<Uuid>,
+    pub wake_engine_id: Option<Uuid>,
+    pub audio_source: String,
+    pub audio_sink: String,
+    pub vad_hangover_ms: i32,
+    pub barge_in: bool,
+    pub barge_in_rms: f32,
+    pub stt_language: String,
+    pub thinking: bool,
+    pub tools_enabled: bool,
+    pub active_conversation_id: Option<Uuid>,
+    pub telegram_token_set: bool,
+    pub telegram_allow_users: Vec<i64>,
+}
+
+impl SettingsRow {
+    fn stub(active_model_id: Option<Uuid>, system: String) -> Self {
+        Self {
+            active_model_id,
+            system_prompt: system,
+            voice_system_prompt: DEFAULT_VOICE_SYSTEM.into(),
+            stt_engine_id: None,
+            tts_engine_id: None,
+            wake_engine_id: None,
+            audio_source: "@DEFAULT_SOURCE@".into(),
+            audio_sink: "@DEFAULT_SINK@".into(),
+            vad_hangover_ms: 500,
+            barge_in: true,
+            barge_in_rms: 0.035,
+            stt_language: "es".into(),
+            thinking: false,
+            tools_enabled: true,
+            active_conversation_id: None,
+            telegram_token_set: false,
+            telegram_allow_users: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+/// In-memory catalog and settings snapshot; conversations are loaded separately.
 ///
 /// Contains provider credentials. Interfaces should convert it to presentation
 /// DTOs rather than exposing those keys directly.
 pub struct Snapshot {
     pub providers: Vec<ProviderRow>,
     pub models: Vec<ModelRow>,
+    pub engines: Vec<EngineRow>,
+    pub settings: SettingsRow,
     pub active_model_id: Option<Uuid>,
     pub system: String,
 }
@@ -45,16 +156,61 @@ pub struct Snapshot {
 pub enum DbOp {
     ActivateProvider(Uuid),
     ActivateModel(Uuid),
-    SetKind { id: Uuid, kind: String },
+    SetKind {
+        id: Uuid,
+        kind: String,
+    },
     SetSystem(String),
-    SetApiKey { id: Uuid, api_key: String },
-    SetBaseUrl { id: Uuid, base_url: String },
-    NewProvider { name: String },
-    NewModel { provider_id: Uuid, name: String },
-    RenameProvider { id: Uuid, name: String },
-    RenameModel { id: Uuid, name: String },
+    SetApiKey {
+        id: Uuid,
+        api_key: String,
+    },
+    SetBaseUrl {
+        id: Uuid,
+        base_url: String,
+    },
+    NewProvider {
+        name: String,
+    },
+    NewModel {
+        provider_id: Uuid,
+        name: String,
+    },
+    RenameProvider {
+        id: Uuid,
+        name: String,
+    },
+    RenameModel {
+        id: Uuid,
+        name: String,
+    },
     DeleteProvider(Uuid),
     DeleteModel(Uuid),
+    SetVoiceSystem(String),
+    SetEngine {
+        role: EngineRole,
+        id: Uuid,
+    },
+    SetVoiceAudio {
+        source: String,
+        sink: String,
+    },
+    SetVad {
+        hangover_ms: u32,
+        barge_in: bool,
+        barge_in_rms: f32,
+    },
+    SetSttLanguage(String),
+    SetThinking(bool),
+    SetToolsEnabled(bool),
+    SetTelegram {
+        token: Option<String>,
+        allow_users: Vec<i64>,
+    },
+    SetSecret {
+        key: String,
+        value: String,
+    },
 }
 
 impl Snapshot {
@@ -75,12 +231,27 @@ impl Snapshot {
             .collect()
     }
 
+    pub fn engines_of(&self, role: EngineRole) -> Vec<&EngineRow> {
+        let role = role.as_str();
+        self.engines.iter().filter(|e| e.role == role).collect()
+    }
+
+    pub fn engine(&self, role: EngineRole) -> Option<&EngineRow> {
+        let id = match role {
+            EngineRole::Stt => self.settings.stt_engine_id?,
+            EngineRole::Tts => self.settings.tts_engine_id?,
+            EngineRole::Wake => self.settings.wake_engine_id?,
+        };
+        self.engines.iter().find(|e| e.id == id)
+    }
+
     pub fn activate_provider(&mut self, id: Uuid) {
         if let Some(model) = self.models.iter().find(|m| m.provider_id == id) {
             self.active_model_id = Some(model.id);
         } else {
             self.active_model_id = None;
         }
+        self.settings.active_model_id = self.active_model_id;
     }
 
     /// Builds the active model's client with stored or environment credentials.
@@ -99,6 +270,14 @@ impl Snapshot {
         Client::connect(kind, provider.api_key.clone(), provider.base_url.clone())
             .map(|c| c.with_model(model.name.clone()))
     }
+
+    pub fn grok_api_key(&self) -> Option<String> {
+        self.providers
+            .iter()
+            .find(|p| p.kind.eq_ignore_ascii_case("grok"))
+            .and_then(|p| nonempty_owned(p.api_key.clone()))
+            .or_else(|| nonempty_owned(std::env::var("XAI_API_KEY").ok()))
+    }
 }
 
 /// Resolves `LEO_DATABASE_URL`, then `DATABASE_URL`, then the local default URL.
@@ -110,29 +289,6 @@ pub fn database_url() -> String {
 
 pub async fn connect(url: &str) -> Result<PgPool, sqlx::Error> {
     PgPoolOptions::new().max_connections(5).connect(url).await
-}
-
-pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
-    let tables: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'providers'",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
-    let seeded = tables > 0
-        && sqlx::query_scalar::<_, i64>("SELECT count(*) FROM providers")
-            .fetch_one(pool)
-            .await
-            .map(|n| n > 0)
-            .unwrap_or(false);
-
-    for stmt in statements(SCHEMA) {
-        if stmt.starts_with("INSERT") && seeded {
-            continue;
-        }
-        sqlx::query(stmt).execute(pool).await?;
-    }
-    Ok(())
 }
 
 pub async fn load(pool: &PgPool) -> Result<Snapshot, sqlx::Error> {
@@ -161,23 +317,82 @@ pub async fn load(pool: &PgPool) -> Result<Snapshot, sqlx::Error> {
         })
         .collect();
 
-    let settings = sqlx::query("SELECT active_model_id, system_prompt FROM settings WHERE id = 1")
-        .fetch_optional(pool)
-        .await?;
-    let (active_model_id, system) = match settings {
-        Some(row) => (row.get("active_model_id"), row.get("system_prompt")),
-        None => (
-            None,
-            "Eres Leo, un asistente. Responde en español, claro y directo.".into(),
-        ),
-    };
+    let engines = sqlx::query(
+        "SELECT id, role, kind, name, provider_id, config FROM engines ORDER BY role, name",
+    )
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .map(|row| EngineRow {
+        id: row.get("id"),
+        role: row.get("role"),
+        kind: row.get("kind"),
+        name: row.get("name"),
+        provider_id: row.get("provider_id"),
+        config: row.get("config"),
+    })
+    .collect();
+
+    let settings = load_settings(pool).await?;
+    let active_model_id = settings.active_model_id;
+    let system = settings.system_prompt.clone();
 
     Ok(Snapshot {
         providers,
         models,
+        engines,
+        settings,
         active_model_id,
         system,
     })
+}
+
+async fn load_settings(pool: &PgPool) -> Result<SettingsRow, sqlx::Error> {
+    let Some(row) = sqlx::query(
+        "SELECT active_model_id, system_prompt, voice_system_prompt,
+                stt_engine_id, tts_engine_id, wake_engine_id,
+                audio_source, audio_sink, vad_hangover_ms, barge_in, barge_in_rms,
+                stt_language, thinking, tools_enabled, active_conversation_id,
+                telegram_token, telegram_allow_users
+         FROM settings WHERE id = 1",
+    )
+    .fetch_optional(pool)
+    .await?
+    else {
+        return Ok(SettingsRow::stub(None, DEFAULT_SYSTEM.into()));
+    };
+
+    let token: Option<String> = row.get("telegram_token");
+    Ok(SettingsRow {
+        active_model_id: row.get("active_model_id"),
+        system_prompt: row.get("system_prompt"),
+        voice_system_prompt: row.get("voice_system_prompt"),
+        stt_engine_id: row.get("stt_engine_id"),
+        tts_engine_id: row.get("tts_engine_id"),
+        wake_engine_id: row.get("wake_engine_id"),
+        audio_source: row.get("audio_source"),
+        audio_sink: row.get("audio_sink"),
+        vad_hangover_ms: row.get("vad_hangover_ms"),
+        barge_in: row.get("barge_in"),
+        barge_in_rms: row.get("barge_in_rms"),
+        stt_language: row.get("stt_language"),
+        thinking: row.get("thinking"),
+        tools_enabled: row.get("tools_enabled"),
+        active_conversation_id: row.get("active_conversation_id"),
+        telegram_token_set: token.as_ref().is_some_and(|t| !t.trim().is_empty()),
+        telegram_allow_users: row
+            .try_get::<Vec<i64>, _>("telegram_allow_users")
+            .unwrap_or_default(),
+    })
+}
+
+pub async fn telegram_token(pool: &PgPool) -> Result<Option<String>, sqlx::Error> {
+    let value: Option<String> =
+        sqlx::query_scalar("SELECT telegram_token FROM settings WHERE id = 1")
+            .fetch_optional(pool)
+            .await?
+            .flatten();
+    Ok(nonempty_owned(value))
 }
 
 /// Applies a mutation and reloads the catalog.
@@ -271,6 +486,67 @@ pub async fn apply(pool: &PgPool, op: DbOp) -> Result<Snapshot, sqlx::Error> {
                 .bind(id)
                 .execute(pool)
                 .await?;
+        }
+        DbOp::SetVoiceSystem(text) => {
+            sqlx::query("UPDATE settings SET voice_system_prompt = $1 WHERE id = 1")
+                .bind(text)
+                .execute(pool)
+                .await?;
+        }
+        DbOp::SetEngine { role, id } => {
+            let sql = format!("UPDATE settings SET {} = $1 WHERE id = 1", role.column());
+            sqlx::query(&sql).bind(id).execute(pool).await?;
+        }
+        DbOp::SetVoiceAudio { source, sink } => {
+            sqlx::query("UPDATE settings SET audio_source = $1, audio_sink = $2 WHERE id = 1")
+                .bind(source)
+                .bind(sink)
+                .execute(pool)
+                .await?;
+        }
+        DbOp::SetVad {
+            hangover_ms,
+            barge_in,
+            barge_in_rms,
+        } => {
+            sqlx::query(
+                "UPDATE settings SET vad_hangover_ms = $1, barge_in = $2, barge_in_rms = $3 WHERE id = 1",
+            )
+            .bind(hangover_ms as i32)
+            .bind(barge_in)
+            .bind(barge_in_rms)
+            .execute(pool)
+            .await?;
+        }
+        DbOp::SetSttLanguage(text) => {
+            sqlx::query("UPDATE settings SET stt_language = $1 WHERE id = 1")
+                .bind(text)
+                .execute(pool)
+                .await?;
+        }
+        DbOp::SetThinking(value) => {
+            sqlx::query("UPDATE settings SET thinking = $1 WHERE id = 1")
+                .bind(value)
+                .execute(pool)
+                .await?;
+        }
+        DbOp::SetToolsEnabled(value) => {
+            sqlx::query("UPDATE settings SET tools_enabled = $1 WHERE id = 1")
+                .bind(value)
+                .execute(pool)
+                .await?;
+        }
+        DbOp::SetTelegram { token, allow_users } => {
+            sqlx::query(
+                "UPDATE settings SET telegram_token = $1, telegram_allow_users = $2 WHERE id = 1",
+            )
+            .bind(token.as_deref().and_then(empty_to_none))
+            .bind(&allow_users)
+            .execute(pool)
+            .await?;
+        }
+        DbOp::SetSecret { key, value } => {
+            set_secret(pool, &key, &value).await?;
         }
     }
     if should_sync {
@@ -409,13 +685,27 @@ fn empty_to_none(s: &str) -> Option<&str> {
     if t.is_empty() { None } else { Some(t) }
 }
 
-fn statements(sql: &str) -> impl Iterator<Item = &str> {
-    sql.split(';').map(str::trim).filter(|s| !s.is_empty())
+fn nonempty_owned(value: Option<String>) -> Option<String> {
+    value.and_then(|s| {
+        let t = s.trim();
+        if t.is_empty() {
+            None
+        } else {
+            Some(t.to_string())
+        }
+    })
+}
+
+pub(crate) fn is_unique_violation(err: &sqlx::Error) -> bool {
+    err.as_database_error()
+        .and_then(|e| e.code())
+        .is_some_and(|c| c.as_ref() == "23505")
 }
 
 pub fn stub_snapshot(provider: &str, model: &str, system: &str) -> Snapshot {
     let pid = Uuid::from_u128(1);
     let mid = Uuid::from_u128(2);
+    let settings = SettingsRow::stub(Some(mid), system.into());
     Snapshot {
         providers: vec![ProviderRow {
             id: pid,
@@ -429,6 +719,8 @@ pub fn stub_snapshot(provider: &str, model: &str, system: &str) -> Snapshot {
             provider_id: pid,
             name: model.into(),
         }],
+        engines: Vec::new(),
+        settings,
         active_model_id: Some(mid),
         system: system.into(),
     }
@@ -465,9 +757,17 @@ mod tests {
             return;
         };
         migrate(&pool).await.expect("migrate");
+        migrate(&pool).await.expect("migrate twice");
         let snap = load(&pool).await.expect("load");
         assert!(snap.providers.iter().any(|p| p.kind == "grok"), "seed grok");
         assert!(snap.active_model().is_some());
+        assert!(
+            snap.engines
+                .iter()
+                .any(|e| e.role == "stt" && e.kind == "grok"),
+            "seed stt"
+        );
+        assert!(snap.settings.stt_engine_id.is_some());
 
         let name = format!("test-{}", Uuid::new_v4());
         let snap = apply(&pool, DbOp::NewProvider { name: name.clone() })
@@ -482,6 +782,89 @@ mod tests {
         apply(&pool, DbOp::DeleteProvider(id))
             .await
             .expect("cleanup");
+    }
+
+    #[tokio::test]
+    async fn conversation_roundtrip() {
+        let url = database_url();
+        let Ok(pool) = connect(&url).await else {
+            return;
+        };
+        migrate(&pool).await.expect("migrate");
+        let conv = new_local(&pool).await.expect("local");
+        append_message(&pool, conv.id, NewMessage::user("hola mundo"))
+            .await
+            .expect("user");
+        append_message(
+            &pool,
+            conv.id,
+            NewMessage::assistant("hola", snap_model_id(&pool).await),
+        )
+        .await
+        .expect("assistant");
+        let ctx = context_messages(&pool, conv.id, 80).await.expect("ctx");
+        assert_eq!(ctx.len(), 2);
+        assert_eq!(ctx[0].content, "hola mundo");
+        let listed = list_conversations(&pool, CHANNEL_LOCAL)
+            .await
+            .expect("list");
+        assert!(listed.iter().any(|c| c.id == conv.id));
+        assert_eq!(
+            listed
+                .iter()
+                .find(|c| c.id == conv.id)
+                .unwrap()
+                .title
+                .as_deref(),
+            Some("hola mundo")
+        );
+    }
+
+    #[tokio::test]
+    async fn telegram_clear_opens_new_live_thread() {
+        let url = database_url();
+        let Ok(pool) = connect(&url).await else {
+            return;
+        };
+        migrate(&pool).await.expect("migrate");
+        let chat_id = -i64::from(Uuid::new_v4().as_u128() as u32);
+        let first = ensure_telegram(&pool, chat_id).await.expect("first");
+        let second = new_telegram(&pool, chat_id).await.expect("second");
+        assert_ne!(first.id, second.id);
+        let live = ensure_telegram(&pool, chat_id).await.expect("live");
+        assert_eq!(live.id, second.id);
+    }
+
+    #[tokio::test]
+    async fn set_engine_roundtrip() {
+        let url = database_url();
+        let Ok(pool) = connect(&url).await else {
+            return;
+        };
+        migrate(&pool).await.expect("migrate");
+        let snap = apply(
+            &pool,
+            DbOp::SetEngine {
+                role: EngineRole::Stt,
+                id: ENGINE_STT_NONE,
+            },
+        )
+        .await
+        .expect("set");
+        assert_eq!(snap.settings.stt_engine_id, Some(ENGINE_STT_NONE));
+        apply(
+            &pool,
+            DbOp::SetEngine {
+                role: EngineRole::Stt,
+                id: ENGINE_STT_GROK,
+            },
+        )
+        .await
+        .expect("restore");
+    }
+
+    async fn snap_model_id(pool: &PgPool) -> Option<Uuid> {
+        load(pool).await.ok().and_then(|s| s.active_model_id)
     }
 
     #[test]
