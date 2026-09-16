@@ -1,5 +1,7 @@
-# Voice daemon settings. Copy to ~/.config/leo-ai/config.toml by default.
-# Chat interfaces use the PostgreSQL catalog instead of this [llm] section.
+# Legacy voice settings map. Runtime state lives in PostgreSQL (`settings` +
+# `engines`). If this file exists at ~/.config/leo-ai/config.toml and the
+# database still has voice defaults, leo-daemon imports audio/VAD/STT language
+# and the spoken prompt once. It does not override the catalog model.
 
 [audio]
 source = "@DEFAULT_SOURCE@"

@@ -1,16 +1,77 @@
-//! Voice daemon entry point and Unix-socket command server.
+//! Voice daemon binary (`leo-daemon`).
 //!
-//! Loads file-based voice settings, builds providers, and starts the engine.
-//! The voice LLM is independent of the PostgreSQL chat catalog and tool loop.
+//! Loads catalog, engines, and voice settings from PostgreSQL, constructs
+//! blocking STT/LLM/TTS/wake providers, and spawns the voice thread. It then
+//! serves one-request/one-response JSON commands on a Unix socket. Chat UIs
+//! do not run this pipeline; they send [`leo_ipc::Request`] values (or use
+//! `leo-ctl`) while this process is running.
+//!
+//! # Workspace crates
+//!
+//! - [`leo_store`] — catalog and the dedicated voice conversation. `connect` /
+//!   `migrate` prepare the schema; `apply_secrets_to_env` exports stored keys;
+//!   `load` yields [`leo_store::Snapshot`] (active model, STT/TTS/wake
+//!   engines, VAD/barge-in, devices, spoken system prompt). `ensure_voice`
+//!   plus `append_message` persist transcripts and replies. A leftover
+//!   `config.toml` is imported once via [`leo_store::DbOp`] if voice columns
+//!   are still at defaults.
+//! - [`leo_llm`] — `load_dotenv` and the async [`leo_llm::Client`] built from
+//!   the snapshot. Voice turns are single-shot (system + current utterance),
+//!   not the chat history used by TUI/Telegram/desktop. Tool execution is not
+//!   part of this path.
+//! - [`leo_core`] — [`leo_core::Session`] state machine (`idle` → `listening`
+//!   → `recording` → `transcribing` → `thinking` → `speaking`) and
+//!   [`leo_core::spawn_engine`]. The engine thread owns capture, VAD, STT,
+//!   LLM, TTS, and playback. Commands wait while a provider call is in
+//!   progress. [`leo_core::NullLlm`] is used when no client can be built.
+//! - [`leo_audio`] — used inside `leo-core` (not called from this file).
+//!   Pulse/PipeWire capture at 48 kHz, 16 kHz mono frames to VAD/STT;
+//!   playback of TTS PCM. An eight-frame capture queue drops when full.
+//! - [`leo_vad`] — WebRTC VAD at 16 kHz. Hangover is converted from
+//!   `vad_hangover_ms` assuming 20 ms frames.
+//! - [`leo_wake`] — [`leo_wake::load_wake`]. The loader currently returns
+//!   [`leo_wake::NoopWake`]; a model path does not enable detection. Start
+//!   listening with `listen`.
+//! - [`leo_stt`] — synchronous [`leo_stt::SttEngine`]. [`leo_stt::GrokStt`]
+//!   uploads mono PCM16 WAV via `Handle::block_on` (engine thread only).
+//!   [`leo_stt::NullStt`] returns no transcript when Grok or its key is
+//!   missing.
+//! - [`leo_tts`] — synchronous [`leo_tts::TtsEngine`]. This binary always
+//!   injects [`leo_tts::NullTts`], which plays a confirmation tone rather
+//!   than spoken text.
+//! - [`leo_ipc`] — Unix socket at `$XDG_RUNTIME_DIR/leo-ai.sock` (else
+//!   `/tmp/leo-ai.sock`). [`leo_ipc::bind`] removes any existing path first;
+//!   only one daemon may own it. Requests: `status`, `listen`, `stop`,
+//!   `speak`, `shutdown`. The server does not time out clients.
+//!
+//! # Local modules
+//!
+//! - `config`: leftover TOML (`~/.config/leo-ai/config.toml`) and data dirs.
+//! - `llm`: `BlockingLlm` bridges the async client to [`leo_core::LlmEngine`]
+//!   with `Handle::block_on`.
+//!
+//! # Startup
+//!
+//! Database URL follows [`leo_store::database_url`]. Engine spawn succeeding
+//! means the thread started, not that Pulse devices opened; later failures
+//! go to tracing. Transcripts and replies are appended from the event thread
+//! via the Tokio handle.
 
 mod config;
 mod llm;
 
-use leo_core::{Command, LlmEngine, NullLlm, SessionEvent, spawn_engine};
+use std::path::PathBuf;
+
+use leo_core::{
+    Command, EngineConfig, LlmEngine, NullLlm, SessionConfig, SessionEvent, spawn_engine,
+};
 use leo_ipc::{Request, Response, bind, read_request, socket_path, write_response};
-use leo_llm::{Client, ProviderId};
+use leo_store::{
+    self as store, DbOp, EngineRole, NewMessage, Snapshot, database_url, ensure_voice,
+};
 use leo_stt::{GrokStt, NullStt, SttEngine};
 use leo_tts::NullTts;
+use leo_vad::VadConfig;
 use leo_wake::load_wake;
 use tokio::runtime::Handle;
 use tracing_subscriber::EnvFilter;
@@ -36,36 +97,51 @@ async fn main() {
 
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
     ensure_dirs();
+    let url = database_url();
+    let pool = store::connect(&url).await.map_err(|err| {
+        format!(
+            "no se pudo conectar a postgres ({url}): {err}\narranca la bbdd: docker compose up -d"
+        )
+    })?;
+    store::migrate(&pool).await?;
+    let _ = store::apply_secrets_to_env(&pool).await;
     let file = FileConfig::load();
-    let engine_cfg = file.engine();
+    import_toml_if_needed(&pool, &file).await?;
+    let snap = store::load(&pool).await?;
+    let engine_cfg = engine_config(&snap);
     tracing::info!(source = %engine_cfg.source, sink = %engine_cfg.sink, "leo-daemon");
 
-    let wake = load_wake(file.wake_model().as_deref())?;
+    let wake_path = wake_model_path(&snap);
+    let wake = load_wake(wake_path.as_deref())?;
     let rt = Handle::current();
-    let stt: Box<dyn SttEngine> = match std::env::var("XAI_API_KEY") {
-        Ok(key) if !key.is_empty() => {
-            let lang = file.stt.language.clone();
-            tracing::info!(language = %lang, "stt: Grok");
-            Box::new(GrokStt::new(key, rt.clone(), Some(lang)))
-        }
-        _ => {
-            tracing::warn!("sin XAI_API_KEY: la voz no se transcribe ni llega al LLM");
-            Box::new(NullStt)
-        }
-    };
-    let llm: Box<dyn LlmEngine> = match build_llm(&file, rt) {
+    let stt = build_stt(&snap, rt.clone());
+    let llm: Box<dyn LlmEngine> = match build_llm(&snap, rt.clone()) {
         Ok(llm) => llm,
         Err(err) => {
             tracing::warn!(%err, "llm deshabilitado");
             Box::new(NullLlm)
         }
     };
+    if let Some(model) = snap.active_model() {
+        tracing::info!(model = %model.name, "llm");
+    }
+    if let Some(stt) = snap.engine(EngineRole::Stt) {
+        tracing::info!(kind = %stt.kind, language = %snap.settings.stt_language, "stt");
+    }
+    if let Some(tts) = snap.engine(EngineRole::Tts) {
+        tracing::info!(kind = %tts.kind, "tts");
+    }
     let handle = spawn_engine(engine_cfg, wake, stt, llm, Box::new(NullTts))?;
+    let voice = ensure_voice(&pool).await?;
 
     std::thread::Builder::new()
         .name("leo-events".into())
         .spawn({
             let events = handle.events;
+            let pool = pool.clone();
+            let conv = voice.id;
+            let model_id = snap.active_model_id;
+            let rt = rt.clone();
             move || {
                 while let Ok(ev) = events.recv() {
                     match ev {
@@ -73,8 +149,14 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
                         SessionEvent::Wake { name, score } => {
                             tracing::info!(name, score, "wake")
                         }
-                        SessionEvent::Transcript(t) => tracing::info!(text = %t, "voz"),
-                        SessionEvent::Reply(t) => tracing::info!(text = %t, "leo"),
+                        SessionEvent::Transcript(t) => {
+                            tracing::info!(text = %t, "voz");
+                            persist_voice(&rt, &pool, conv, NewMessage::user(t));
+                        }
+                        SessionEvent::Reply(t) => {
+                            tracing::info!(text = %t, "leo");
+                            persist_voice(&rt, &pool, conv, NewMessage::assistant(t, model_id));
+                        }
                         SessionEvent::BargeIn => tracing::info!("barge-in"),
                     }
                 }
@@ -142,19 +224,119 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn build_llm(
-    file: &crate::config::FileConfig,
+fn persist_voice(rt: &Handle, pool: &sqlx::PgPool, conversation_id: uuid::Uuid, msg: NewMessage) {
+    let pool = pool.clone();
+    rt.spawn(async move {
+        if let Err(err) = store::append_message(&pool, conversation_id, msg).await {
+            tracing::warn!(%err, "voz no guardada");
+        }
+    });
+}
+
+pub(crate) fn engine_config(snap: &Snapshot) -> EngineConfig {
+    let hangover_frames = (snap.settings.vad_hangover_ms as u32 / 20).max(1);
+    EngineConfig {
+        source: snap.settings.audio_source.clone(),
+        sink: snap.settings.audio_sink.clone(),
+        session: SessionConfig {
+            barge_in: snap.settings.barge_in,
+            barge_in_rms: snap.settings.barge_in_rms,
+            ..SessionConfig::default()
+        },
+        vad: VadConfig {
+            hangover_frames,
+            ..VadConfig::default()
+        },
+    }
+}
+
+pub(crate) fn build_llm(
+    snap: &Snapshot,
     rt: Handle,
 ) -> Result<Box<dyn LlmEngine>, Box<dyn std::error::Error>> {
-    let provider = ProviderId::parse(&file.llm.provider)?;
-    let mut client = Client::from_env(provider)?;
-    if let Some(model) = &file.llm.model {
-        client = client.with_model(model.clone());
-    }
-    tracing::info!(provider = %provider, "llm");
+    let client = snap.client()?;
     Ok(Box::new(BlockingLlm::new(
         client,
-        file.llm.system.clone(),
+        snap.settings.voice_system_prompt.clone(),
         rt,
     )))
+}
+
+fn build_stt(snap: &Snapshot, rt: Handle) -> Box<dyn SttEngine> {
+    let kind = snap
+        .engine(EngineRole::Stt)
+        .map(|e| e.kind.as_str())
+        .unwrap_or("null");
+    if kind.eq_ignore_ascii_case("grok") {
+        if let Some(key) = snap.grok_api_key() {
+            let lang = snap.settings.stt_language.clone();
+            return Box::new(GrokStt::new(key, rt, Some(lang)));
+        }
+        tracing::warn!("stt grok sin api key: la voz no se transcribe");
+    }
+    Box::new(NullStt)
+}
+
+fn wake_model_path(snap: &Snapshot) -> Option<PathBuf> {
+    let engine = snap.engine(EngineRole::Wake)?;
+    engine
+        .config
+        .get("model")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+}
+
+async fn import_toml_if_needed(pool: &sqlx::PgPool, file: &FileConfig) -> Result<(), sqlx::Error> {
+    let snap = store::load(pool).await?;
+    let s = &snap.settings;
+    let still_default = s.audio_source == "@DEFAULT_SOURCE@"
+        && s.audio_sink == "@DEFAULT_SINK@"
+        && s.vad_hangover_ms == 500
+        && (s.voice_system_prompt == FileConfig::default().llm.system
+            || s.voice_system_prompt
+                == "Eres Leo, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta.");
+    if !still_default {
+        return Ok(());
+    }
+    store::apply(
+        pool,
+        DbOp::SetVoiceAudio {
+            source: file.audio.source.clone(),
+            sink: file.audio.sink.clone(),
+        },
+    )
+    .await?;
+    store::apply(
+        pool,
+        DbOp::SetVad {
+            hangover_ms: file.vad.hangover_ms,
+            barge_in: file.barge_in.enabled,
+            barge_in_rms: file.barge_in.rms_threshold,
+        },
+    )
+    .await?;
+    store::apply(pool, DbOp::SetSttLanguage(file.stt.language.clone())).await?;
+    store::apply(pool, DbOp::SetVoiceSystem(file.llm.system.clone())).await?;
+    tracing::info!("config.toml importado a postgres");
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use leo_store::stub_snapshot;
+
+    #[test]
+    fn llm_uses_catalog_model() {
+        let snap = stub_snapshot("grok", "grok-4.6", "chat");
+        assert_eq!(snap.active_model().unwrap().name, "grok-4.6");
+        assert_eq!(
+            snap.settings.voice_system_prompt,
+            "Eres Leo, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta."
+        );
+        let cfg = engine_config(&snap);
+        assert_eq!(cfg.source, "@DEFAULT_SOURCE@");
+        assert!(cfg.session.barge_in);
+    }
 }
