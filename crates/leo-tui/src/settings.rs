@@ -38,6 +38,12 @@ pub enum Row {
     System {
         preview: String,
     },
+    Thinking {
+        on: bool,
+    },
+    ToolsEnabled {
+        on: bool,
+    },
 }
 
 impl Row {
@@ -115,6 +121,13 @@ impl SettingsState {
 
         rows.push(Row::System {
             preview: preview(&snap.system, 48),
+        });
+        rows.push(Row::Header("chat".into()));
+        rows.push(Row::Thinking {
+            on: snap.settings.thinking,
+        });
+        rows.push(Row::ToolsEnabled {
+            on: snap.settings.tools_enabled,
         });
         rows
     }
@@ -219,6 +232,8 @@ impl SettingsState {
                 self.edit_system(&snap.system);
                 None
             }
+            Row::Thinking { on } => Some(DbOp::SetThinking(!on)),
+            Row::ToolsEnabled { on } => Some(DbOp::SetToolsEnabled(!on)),
             Row::NewProvider => {
                 self.edit = Some((EditTarget::NewProvider, LineEdit::default()));
                 None

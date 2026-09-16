@@ -4,7 +4,8 @@ use leo_llm::{ChatMessage, ChatRequest, ChatResponse, LlmError};
 use crate::input::LineEdit;
 use crate::settings::SettingsState;
 use crate::slash::{self, SlashItem};
-use leo_store::{DbOp, Snapshot};
+use leo_store::{DbOp, MessageRow, Snapshot};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -38,13 +39,23 @@ pub struct App {
     pub settings: SettingsState,
     pub slash_cursor: usize,
     pub slash_pick: Option<uuid::Uuid>,
+    pub conversation_id: Uuid,
     pending_chat: Option<ChatRequest>,
     pending_db: Option<DbOp>,
+    pending_new_conversation: bool,
 }
 
 impl App {
     pub fn new(snapshot: Snapshot) -> Self {
-        Self {
+        Self::from_store(snapshot, Uuid::nil(), Vec::new())
+    }
+
+    pub fn from_store(
+        snapshot: Snapshot,
+        conversation_id: Uuid,
+        messages: Vec<MessageRow>,
+    ) -> Self {
+        let mut app = Self {
             screen: Screen::Chat,
             input: LineEdit::default(),
             bubbles: Vec::new(),
@@ -57,9 +68,35 @@ impl App {
             settings: SettingsState::new(),
             slash_cursor: 0,
             slash_pick: None,
+            conversation_id,
             pending_chat: None,
             pending_db: None,
+            pending_new_conversation: false,
+        };
+        for m in messages {
+            match m.role.as_str() {
+                "user" => {
+                    app.bubbles.push(Bubble {
+                        kind: Kind::User,
+                        text: m.content.clone(),
+                    });
+                    app.history.push(ChatMessage::user(m.content));
+                }
+                "assistant" => {
+                    app.bubbles.push(Bubble {
+                        kind: Kind::Leo,
+                        text: m.content.clone(),
+                    });
+                    app.history.push(ChatMessage::assistant(m.content));
+                }
+                "error" => app.bubbles.push(Bubble {
+                    kind: Kind::Error,
+                    text: m.content,
+                }),
+                _ => {}
+            }
         }
+        app
     }
 
     pub fn slash_open(&self) -> bool {
@@ -98,6 +135,10 @@ impl App {
 
     pub fn take_pending_db(&mut self) -> Option<DbOp> {
         self.pending_db.take()
+    }
+
+    pub fn take_new_conversation(&mut self) -> bool {
+        std::mem::take(&mut self.pending_new_conversation)
     }
 
     pub fn apply_snapshot(&mut self, snapshot: Snapshot) {
@@ -313,6 +354,7 @@ impl App {
                 self.history.clear();
                 self.scroll = 0;
                 self.follow = true;
+                self.pending_new_conversation = true;
             }
             SlashItem::Command { .. } | SlashItem::Header(_) => {}
         }
@@ -482,6 +524,16 @@ mod tests {
             app.take_pending_db(),
             Some(DbOp::ActivateModel(_))
         ));
+    }
+
+    #[test]
+    fn slash_clear_requests_new_conversation() {
+        let mut app = app("x");
+        app.history.push(ChatMessage::user("hola"));
+        app.input.paste("/clear");
+        app.on_key(KeyEvent::from(KeyCode::Enter));
+        assert!(app.take_new_conversation());
+        assert!(app.history.is_empty());
     }
 
     #[test]

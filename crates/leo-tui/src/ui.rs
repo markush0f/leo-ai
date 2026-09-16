@@ -209,6 +209,14 @@ fn row_line(row: &Row, selected: bool, width: usize) -> Line<'static> {
         Row::ApiKey { status, .. } => (field("api key", status), Style::new().fg(FG)),
         Row::BaseUrl { url, .. } => (field("url", url), Style::new().fg(FG)),
         Row::System { preview } => (field("sistema", preview), Style::new().fg(FG)),
+        Row::Thinking { on } => (
+            field("pensar", if *on { "sí" } else { "no" }),
+            Style::new().fg(FG),
+        ),
+        Row::ToolsEnabled { on } => (
+            field("tools", if *on { "sí" } else { "no" }),
+            Style::new().fg(FG),
+        ),
     };
     let style = if selected {
         style.add_modifier(Modifier::REVERSED)
