@@ -49,46 +49,6 @@ export function IconMoon({ className }: Props) {
   );
 }
 
-export function IconMic({ className }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" strokeWidth="1.8" />
-      <path
-        d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-export function IconStop({ className }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <rect x="7" y="7" width="10" height="10" rx="1.5" />
-    </svg>
-  );
-}
-
-export function IconSpeak({ className }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M4 10v4h3l4 4V6L7 10H4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-      <path d="M16 9.5a3.5 3.5 0 0 1 0 5M18.5 7a6 6 0 0 1 0 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-export function IconPower({ className }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M12 3v8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M7.5 6.5a7 7 0 1 0 9 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export function IconSliders({ className }: Props) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>

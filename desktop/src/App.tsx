@@ -1,5 +1,5 @@
 /**
- * Desktop shell coordinating chat history, catalog edits, theme, and voice status.
+ * Desktop shell coordinating chat history, catalog edits, and theme.
  * Model history is separate from display bubbles so UI errors are not sent back
  * as assistant replies. Service calls go through `api.ts`.
  */
@@ -7,63 +7,50 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyOp,
   inTauri,
+  listChats,
   loadSnapshot,
+  newChat,
+  openChat,
   sendChat,
-  voiceListen,
-  voiceShutdown,
-  voiceSpeak,
-  voiceStatus,
-  voiceStop,
 } from "./api";
 import { Catalog } from "./Catalog";
 import {
   IconClose,
   IconMenu,
-  IconMic,
   IconMoon,
   IconPlus,
-  IconPower,
   IconSend,
   IconSliders,
-  IconSpeak,
-  IconStop,
   IconSun,
 } from "./icons";
 import { applyTheme, readTheme, type Theme } from "./theme";
-import type { Bubble, ChatTurn, Op, Snapshot, Voice } from "./types";
-
-const PHASE: Record<string, string> = {
-  idle: "quieto",
-  listening: "escuchando",
-  recording: "grabando",
-  transcribing: "transcribiendo",
-  thinking: "pensando",
-  speaking: "hablando",
-  apagado: "apagado",
-};
+import type { Bubble, Conversation, Op, Snapshot, Turn } from "./types";
 
 function uid() {
   return crypto.randomUUID();
+}
+
+function turnsToBubbles(turns: Turn[]): Bubble[] {
+  const out: Bubble[] = [];
+  for (const t of turns) {
+    if (t.role === "user") out.push({ id: t.id, kind: "user", text: t.content });
+    else if (t.role === "assistant") out.push({ id: t.id, kind: "leo", text: t.content });
+    else if (t.role === "error") out.push({ id: t.id, kind: "error", text: t.content });
+  }
+  return out;
 }
 
 export default function App() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [boot, setBoot] = useState<string | null>(null);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
-  const [history, setHistory] = useState<ChatTurn[]>([]);
+  const [chats, setChats] = useState<Conversation[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [catalog, setCatalog] = useState(false);
   const [rail, setRail] = useState(false);
   const [theme, setTheme] = useState<Theme>("dark");
-  const [thinking, setThinking] = useState(false);
-  const [useTools, setUseTools] = useState(true);
-  const [voice, setVoice] = useState<Voice>({
-    running: false,
-    ok: false,
-    state: "apagado",
-    message: null,
-  });
   const listRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLTextAreaElement>(null);
 
@@ -81,43 +68,43 @@ export default function App() {
     const t = q === "light" || q === "dark" ? q : readTheme();
     setTheme(t);
     applyTheme(t);
-    const think = localStorage.getItem("leo-thinking");
-    if (think === "1" || think === "0") setThinking(think === "1");
-    const tools = localStorage.getItem("leo-tools");
-    if (tools === "1" || tools === "0") setUseTools(tools === "1");
   }, []);
 
   useEffect(() => {
-    void refresh();
-    const q = new URLSearchParams(window.location.search);
-    if (q.has("catalog")) setCatalog(true);
-    if (q.has("demo")) {
-      setBubbles([
-        { id: "d1", kind: "user", text: "¿qué tiempo hace en Madrid?" },
-        {
-          id: "d2",
-          kind: "leo",
-          text: "En Madrid ahora hay 22 °C y cielo despejado. Esta tarde baja a 17 °C.",
-        },
-      ]);
-      setHistory([
-        { role: "user", content: "¿qué tiempo hace en Madrid?" },
-        {
-          role: "assistant",
-          content: "En Madrid ahora hay 22 °C y cielo despejado. Esta tarde baja a 17 °C.",
-        },
-      ]);
-    }
+    void (async () => {
+      await refresh();
+      const q = new URLSearchParams(window.location.search);
+      if (q.has("catalog")) setCatalog(true);
+      if (q.has("demo")) {
+        setBubbles([
+          { id: "d1", kind: "user", text: "¿qué tiempo hace en Madrid?" },
+          {
+            id: "d2",
+            kind: "leo",
+            text: "En Madrid ahora hay 22 °C y cielo despejado. Esta tarde baja a 17 °C.",
+          },
+        ]);
+        return;
+      }
+      try {
+        const listed = await listChats();
+        if (listed.length === 0) {
+          const created = await newChat();
+          setChats([created]);
+          setConversationId(created.id);
+          setBubbles([]);
+          return;
+        }
+        setChats(listed);
+        const active = listed[0].id;
+        const turns = await openChat(active);
+        setConversationId(active);
+        setBubbles(turnsToBubbles(turns));
+      } catch (e) {
+        setBoot(e instanceof Error ? e.message : String(e));
+      }
+    })();
   }, [refresh]);
-
-  useEffect(() => {
-    const tick = () => {
-      void voiceStatus().then(setVoice);
-    };
-    tick();
-    const id = setInterval(tick, 2000);
-    return () => clearInterval(id);
-  }, []);
 
   useEffect(() => {
     const el = listRef.current;
@@ -148,18 +135,15 @@ export default function App() {
 
   const send = async () => {
     const text = input.trim();
-    if (!text || busy || !snap) return;
+    if (!text || busy || !snap || !conversationId) return;
     setInput("");
     if (boxRef.current) boxRef.current.style.height = "auto";
-    const turn: ChatTurn = { role: "user", content: text };
-    const next = [...history, turn];
-    setHistory(next);
     setBubbles((b) => [...b, { id: uid(), kind: "user", text }]);
     setBusy(true);
     try {
-      const reply = await sendChat(next, { thinking, tools: useTools });
-      setHistory((h) => [...h, { role: "assistant", content: reply }]);
+      const reply = await sendChat(conversationId, text);
       setBubbles((b) => [...b, { id: uid(), kind: "leo", text: reply }]);
+      setChats(await listChats());
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setBubbles((b) => [...b, { id: uid(), kind: "error", text: msg }]);
@@ -169,11 +153,24 @@ export default function App() {
     }
   };
 
-  const clear = () => {
-    setBubbles([]);
-    setHistory([]);
+  const clear = async () => {
+    try {
+      const created = await newChat();
+      setChats(await listChats());
+      setConversationId(created.id);
+      setBubbles([]);
+    } catch (e) {
+      setBoot(e instanceof Error ? e.message : String(e));
+    }
     setRail(false);
     boxRef.current?.focus();
+  };
+
+  const open = async (id: string) => {
+    const turns = await openChat(id);
+    setConversationId(id);
+    setBubbles(turnsToBubbles(turns));
+    setRail(false);
   };
 
   const toggleTheme = () => {
@@ -182,11 +179,10 @@ export default function App() {
     applyTheme(next);
   };
 
-  const lastLeo = [...bubbles].reverse().find((b) => b.kind === "leo")?.text ?? "";
+  const thinking = snap?.thinking ?? false;
+  const useTools = snap?.tools_enabled ?? true;
   const model = snap?.models.find((m) => m.id === snap.active_model_id);
   const provider = snap?.providers.find((p) => p.id === model?.provider_id);
-  const phase = PHASE[voice.state] ?? voice.state;
-  const listening = voice.running && (voice.state === "listening" || voice.state === "recording");
   const chatting = bubbles.length > 0 || busy;
   const canSend = Boolean(snap) && !busy && input.trim().length > 0;
 
@@ -242,9 +238,7 @@ export default function App() {
           aria-pressed={thinking}
           title="Grok no puede apagar el razonamiento; apagado = esfuerzo bajo, encendido = alto"
           onClick={() => {
-            const next = !thinking;
-            setThinking(next);
-            localStorage.setItem("leo-thinking", next ? "1" : "0");
+            void onOp({ op: "set_thinking", value: !thinking });
           }}
         >
           Pensar
@@ -255,23 +249,12 @@ export default function App() {
           aria-pressed={useTools}
           title="Herramientas (archivos, shell, clima…)"
           onClick={() => {
-            const next = !useTools;
-            setUseTools(next);
-            localStorage.setItem("leo-tools", next ? "1" : "0");
+            void onOp({ op: "set_tools_enabled", value: !useTools });
           }}
         >
           Tools
         </button>
         <span className="composer-grow" />
-        <button
-          type="button"
-          className={`btn-icon ${listening ? "live" : ""}`}
-          title="escuchar"
-          aria-label="escuchar"
-          onClick={() => void voiceListen().then(setVoice)}
-        >
-          <IconMic />
-        </button>
         <button
           type="submit"
           className="btn-send"
@@ -303,10 +286,23 @@ export default function App() {
           </button>
         </div>
 
-        <button type="button" className="btn-primary new-chat" onClick={clear}>
+        <button type="button" className="btn-primary new-chat" onClick={() => void clear()}>
           <IconPlus />
           Nuevo chat
         </button>
+
+        <nav className="rail-chats" aria-label="conversaciones">
+          {chats.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className={`chat-item${c.id === conversationId ? " on" : ""}`}
+              onClick={() => void open(c.id)}
+            >
+              {c.title?.trim() || "Nuevo chat"}
+            </button>
+          ))}
+        </nav>
 
         <nav className="rail-nav">
           <button
@@ -318,50 +314,6 @@ export default function App() {
             Catálogo
           </button>
         </nav>
-
-        <section className="rail-voice" aria-label="voz">
-          <header>
-            <span>Voz</span>
-            <em className={voice.running ? "live" : ""} title={voice.message ?? undefined}>
-              {phase}
-            </em>
-          </header>
-          <div className="voice-grid">
-            <button
-              type="button"
-              className={`btn-listen${listening ? " on" : ""}`}
-              onClick={() => void voiceListen().then(setVoice)}
-            >
-              <IconMic />
-              Escuchar
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => void voiceStop().then(setVoice)}
-            >
-              <IconStop />
-              Parar
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={!lastLeo}
-              onClick={() => void voiceSpeak(lastLeo).then(setVoice)}
-            >
-              <IconSpeak />
-              Decir
-            </button>
-            <button
-              type="button"
-              className="btn-danger"
-              onClick={() => void voiceShutdown().then(setVoice)}
-            >
-              <IconPower />
-              Apagar
-            </button>
-          </div>
-        </section>
 
         <div className="rail-foot">
           {!inTauri && <p className="preview">vista previa</p>}

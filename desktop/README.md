@@ -2,7 +2,7 @@
 
 React and TypeScript frontend hosted by Tauri 2. The native backend shares the
 PostgreSQL catalog, LLM client, and tool registry with terminal and Telegram chat.
-Voice controls communicate with the separate daemon over Unix IPC.
+Voice is deferred; this surface is chat and catalog only.
 
 ## Run
 
@@ -11,7 +11,7 @@ Then, from this directory:
 
 ```sh
 npm install
-npm run tauri dev
+npm run desktop
 ```
 
 Native development requires Rust and Tauri's Linux dependencies, including
@@ -21,10 +21,10 @@ for credentials and service configuration.
 ## Browser preview
 
 ```sh
-npm run dev
+npm run web
 ```
 
-Preview uses in-memory mock responses, not live LLM, database, or voice services.
+Preview uses in-memory mock responses, not live LLM or database services.
 The launcher uses port `5179` by default (`LEO_DEV_PORT` overrides it) and runs
 `fuser -k` against that port before starting Vite.
 
@@ -32,7 +32,7 @@ The launcher uses port `5179` by default (`LEO_DEV_PORT` overrides it) and runs
 
 | File | Responsibility |
 | --- | --- |
-| `src/App.tsx` | Chat history, display bubbles, catalog state, and voice polling. |
+| `src/App.tsx` | Chat history, display bubbles, catalog state, and theme. |
 | `src/Catalog.tsx` | Provider/model forms and catalog mutations. |
 | `src/api.ts` | Native commands and browser-preview implementations. |
 | `src/types.ts` | DTOs and operation tags mirrored by Rust. |

@@ -19,19 +19,39 @@ export type Model = {
   name: string;
 };
 
+export type Engine = {
+  id: string;
+  role: "stt" | "tts" | "wake" | string;
+  kind: string;
+  name: string;
+};
+
 export type Snapshot = {
   providers: Provider[];
   models: Model[];
+  engines: Engine[];
   active_model_id: string | null;
+  active_conversation_id: string | null;
   system: string;
+  voice_system: string;
+  stt_engine_id: string | null;
+  tts_engine_id: string | null;
+  wake_engine_id: string | null;
+  stt_language: string;
+  thinking: boolean;
+  tools_enabled: boolean;
   tools: string[];
 };
 
-export type Voice = {
-  running: boolean;
-  ok: boolean;
-  state: string;
-  message: string | null;
+export type Conversation = {
+  id: string;
+  title: string | null;
+};
+
+export type Turn = {
+  id: string;
+  role: string;
+  content: string;
 };
 
 /** Model-visible history, excluding display-only errors and bubble IDs. */
@@ -52,6 +72,7 @@ export type Op =
   | { op: "activate_model"; id: string }
   | { op: "set_kind"; id: string; kind: string }
   | { op: "set_system"; text: string }
+  | { op: "set_voice_system"; text: string }
   | { op: "set_api_key"; id: string; api_key: string }
   | { op: "set_base_url"; id: string; base_url: string }
   | { op: "new_provider"; name: string }
@@ -59,4 +80,8 @@ export type Op =
   | { op: "rename_provider"; id: string; name: string }
   | { op: "rename_model"; id: string; name: string }
   | { op: "delete_provider"; id: string }
-  | { op: "delete_model"; id: string };
+  | { op: "delete_model"; id: string }
+  | { op: "set_engine"; role: string; id: string }
+  | { op: "set_stt_language"; text: string }
+  | { op: "set_thinking"; value: boolean }
+  | { op: "set_tools_enabled"; value: boolean };

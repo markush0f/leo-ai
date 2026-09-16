@@ -124,6 +124,34 @@ button {
   justify-content: center;
 }
 
+.rail-chats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-height: 28vh;
+  overflow: auto;
+  padding-right: 0.1rem;
+}
+
+.chat-item {
+  width: 100%;
+  padding: 0.45rem 0.7rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-item:hover,
+.chat-item.on {
+  background: var(--elevated);
+}
+
 .rail-nav {
   display: flex;
   flex-direction: column;
@@ -152,39 +180,6 @@ button {
 .nav-item:hover,
 .nav-item.on {
   background: var(--elevated);
-}
-
-.rail-voice {
-  margin-top: 0.5rem;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface);
-}
-
-.rail-voice header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 0.65rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.rail-voice em {
-  font-style: normal;
-  color: var(--text);
-}
-
-.rail-voice em.live {
-  color: var(--listen);
-}
-
-.voice-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.45rem;
 }
 
 .rail-foot {
@@ -216,10 +211,8 @@ button {
 .btn-primary,
 .btn-secondary,
 .btn-danger,
-.btn-listen,
 .btn-ghost,
-.btn-send,
-.btn-icon {
+.btn-send {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -235,10 +228,8 @@ button {
 .btn-primary svg,
 .btn-secondary svg,
 .btn-danger svg,
-.btn-listen svg,
 .btn-ghost svg,
-.btn-send svg,
-.btn-icon svg {
+.btn-send svg {
   width: 16px;
   height: 16px;
 }
@@ -275,18 +266,6 @@ button {
   color: #fff;
 }
 
-.btn-listen {
-  border: 1px solid var(--listen);
-  background: transparent;
-  color: var(--listen);
-}
-
-.btn-listen:hover:not(:disabled),
-.btn-listen.on {
-  background: var(--listen);
-  color: #052e1c;
-}
-
 .btn-ghost {
   border: 0;
   background: transparent;
@@ -310,22 +289,6 @@ button {
 
 .btn-send:hover:not(:disabled) {
   filter: brightness(1.08);
-}
-
-.btn-icon {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--elevated);
-  color: var(--text);
-}
-
-.btn-icon.live {
-  border-color: var(--listen);
-  background: var(--listen);
-  color: #052e1c;
 }
 
 .sm {
