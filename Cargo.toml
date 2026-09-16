@@ -8,6 +8,7 @@ edition = "2024"
 license = "MIT"
 
 [workspace.dependencies]
+agent-code-lib = "0.30.0"
 thiserror = "2"
 tracing = "0.1"
 serde = { version = "1", features = ["derive"] }

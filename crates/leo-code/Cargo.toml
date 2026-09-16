@@ -1,0 +1,9 @@
+[package]
+name = "leo-agent"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Agent runtime integration for Leo"
+
+[dependencies]
+agent-code-lib.workspace = true
