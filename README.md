@@ -68,8 +68,8 @@ npm run web
 ```
 
 That starts `leo-server` on `127.0.0.1:8787` and Vite on `5179` (proxying `/api`).
-Open `http://127.0.0.1:5179`. The launcher uses `fuser -k` on those ports first
-(`LEO_DEV_PORT` / `LEO_HTTP_PORT` override them).
+Open `http://127.0.0.1:5179`. The launcher fails safely when either port is
+occupied (`LEO_DEV_PORT` / `LEO_HTTP_PORT` override them).
 
 To listen on the LAN (phone, another computer):
 
