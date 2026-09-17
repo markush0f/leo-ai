@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-12T00:00:00.000Z",
+  "title": "Design System: Leo",
+  "extensions": {
+    "colorMeta": {
+      "cloud": { "role": "neutral", "displayName": "Cloud", "canonical": "#ffffff" },
+      "mist": { "role": "neutral", "displayName": "Mist", "canonical": "#f2f4f7" },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#3a424c" },
+      "slate": { "role": "neutral", "displayName": "Slate", "canonical": "#5a6470" },
+      "mint": { "role": "secondary", "displayName": "Mint fringe", "canonical": "#9fe8d4" },
+      "rose": { "role": "secondary", "displayName": "Rose fringe", "canonical": "#ffb7d4" },
+      "violet": { "role": "primary", "displayName": "Violet fringe", "canonical": "#b9a8ff" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Empty state only." },
+      "brand": { "displayName": "Brand", "purpose": "The word Leo." },
+      "body": { "displayName": "Body", "purpose": "Chat messages, 66ch." },
+      "label": { "displayName": "Label", "purpose": "All chrome at 0.8rem." }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "fringe-drift",
+        "value": "1.8s linear infinite background-position",
+        "purpose": "Spectral hairline travels while thinking or speaking."
+      }
+    ],
+    "breakpoints": [{ "name": "compact", "value": "720px" }]
+  },
+  "components": [
+    {
+      "name": "Fringe button",
+      "kind": "button",
+      "refersTo": "button-fringe",
+      "description": "Pill with iridescent hairline.",
+      "html": "<button class=\"ds-btn-fringe\">escuchar</button>",
+      "css": ".ds-btn-fringe { appearance: none; background: #fff; border: 1px solid transparent; background-image: linear-gradient(#fff,#fff), linear-gradient(90deg,#9fe8d4,#ffb7d4,#b9a8ff,#9fe8d4); background-origin: padding-box, border-box; background-clip: padding-box, border-box; border-radius: 999px; padding: 0.28rem 0.85rem; font: 500 0.8rem 'Source Sans 3', sans-serif; color: #3a424c; } .ds-btn-fringe:hover { background-image: linear-gradient(#f2f4f7,#f2f4f7), linear-gradient(90deg,#9fe8d4,#ffb7d4,#b9a8ff,#9fe8d4); } .ds-btn-fringe:focus-visible { outline: 1px solid #b9a8ff; outline-offset: 3px; }"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Cloud field, slate hairline.",
+      "html": "<label class=\"ds-field\"><span>api key</span><input /></label>",
+      "css": ".ds-field { display: grid; gap: 0.28rem; font: 500 0.8rem 'Source Sans 3', sans-serif; color: #5a6470; } .ds-field input { border: 1px solid color-mix(in srgb, #5a6470 22%, white); border-radius: 10px; background: #fff; padding: 0.45rem 0.65rem; color: #3a424c; } .ds-field input:focus-visible { outline: 1px solid #b9a8ff; outline-offset: 3px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The cloud body and its iridescent edge",
+    "overview": "Leo’s window is a high-key cloud: white field, slate ink, a photograph of a newly formed cloud edge dissolving downward. Color is not a fill. The chat is the cloud body; configuration is the edge.",
+    "keyCharacteristics": [
+      "One type family, thin for speech, medium for chrome",
+      "Spectral hairline instead of filled accents",
+      "Photograph as atmosphere, not illustration chrome",
+      "Operate density in the catalog sheet; emptiness in the chat"
+    ],
+    "rules": [
+      { "name": "The Fringe Rule", "body": "Color lives on the 1px edge.", "section": "colors" },
+      { "name": "The One Size Chrome Rule", "body": "Catalog headings, buttons, and field labels share 0.8rem.", "section": "typography" },
+      { "name": "The No-Shadow Rule", "body": "The only edge is the iridescent hairline.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep the sky photograph as the first-viewport atmosphere.",
+      "Do put color only on hairlines and the active violet mark.",
+      "Do set messages as ink on white, labeled tú / Leo."
+    ],
+    "donts": [
+      "Don't use chat bubbles, a thread sidebar, or a settings-app split.",
+      "Don't fill buttons or panels with mint, rose, or violet.",
+      "Don't introduce a second type family or a display serif."
+    ]
+  }
+}
