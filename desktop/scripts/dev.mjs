@@ -1,16 +1,72 @@
 import { execFileSync, spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 const PORT = Number(process.env.LEO_DEV_PORT || 5179);
+const API_PORT = Number(process.env.LEO_HTTP_PORT || 8787);
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
-try {
-  execFileSync("fuser", ["-k", `${PORT}/tcp`], { stdio: "ignore" });
-  await new Promise((r) => setTimeout(r, 200));
-} catch {
-  // nothing was listening
+function killPort(port) {
+  try {
+    execFileSync("fuser", ["-k", `${port}/tcp`], { stdio: "ignore" });
+  } catch {
+    // nothing was listening
+  }
+}
+
+killPort(PORT);
+killPort(API_PORT);
+await new Promise((r) => setTimeout(r, 200));
+
+const apiBind = process.env.LEO_HTTP_BIND || `127.0.0.1:${API_PORT}`;
+const server = spawn("cargo", ["run", "-p", "leo-server", "--", "--bind", apiBind], {
+  cwd: ROOT,
+  stdio: ["ignore", "inherit", "inherit"],
+  shell: false,
+});
+
+const stop = () => {
+  if (server.exitCode === null) server.kill("SIGTERM");
+};
+process.on("exit", stop);
+process.on("SIGINT", () => {
+  stop();
+  process.exit(130);
+});
+process.on("SIGTERM", () => {
+  stop();
+  process.exit(143);
+});
+
+const health = `http://127.0.0.1:${API_PORT}/api/health`;
+const deadline = Date.now() + 180_000;
+let ready = false;
+while (Date.now() < deadline) {
+  if (server.exitCode !== null) {
+    process.exit(server.exitCode || 1);
+  }
+  try {
+    const res = await fetch(health);
+    if (res.ok) {
+      ready = true;
+      break;
+    }
+  } catch {
+    // still compiling or booting
+  }
+  await new Promise((r) => setTimeout(r, 400));
+}
+if (!ready) {
+  stop();
+  console.error(`timeout waiting for ${health}`);
+  process.exit(1);
 }
 
 const child = spawn("vite", ["--port", String(PORT), "--strictPort"], {
   stdio: "inherit",
   shell: false,
 });
-child.on("exit", (code) => process.exit(code ?? 0));
+child.on("exit", (code) => {
+  stop();
+  process.exit(code ?? 0);
+});

@@ -24,6 +24,12 @@ export default defineConfig(() => ({
           port: 5180,
         }
       : undefined,
+    proxy: {
+      "/api": {
+        target: process.env.LEO_API_PROXY || "http://127.0.0.1:8787",
+        changeOrigin: true,
+      },
+    },
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],

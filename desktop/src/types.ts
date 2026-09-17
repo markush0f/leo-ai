@@ -1,6 +1,6 @@
 /**
  * Frontend contracts mirrored by the Rust DTOs in `src-tauri/src/lib.rs`.
- * Keep field names and tagged operation variants synchronized across the bridge.
+ * Keep field names and tagged operation variants synchronized with `leo-api`.
  */
 /** Credential availability only; never the actual provider secret. */
 export type KeyStatus = "db" | "env" | "falta" | "none";
@@ -41,6 +41,20 @@ export type Snapshot = {
   thinking: boolean;
   tools_enabled: boolean;
   tools: string[];
+};
+
+export type Service = {
+  id: string;
+  name: string;
+  running: boolean;
+  healthy: boolean;
+  detail: string;
+};
+
+export type Services = {
+  ok: boolean;
+  services: Service[];
+  error?: string | null;
 };
 
 export type Conversation = {
