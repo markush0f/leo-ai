@@ -8,6 +8,7 @@ description = "Registro y bucle de tools que el LLM puede llamar"
 [dependencies]
 leo-llm.workspace = true
 leo-tools-appflowy.workspace = true
+leo-tools-db.workspace = true
 leo-tools-files.workspace = true
 leo-tools-github.workspace = true
 leo-tools-google.workspace = true

@@ -21,7 +21,8 @@
 //!   transports tool calls as data; it never executes them.
 //! - [`leo_tools`] — [`leo_tools::Registry::from_env`] registers files, shell,
 //!   system, and weather always, plus AppFlowy / GitHub / Google / Home
-//!   Assistant when credentials exist. [`leo_tools::chat`] runs the tool loop
+//!   Assistant when credentials exist, and local MCP Toolbox database tools
+//!   when `MCP_TOOLBOX_URL` is set. [`leo_tools::chat`] runs the tool loop
 //!   (at most eight model rounds) and returns a final reply or
 //!   [`leo_llm::LlmError::ToolLoop`].
 //!

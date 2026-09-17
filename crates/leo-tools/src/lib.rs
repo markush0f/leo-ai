@@ -1,6 +1,7 @@
 //! Tool registration and execution during a chat turn.
 //!
-//! [`Registry::from_env`] gathers local tools and configured integrations.
+//! [`Registry::from_env`] gathers local tools and configured integrations
+//! (including MCP Toolbox when `MCP_TOOLBOX_URL` is set).
 //! [`chat`] feeds their results back to the model until a final response or the
 //! round limit is reached. Each integration lives in a separate crate.
 

@@ -13,6 +13,7 @@ pub fn register(b: &mut Builder) {
     github(b);
     google(b);
     home_assistant(b);
+    db(b);
 }
 
 fn files(b: &mut Builder) {
@@ -575,6 +576,71 @@ fn home_assistant(b: &mut Builder) {
                     .await,
                 )
             }
+        },
+    );
+}
+
+fn db(b: &mut Builder) {
+    let Some(client) = leo_tools_db::Client::from_env() else {
+        return;
+    };
+    tracing::info!("tools db listas");
+    let c = client.clone();
+    b.add_fn(leo_tools_db::list_tools::spec(), move |_ctx, _args| {
+        let c = c.clone();
+        async move { stringify(leo_tools_db::list_tools::run(&c).await) }
+    });
+    let c = client.clone();
+    b.add_fn(leo_tools_db::invoke::spec(), move |_ctx, args| {
+        let c = c.clone();
+        async move {
+            let arguments = match args.get("arguments") {
+                Some(serde_json::Value::String(s)) => {
+                    serde_json::from_str(s).unwrap_or_else(|_| serde_json::json!({}))
+                }
+                Some(value) => value.clone(),
+                None => serde_json::json!({}),
+            };
+            stringify(leo_tools_db::invoke::run(&c, require_str(&args, "tool")?, arguments).await)
+        }
+    });
+    let c = client.clone();
+    b.add_fn(leo_tools_db::execute_sql::spec(), move |_ctx, args| {
+        let c = c.clone();
+        async move {
+            stringify(leo_tools_db::execute_sql::run(&c, require_str(&args, "sql")?).await)
+        }
+    });
+    let c = client.clone();
+    b.add_fn(leo_tools_db::list_tables::spec(), move |_ctx, args| {
+        let c = c.clone();
+        async move {
+            stringify(leo_tools_db::list_tables::run(&c, opt_str(&args, "table_names")).await)
+        }
+    });
+    let c = client.clone();
+    b.add_fn(leo_tools_db::list_schemas::spec(), move |_ctx, _args| {
+        let c = c.clone();
+        async move { stringify(leo_tools_db::list_schemas::run(&c).await) }
+    });
+    let c = client.clone();
+    b.add_fn(leo_tools_db::list_views::spec(), move |_ctx, _args| {
+        let c = c.clone();
+        async move { stringify(leo_tools_db::list_views::run(&c).await) }
+    });
+    let c = client.clone();
+    b.add_fn(leo_tools_db::get_query_plan::spec(), move |_ctx, args| {
+        let c = c.clone();
+        async move {
+            stringify(leo_tools_db::get_query_plan::run(&c, require_str(&args, "sql")?).await)
+        }
+    });
+    let c = client;
+    b.add_fn(
+        leo_tools_db::database_overview::spec(),
+        move |_ctx, _args| {
+            let c = c.clone();
+            async move { stringify(leo_tools_db::database_overview::run(&c).await) }
         },
     );
 }
