@@ -48,6 +48,16 @@ Toolbox `tools.yaml` (see `config/toolbox.example.yaml`).
 
 ## Run desktop chat
 
+Para arrancar Postgres, MCP Toolbox, la API y el frontend web con un solo comando:
+
+```sh
+./scripts/start-leo.sh
+```
+
+El script espera a que los contenedores estén sanos, instala las dependencias
+del frontend cuando faltan y abre los servicios en `127.0.0.1`. Los contenedores
+permanecen activos al cerrar el frontend.
+
 Run these commands from `desktop/`:
 
 ```sh
