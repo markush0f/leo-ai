@@ -2652,6 +2652,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "leo-api"
+version = "0.1.0"
+dependencies = [
+ "leo-llm",
+ "leo-store",
+ "leo-tools",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "leo-audio"
 version = "0.1.0"
 dependencies = [
@@ -2709,12 +2723,9 @@ dependencies = [
 name = "leo-desktop"
 version = "0.1.0"
 dependencies = [
- "leo-llm",
- "leo-store",
- "leo-tools",
+ "leo-api",
  "serde",
  "serde_json",
- "sqlx",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",

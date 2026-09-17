@@ -7,22 +7,11 @@
 //!
 //! # Workspace crates (used from `leo_desktop_lib`)
 //!
-//! - [`leo_store`] — shared PostgreSQL catalog and local conversations.
-//!   `connect` / `migrate` run at setup; `apply_secrets_to_env` exports stored
-//!   keys. Commands load/apply [`leo_store::Snapshot`] / [`leo_store::DbOp`],
-//!   list and open chats, and persist turns with `append_message` /
-//!   `context_messages`. Frontend DTOs expose credential *status* (`db` /
-//!   `env` / `falta` / `none`), never the key material.
-//! - [`leo_llm`] — `load_dotenv` and [`leo_llm::Client`] from
-//!   `Snapshot::client`. [`leo_llm::ChatRequest`] carries history and, for
-//!   Grok, `reasoning_effort` from the thinking setting. Tool calls are
-//!   transported, not executed, here.
-//! - [`leo_tools`] — [`leo_tools::Registry::from_env`] at startup.
-//!   [`leo_tools::chat`] runs the tool loop when tools are enabled; otherwise
-//!   the turn uses an empty registry. Same integrations as the TUI.
+//! - [`leo_api`] — shared catalog DTOs, conversations, and chat. Desktop
+//!   commands and the browser (`leo-server`) call the same [`leo_api::App`].
 //!
-//! Browser `npm run web` mocks this bridge; it does not exercise Postgres or
-//! providers.
+//! Browser `npm run web` talks to `leo-server` over HTTP so it can use Ollama
+//! and the rest of the catalog without the Tauri webview.
 //!
 //! # Linux WebKit
 //!
