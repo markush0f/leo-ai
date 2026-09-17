@@ -182,17 +182,75 @@ button {
   background: var(--elevated);
 }
 
+.svc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.6rem 0.7rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--elevated);
+}
+
+.svc-label {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.svc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.svc-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.svc-detail {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.svc-err {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.8rem;
+}
+
+.svc-start {
+  width: 100%;
+}
+
+.svc.compact .svc-detail {
+  display: none;
+}
+
+.hero .svc {
+  margin: 1.15rem auto 0;
+  max-width: 22rem;
+  text-align: left;
+}
+
 .rail-foot {
   margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-}
-
-.preview {
-  margin: 0;
-  font-size: 0.75rem;
-  color: var(--muted);
 }
 
 .theme-btn {
@@ -394,7 +452,8 @@ button:disabled {
   color: var(--muted);
 }
 
-.bubble p {
+.bubble.user p,
+.bubble.error p {
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -410,6 +469,149 @@ button:disabled {
 
 .bubble.leo {
   color: var(--text);
+}
+
+.md {
+  overflow-wrap: anywhere;
+}
+
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md > :last-child {
+  margin-bottom: 0;
+}
+
+.md p,
+.md ul,
+.md ol,
+.md pre,
+.md blockquote,
+.md table,
+.md .md-table {
+  margin: 0 0 0.75em;
+}
+
+.md p:last-child,
+.md ul:last-child,
+.md ol:last-child,
+.md pre:last-child,
+.md blockquote:last-child,
+.md .md-table:last-child {
+  margin-bottom: 0;
+}
+
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  margin: 1.2em 0 0.35em;
+  font-size: 1em;
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+.md h1 strong,
+.md h2 strong,
+.md h3 strong,
+.md h4 strong,
+.md h5 strong,
+.md h6 strong {
+  font-weight: inherit;
+}
+
+.md ul,
+.md ol {
+  padding-left: 1.35em;
+}
+
+.md li + li {
+  margin-top: 0.2em;
+}
+
+.md li > ul,
+.md li > ol {
+  margin: 0.25em 0 0;
+}
+
+.md a {
+  color: var(--accent);
+  text-underline-offset: 0.18em;
+}
+
+.md hr {
+  margin: 0.9em 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.md blockquote {
+  margin-left: 0;
+  padding-left: 0.85em;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.md :not(pre) > code {
+  padding: 0.12em 0.38em;
+  border-radius: 6px;
+  background: var(--elevated);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.88em;
+}
+
+.md pre {
+  padding: 0.75rem 0.9rem;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--elevated);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.md pre code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.md-table {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.md table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.md th,
+.md td {
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.md th {
+  font-weight: 600;
+  background: var(--elevated);
+}
+
+.md img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+
+.md input[type="checkbox"] {
+  margin-right: 0.4em;
 }
 
 .bubble.error {

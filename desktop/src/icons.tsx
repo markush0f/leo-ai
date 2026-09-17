@@ -67,6 +67,19 @@ export function IconMenu({ className }: Props) {
   );
 }
 
+export function IconPower({ className }: Props) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3v8M7.2 6.4a7 7 0 1 0 9.6 0"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function IconClose({ className }: Props) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>

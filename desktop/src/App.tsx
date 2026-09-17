@@ -1,19 +1,22 @@
 /**
- * Desktop shell coordinating chat history, catalog edits, and theme.
+ * Desktop shell coordinating chat history, catalog edits, host services, and theme.
  * Model history is separate from display bubbles so UI errors are not sent back
- * as assistant replies. Service calls go through `api.ts`.
+ * as assistant replies. Service calls go through `api.ts` (Tauri or leo-server).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyOp,
-  inTauri,
   listChats,
+  loadServices,
   loadSnapshot,
   newChat,
   openChat,
   sendChat,
+  startServices,
 } from "./api";
 import { Catalog } from "./Catalog";
+import { Markdown } from "./Markdown";
+import { ServiceBoard } from "./Services";
 import {
   IconClose,
   IconMenu,
@@ -24,7 +27,7 @@ import {
   IconSun,
 } from "./icons";
 import { applyTheme, readTheme, type Theme } from "./theme";
-import type { Bubble, Conversation, Op, Snapshot, Turn } from "./types";
+import type { Bubble, Conversation, Op, Services, Snapshot, Turn } from "./types";
 
 function uid() {
   return crypto.randomUUID();
@@ -51,10 +54,17 @@ export default function App() {
   const [catalog, setCatalog] = useState(false);
   const [rail, setRail] = useState(false);
   const [theme, setTheme] = useState<Theme>("dark");
+  const [services, setServices] = useState<Services | null>(null);
+  const [starting, setStarting] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLTextAreaElement>(null);
 
   const refresh = useCallback(async () => {
+    try {
+      setServices(await loadServices());
+    } catch {
+      setServices(null);
+    }
     try {
       setSnap(await loadSnapshot());
       setBoot(null);
@@ -81,7 +91,7 @@ export default function App() {
           {
             id: "d2",
             kind: "leo",
-            text: "En Madrid ahora hay 22 °C y cielo despejado. Esta tarde baja a 17 °C.",
+            text: "En Madrid ahora hay **22 °C** y cielo despejado.\n\n- Mañana: 20 °C\n- Tarde: **17 °C**\n\n`get_weather` cubre más ciudades.",
           },
         ]);
         return;
@@ -110,6 +120,16 @@ export default function App() {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [bubbles, busy]);
+
+  useEffect(() => {
+    if (services?.ok && !starting) return;
+    const id = window.setInterval(() => {
+      void loadServices()
+        .then(setServices)
+        .catch(() => undefined);
+    }, 4000);
+    return () => window.clearInterval(id);
+  }, [services?.ok, starting]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -177,6 +197,44 @@ export default function App() {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
     applyTheme(next);
+  };
+
+  const bootServices = async () => {
+    setStarting(true);
+    try {
+      const next = await startServices();
+      setServices(next);
+      if (next.error) setBoot(next.error);
+      await refresh();
+      if (!conversationId) {
+        try {
+          const listed = await listChats();
+          if (listed.length === 0) {
+            const created = await newChat();
+            setChats([created]);
+            setConversationId(created.id);
+          } else {
+            setChats(listed);
+            const active = listed[0].id;
+            const turns = await openChat(active);
+            setConversationId(active);
+            setBubbles(turnsToBubbles(turns));
+          }
+        } catch (e) {
+          setBoot(e instanceof Error ? e.message : String(e));
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setBoot(msg);
+      setServices((prev) => ({
+        ok: false,
+        services: prev?.services ?? [],
+        error: msg,
+      }));
+    } finally {
+      setStarting(false);
+    }
   };
 
   const thinking = snap?.thinking ?? false;
@@ -315,8 +373,14 @@ export default function App() {
           </button>
         </nav>
 
+        <ServiceBoard
+          data={services}
+          starting={starting}
+          compact
+          onStart={() => void bootServices()}
+        />
+
         <div className="rail-foot">
-          {!inTauri && <p className="preview">vista previa</p>}
           <button type="button" className="btn-ghost theme-btn" onClick={toggleTheme}>
             {theme === "dark" ? <IconSun /> : <IconMoon />}
             {theme === "dark" ? "Modo claro" : "Modo oscuro"}
@@ -359,6 +423,13 @@ export default function App() {
                       snap?.tools.length ? ` · ${snap.tools.length} tools` : ""
                     }`}
               </p>
+              {(boot || (services && !services.ok)) && (
+                <ServiceBoard
+                  data={services}
+                  starting={starting}
+                  onStart={() => void bootServices()}
+                />
+              )}
             </div>
           )}
 
@@ -371,7 +442,7 @@ export default function App() {
                     <span className="who">{b.kind === "error" ? "error" : "Leo"}</span>
                   )}
                   <div className={`bubble ${b.kind}`}>
-                    <p>{b.text}</p>
+                    {b.kind === "leo" ? <Markdown text={b.text} /> : <p>{b.text}</p>}
                   </div>
                 </article>
               ))}
