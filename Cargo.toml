@@ -41,6 +41,10 @@ webrtc-vad = "0.4"
 dirs = "6"
 dotenvy = "0.15"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
+base64 = "0.22"
+getrandom = "0.3"
+sha2 = "0.10"
+url = "2"
 axum = "0.8"
 tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
 leo-api = { path = "crates/leo-api" }

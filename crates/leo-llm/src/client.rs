@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 use crate::error::LlmError;
+use crate::providers::codex::{Codex, OAuthCredentials, TokenStore};
 use crate::types::{ChatRequest, ChatResponse, ProviderId};
 use crate::{claude, ollama, openai_compat};
 
@@ -10,9 +13,22 @@ pub struct Client {
     base_url: String,
     api_key: Option<String>,
     default_model: String,
+    codex: Option<Codex>,
 }
 
 impl Client {
+    pub fn codex(store: Arc<dyn TokenStore>) -> Self {
+        let provider = ProviderId::Codex;
+        Self {
+            provider,
+            http: reqwest::Client::new(),
+            base_url: provider.default_base_url().into(),
+            api_key: None,
+            default_model: provider.default_model().into(),
+            codex: Some(Codex::new(store)),
+        }
+    }
+
     pub fn grok(api_key: impl Into<String>) -> Self {
         Self::new(ProviderId::Grok, Some(api_key.into()), None)
     }
@@ -43,6 +59,25 @@ impl Client {
         api_key: Option<String>,
         base_url: Option<String>,
     ) -> Result<Self, LlmError> {
+        if provider == ProviderId::Codex {
+            let encoded = nonempty(api_key)
+                .or_else(|| nonempty(std::env::var("CODEX_AUTH_JSON").ok()))
+                .ok_or(LlmError::MissingCredentials("codex"))?;
+            let credentials: OAuthCredentials = serde_json::from_str(&encoded)
+                .map_err(|e| LlmError::InvalidCredentials(e.to_string()))?;
+            let mut codex = Codex::from_credentials(credentials);
+            if let Some(url) = nonempty(base_url) {
+                codex = codex.with_endpoint(codex_endpoint(&url));
+            }
+            return Ok(Self {
+                provider,
+                http: reqwest::Client::new(),
+                base_url: provider.default_base_url().into(),
+                api_key: None,
+                default_model: provider.default_model().into(),
+                codex: Some(codex),
+            });
+        }
         let api_key = nonempty(api_key).or_else(|| match provider.env_key() {
             Some(var) => nonempty(std::env::var(var).ok()),
             None => None,
@@ -77,6 +112,7 @@ impl Client {
             base_url: base_url.unwrap_or_else(|| provider.default_base_url().to_string()),
             api_key,
             default_model: provider.default_model().to_string(),
+            codex: None,
         }
     }
 
@@ -86,11 +122,17 @@ impl Client {
 
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.default_model = model.into();
+        if let Some(codex) = self.codex.take() {
+            self.codex = Some(codex.with_model(self.default_model.clone()));
+        }
         self
     }
 
     pub fn with_base_url(mut self, url: impl Into<String>) -> Self {
         self.base_url = url.into().trim_end_matches('/').to_string();
+        if let Some(codex) = self.codex.take() {
+            self.codex = Some(codex.with_endpoint(codex_endpoint(&self.base_url)));
+        }
         self
     }
 
@@ -104,6 +146,13 @@ impl Client {
             ProviderId::Grok | ProviderId::Gpt => self.chat_openai(model, &req).await,
             ProviderId::Ollama => self.chat_ollama(model, &req).await,
             ProviderId::Claude => self.chat_claude(model, &req).await,
+            ProviderId::Codex => {
+                self.codex
+                    .as_ref()
+                    .ok_or(LlmError::MissingCredentials("codex"))?
+                    .complete(req)
+                    .await
+            }
         }
     }
 
@@ -200,4 +249,13 @@ fn nonempty(value: Option<String>) -> Option<String> {
             Some(t.to_string())
         }
     })
+}
+
+fn codex_endpoint(url: &str) -> String {
+    let url = url.trim().trim_end_matches('/');
+    if url.ends_with("/responses") {
+        url.to_string()
+    } else {
+        format!("{url}/responses")
+    }
 }

@@ -163,5 +163,6 @@ pub fn parse_response(fallback_model: &str, body: &str) -> Result<ChatResponse, 
         model: parsed.model.unwrap_or_else(|| fallback_model.to_string()),
         text,
         tool_calls,
+        provider_items: Vec::new(),
     })
 }

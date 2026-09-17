@@ -10,12 +10,16 @@ mod dotenv;
 mod error;
 mod ollama;
 mod openai_compat;
-mod types;
+pub mod provider;
+pub mod providers;
+pub mod types;
 
 pub use client::{Client, extract_error_message};
 pub use dotenv::load_dotenv;
 pub use error::LlmError;
 pub use ollama::parse_tags as parse_ollama_tags;
+pub use provider::Provider;
+pub use providers::codex::{Codex, OAuthCredentials, TokenStore};
 pub use types::{ChatMessage, ChatRequest, ChatResponse, ProviderId, Role, ToolCall, ToolSpec};
 
 /// HTTP payload builders and parsers shared by the client and protocol tests.

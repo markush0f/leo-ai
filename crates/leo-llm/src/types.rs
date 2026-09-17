@@ -7,6 +7,7 @@ pub enum ProviderId {
     Gpt,
     Ollama,
     Claude,
+    Codex,
 }
 
 impl ProviderId {
@@ -16,6 +17,7 @@ impl ProviderId {
             "gpt" | "openai" => Ok(Self::Gpt),
             "ollama" => Ok(Self::Ollama),
             "claude" | "anthropic" => Ok(Self::Claude),
+            "codex" | "chatgpt" | "openai-codex" => Ok(Self::Codex),
             other => Err(super::LlmError::UnknownProvider(other.to_string())),
         }
     }
@@ -26,6 +28,7 @@ impl ProviderId {
             Self::Gpt => "gpt",
             Self::Ollama => "ollama",
             Self::Claude => "claude",
+            Self::Codex => "codex",
         }
     }
 
@@ -35,6 +38,7 @@ impl ProviderId {
             Self::Gpt => "gpt-4.1",
             Self::Ollama => "llama3.2",
             Self::Claude => "claude-sonnet-5",
+            Self::Codex => "gpt-5.4",
         }
     }
 
@@ -44,6 +48,7 @@ impl ProviderId {
             Self::Gpt => "https://api.openai.com/v1",
             Self::Ollama => "http://127.0.0.1:11434",
             Self::Claude => "https://api.anthropic.com/v1",
+            Self::Codex => "https://chatgpt.com/backend-api/codex",
         }
     }
 
@@ -53,6 +58,7 @@ impl ProviderId {
             Self::Gpt => Some("OPENAI_API_KEY"),
             Self::Ollama => None,
             Self::Claude => Some("ANTHROPIC_API_KEY"),
+            Self::Codex => None,
         }
     }
 }
@@ -98,6 +104,9 @@ pub struct ChatMessage {
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_calls: Vec<ToolCall>,
+    /// Opaque provider items required for a stateless follow-up request.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub provider_items: Vec<serde_json::Value>,
 }
 
 impl ChatMessage {
@@ -108,6 +117,7 @@ impl ChatMessage {
             tool_call_id: None,
             name: None,
             tool_calls: Vec::new(),
+            provider_items: Vec::new(),
         }
     }
 
@@ -118,6 +128,7 @@ impl ChatMessage {
             tool_call_id: None,
             name: None,
             tool_calls: Vec::new(),
+            provider_items: Vec::new(),
         }
     }
 
@@ -128,6 +139,7 @@ impl ChatMessage {
             tool_call_id: None,
             name: None,
             tool_calls: Vec::new(),
+            provider_items: Vec::new(),
         }
     }
 
@@ -138,6 +150,22 @@ impl ChatMessage {
             tool_call_id: None,
             name: None,
             tool_calls,
+            provider_items: Vec::new(),
+        }
+    }
+
+    pub fn assistant_tools_with_provider_items(
+        content: impl Into<String>,
+        tool_calls: Vec<ToolCall>,
+        provider_items: Vec<serde_json::Value>,
+    ) -> Self {
+        Self {
+            role: Role::Assistant,
+            content: content.into(),
+            tool_call_id: None,
+            name: None,
+            tool_calls,
+            provider_items,
         }
     }
 
@@ -152,6 +180,7 @@ impl ChatMessage {
             tool_call_id: Some(id.into()),
             name: Some(name.into()),
             tool_calls: Vec::new(),
+            provider_items: Vec::new(),
         }
     }
 }
@@ -211,6 +240,8 @@ pub struct ChatResponse {
     pub model: String,
     pub text: String,
     pub tool_calls: Vec<ToolCall>,
+    /// Opaque provider items required for a stateless follow-up request.
+    pub provider_items: Vec<serde_json::Value>,
 }
 
 impl ChatResponse {
@@ -220,6 +251,7 @@ impl ChatResponse {
             model: model.into(),
             text: text.into(),
             tool_calls: Vec::new(),
+            provider_items: Vec::new(),
         }
     }
 }

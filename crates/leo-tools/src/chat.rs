@@ -45,10 +45,12 @@ where
         if resp.tool_calls.is_empty() {
             return Ok(resp);
         }
-        req.messages.push(ChatMessage::assistant_tools(
-            resp.text.clone(),
-            resp.tool_calls.clone(),
-        ));
+        req.messages
+            .push(ChatMessage::assistant_tools_with_provider_items(
+                resp.text.clone(),
+                resp.tool_calls.clone(),
+                resp.provider_items.clone(),
+            ));
         for call in &resp.tool_calls {
             let args = parse_args(&call.arguments);
             tracing::info!(tool = %call.name, "tool");
@@ -153,6 +155,7 @@ mod tests {
                                 name: "echo".into(),
                                 arguments: r#"{"msg":"hola"}"#.into(),
                             }],
+                            provider_items: Vec::new(),
                         })
                     } else {
                         let last = incoming.messages.last().unwrap();
