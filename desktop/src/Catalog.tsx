@@ -6,7 +6,7 @@
 import { useState } from "react";
 import type { Model, Op, Provider, Snapshot } from "./types";
 
-const KINDS = ["grok", "gpt", "ollama", "claude"] as const;
+const KINDS = ["grok", "gpt", "ollama", "claude", "codex"] as const;
 
 const KEY_LABEL: Record<string, string> = {
   db: "en bbdd",
@@ -153,6 +153,7 @@ function ProviderEditor({
   const [url, setUrl] = useState(provider.base_url ?? "");
   const [key, setKey] = useState("");
   const [pendingDelete, setPendingDelete] = useState<"provider" | string | null>(null);
+  const isCodex = provider.kind === "codex";
 
   const nextKind = KINDS[(KINDS.indexOf(provider.kind as (typeof KINDS)[number]) + 1) % KINDS.length];
 
@@ -191,12 +192,12 @@ function ProviderEditor({
       </div>
 
       <label className="field">
-        <span>api key · {KEY_LABEL[provider.key]}</span>
+        <span>{isCodex ? "credenciales OAuth" : "api key"} · {KEY_LABEL[provider.key]}</span>
         <input
           type="password"
           autoComplete="off"
           value={key}
-          placeholder="escribir para guardar"
+          placeholder={isCodex ? "pegar JSON OAuth para guardar" : "escribir para guardar"}
           onChange={(e) => setKey(e.target.value)}
           onBlur={() => {
             if (key.length > 0) {
@@ -207,6 +208,11 @@ function ProviderEditor({
           }}
         />
       </label>
+      {isCodex && (
+        <p className="field-help">
+          Usa la sesión OAuth de ChatGPT. No introduzcas una API key de OpenAI.
+        </p>
+      )}
 
       <label className="field">
         <span>base url</span>
@@ -240,12 +246,14 @@ function ProviderEditor({
               </span>
             ) : (
               <>
+                <span className="model-name">{m.name}</span>
                 <button
                   type="button"
-                  className="model-name"
+                  className={m.id === activeModelId ? "model-active" : "btn-primary sm"}
+                  disabled={busy || m.id === activeModelId}
                   onClick={() => void onOp({ op: "activate_model", id: m.id })}
                 >
-                  {m.name}
+                  {m.id === activeModelId ? "Activo" : "Activar"}
                 </button>
                 <button
                   type="button"

@@ -115,7 +115,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let wake = load_wake(wake_path.as_deref())?;
     let rt = Handle::current();
     let stt = build_stt(&snap, rt.clone());
-    let llm: Box<dyn LlmEngine> = match build_llm(&snap, rt.clone()) {
+    let llm: Box<dyn LlmEngine> = match build_llm(&snap, &pool, rt.clone()) {
         Ok(llm) => llm,
         Err(err) => {
             tracing::warn!(%err, "llm deshabilitado");
@@ -252,9 +252,10 @@ pub(crate) fn engine_config(snap: &Snapshot) -> EngineConfig {
 
 pub(crate) fn build_llm(
     snap: &Snapshot,
+    pool: &sqlx::PgPool,
     rt: Handle,
 ) -> Result<Box<dyn LlmEngine>, Box<dyn std::error::Error>> {
-    let client = snap.client()?;
+    let client = store::client_with_pool(snap, pool)?;
     Ok(Box::new(BlockingLlm::new(
         client,
         snap.settings.voice_system_prompt.clone(),

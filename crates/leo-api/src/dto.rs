@@ -183,6 +183,9 @@ pub(crate) fn key_status(provider: &ProviderRow) -> &'static str {
         return "db";
     }
     if let Ok(kind) = ProviderId::parse(&provider.kind) {
+        if kind == ProviderId::Codex {
+            return "falta";
+        }
         if let Some(var) = kind.env_key() {
             if std::env::var(var).is_ok_and(|v| !v.trim().is_empty()) {
                 return "env";

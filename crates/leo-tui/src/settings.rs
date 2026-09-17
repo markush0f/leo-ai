@@ -334,7 +334,8 @@ fn next_kind(kind: &str) -> &'static str {
         ProviderId::Grok => "gpt",
         ProviderId::Gpt => "ollama",
         ProviderId::Ollama => "claude",
-        ProviderId::Claude => "grok",
+        ProviderId::Claude => "codex",
+        ProviderId::Codex => "grok",
     }
 }
 
@@ -347,6 +348,9 @@ fn key_status(provider: &leo_store::ProviderRow) -> String {
         return "en bbdd".into();
     }
     if let Ok(kind) = ProviderId::parse(&provider.kind) {
+        if kind == ProviderId::Codex {
+            return "falta OAuth".into();
+        }
         if let Some(var) = kind.env_key() {
             if std::env::var(var).is_ok_and(|v| !v.trim().is_empty()) {
                 return "env".into();

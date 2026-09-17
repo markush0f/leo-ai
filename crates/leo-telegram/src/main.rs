@@ -223,7 +223,7 @@ async fn reply_llm(
         tg.send_text(chat_id, "elige un modelo: /model").await?;
         return Ok(());
     }
-    let client = match snap.client() {
+    let client = match store::client_with_pool(snap, pool) {
         Ok(c) => c,
         Err(err) => {
             session.history.pop();

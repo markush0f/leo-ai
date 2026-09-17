@@ -108,7 +108,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let conv = ensure_local(&pool).await?;
     let messages = conversation_messages(&pool, conv.id).await?;
 
-    let mut client = try_client(&snapshot);
+    let mut client = try_client(&snapshot, &pool);
     let tools = leo_tools::Registry::from_env();
     let mut app = App::from_store(snapshot, conv.id, messages);
     let mut terminal = ratatui::init();
@@ -163,7 +163,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(op) = app.take_pending_db() {
             match db::apply(&pool, op).await {
                 Ok(snap) => {
-                    client = try_client(&snap);
+                    client = try_client(&snap, &pool);
                     app.apply_snapshot(snap);
                 }
                 Err(err) => app.on_db_err(err),
@@ -217,13 +217,13 @@ async fn refresh_ollama(pool: &sqlx::PgPool, app: &mut App, client: &mut Option<
         return;
     }
     if let Ok(snap) = db::load(pool).await {
-        *client = try_client(&snap);
+        *client = try_client(&snap, pool);
         app.apply_snapshot(snap);
     }
 }
 
-fn try_client(snapshot: &Snapshot) -> Option<Client> {
-    snapshot.client().ok()
+fn try_client(snapshot: &Snapshot, pool: &sqlx::PgPool) -> Option<Client> {
+    db::client_with_pool(snapshot, pool).ok()
 }
 
 async fn persist_user_and_context(

@@ -791,6 +791,13 @@ button:disabled {
   min-height: 5.5rem;
 }
 
+.field-help {
+  margin: -0.55rem 0 0.9rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
 .tools {
   margin: 0 0 1rem;
   font-size: 0.8rem;
@@ -859,17 +866,29 @@ button:disabled {
   padding: 0.3rem 0;
 }
 
+.models li.on {
+  padding: 0.4rem 0.5rem;
+  border-radius: 10px;
+  background: var(--elevated);
+}
+
 .models li.on .model-name {
   font-weight: 700;
   color: var(--accent);
 }
 
 .model-name {
-  appearance: none;
-  border: 0;
-  background: none;
-  padding: 0;
+  flex: 1;
   text-align: left;
+}
+
+.model-active {
+  border: 0;
+  background: transparent;
+  padding: 0.25rem 0.4rem;
+  color: var(--listen);
+  font-size: 0.78rem;
+  font-weight: 650;
 }
 
 .add {

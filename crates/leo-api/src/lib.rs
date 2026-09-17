@@ -173,7 +173,7 @@ impl App {
             let _ = db::sync_ollama_providers(&pool).await;
         }
         let snap = db::load(&pool).await.map_err(|e| e.to_string())?;
-        let client = snap.client().map_err(|e| match e {
+        let client = db::client_with_pool(&snap, &pool).map_err(|e| match e {
             leo_llm::LlmError::MissingKey(var) => {
                 format!("falta api key ({var}): ábrelo en catálogo")
             }
@@ -267,6 +267,15 @@ mod tests {
         };
         assert_eq!(dto::key_status(&provider("grok", None)), expected);
         assert_eq!(dto::key_status(&provider("grok", Some("sk"))), "db");
+    }
+
+    #[test]
+    fn codex_reports_missing_oauth_credentials() {
+        assert_eq!(dto::key_status(&provider("codex", None)), "falta");
+        assert_eq!(
+            dto::key_status(&provider("codex", Some("oauth-json"))),
+            "db"
+        );
     }
 
     #[test]
