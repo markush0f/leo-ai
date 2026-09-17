@@ -8,7 +8,10 @@ web
 
 ## Stack
 
-React + TypeScript + Vite + Tauri 2 + Rust. Confirmed by the user. The UI is a web surface inside a Tauri desktop shell; the Rust side talks to `leo-store`, `leo-llm`, and `leo-tools`. Runtime is a local desktop app, not a hosted site.
+React + TypeScript + Vite + Tauri 2 + Rust. Confirmed by the user. The UI is a
+web surface: inside a Tauri desktop shell, or in any browser against
+`leo-server`. The Rust side talks to `leo-store`, `leo-llm`, and `leo-tools`.
+Runtime is this machine (desktop window or local HTTP), not a hosted site.
 
 ## Users
 
@@ -26,7 +29,7 @@ One catalog and conversation store (Postgres) and one tool registry feed every s
 
 - The catalog, engines, settings, and chat history live in Postgres (`docker compose up -d`).
 - Voice crates (`leo-daemon`, `leo-ctl`) exist in the workspace but are out of scope until chat ships.
-- Tools register from the environment (files, shell, system, weather always; AppFlowy/GitHub/Google/Home Assistant when credentials exist).
+- Tools register from the environment (files, shell, system, weather always; AppFlowy/GitHub/Google/Home Assistant when credentials exist; local MCP Toolbox when `MCP_TOOLBOX_URL` is set).
 - Keys may sit in the catalog or in env (`XAI_API_KEY`, etc.).
 - Copy and UI are in Spanish, matching TUI and Telegram.
 
@@ -35,6 +38,7 @@ One catalog and conversation store (Postgres) and one tool registry feed every s
 Confirmed for this surface:
 
 - Minimalist chat against the active catalog model, through `leo-tools::chat` (tool loop included).
+- Start local Docker services Leo uses (Postgres and MCP Toolbox) from the window.
 - Configure the catalog the TUI configures: providers (kind, API key, base URL, rename, create, delete), models (create, rename, delete, activate), system prompt, clear conversation.
 - Not in this surface: voice daemon control, Telegram token/allowlist, editing `~/.config/leo-ai/config.toml`.
 
@@ -42,7 +46,7 @@ Confirmed for this surface:
 
 - Name: Leo.
 - Voice: Spanish, clear and direct.
-- Existing surfaces: TUI (`leo`), Telegram (`leo-telegram`), desktop. Voice daemon later.
+- Existing surfaces: TUI (`leo`), Telegram (`leo-telegram`), desktop, browser via `leo-server`. Voice daemon later.
 
 ## Evidence on Hand
 

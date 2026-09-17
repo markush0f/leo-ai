@@ -14,6 +14,9 @@ tool registry. Voice is in the workspace but not part of the product yet.
 
 - A recent Rust toolchain with Rust 2024 support and Cargo.
 - PostgreSQL 16; the included Compose service exposes it on port `5439`.
+- Database tools use a local [MCP Toolbox](https://github.com/googleapis/mcp-toolbox)
+  container built from `third_party/mcp-toolbox` (`deploy/toolbox/Dockerfile`).
+  Initialize the submodule with `git submodule update --init third_party/mcp-toolbox`.
 - For desktop: Node.js compatible with Vite 8, npm, and Tauri 2's Linux native
   dependencies, including WebKitGTK 4.1 and GTK 3 development packages.
 - A provider API key, or a running Ollama server with a downloaded model.
@@ -24,7 +27,8 @@ From the repository root:
 
 ```sh
 cp .env.example .env
-docker compose up -d postgres
+git submodule update --init third_party/mcp-toolbox
+docker compose up -d postgres toolbox
 cargo run -p leo-tui --bin leo
 ```
 
@@ -35,6 +39,13 @@ settings, secrets, and conversation history.
 Database URL precedence is `LEO_DATABASE_URL`, then `DATABASE_URL`, then
 `postgres://leo:leo@127.0.0.1:5439/leo?sslmode=disable`.
 
+Chat queries databases through a **local** MCP Toolbox container, not a hosted
+server. Compose builds `deploy/toolbox/Dockerfile` from the submodule
+`third_party/mcp-toolbox` (tag `v1.11.0`) and publishes `127.0.0.1:5000`.
+
+Set `MCP_TOOLBOX_URL=http://127.0.0.1:5000` in `.env`. Custom SQL tools go in a
+Toolbox `tools.yaml` (see `config/toolbox.example.yaml`).
+
 ## Run desktop chat
 
 Run these commands from `desktop/`:
@@ -44,10 +55,31 @@ npm install
 npm run desktop
 ```
 
-For a browser-only preview, use `npm run web`. The preview uses mock service
-responses and an in-memory catalog rather than native database access.
-The development launcher defaults to port `5179` (`LEO_DEV_PORT` overrides it)
-and uses `fuser -k` to stop any process already listening on that port.
+## Run in the browser
+
+The browser cannot call Ollama directly (CORS). `leo-server` is the HTTP face
+of the same catalog: it talks to PostgreSQL and to Ollama (or Grok, GPT, Claude)
+on the machine where it runs.
+
+From `desktop/`, with PostgreSQL up:
+
+```sh
+npm run web
+```
+
+That starts `leo-server` on `127.0.0.1:8787` and Vite on `5179` (proxying `/api`).
+Open `http://127.0.0.1:5179`. The launcher uses `fuser -k` on those ports first
+(`LEO_DEV_PORT` / `LEO_HTTP_PORT` override them).
+
+To listen on the LAN (phone, another computer):
+
+```sh
+npm run build
+LEO_HTTP_BIND=0.0.0.0:8787 cargo run -p leo-server
+```
+
+Then open `http://<esta-máquina>:8787`. Binding off loopback lets anyone on that
+network chat and run tools; keep it on a trusted LAN.
 
 ## Run Telegram
 
@@ -71,7 +103,7 @@ TUI, Telegram, or desktop. Do not run them as part of the current product.
 ```sh
 cargo fmt --all -- --check
 cargo doc --workspace --no-deps
-cargo test -p leo-audio -p leo-vad -p leo-stt -p leo-core -p leo-llm -p leo-tools
+cargo test -p leo-audio -p leo-vad -p leo-stt -p leo-core -p leo-llm -p leo-tools -p leo-tools-db -p leo-api -p leo-server
 ```
 
 Run `npm run build` from `desktop/` to type-check and bundle the frontend.

@@ -18,15 +18,20 @@ Native development requires Rust and Tauri's Linux dependencies, including
 WebKitGTK 4.1 and GTK 3 development packages. See the [root guide](../README.md)
 for credentials and service configuration.
 
-## Browser preview
+## Browser
 
 ```sh
 npm run web
 ```
 
-Preview uses in-memory mock responses, not live LLM or database services.
-The launcher uses port `5179` by default (`LEO_DEV_PORT` overrides it) and runs
-`fuser -k` against that port before starting Vite.
+Starts `leo-server` (PostgreSQL catalog + Ollama and other providers) and Vite.
+The UI calls `/api`; Vite proxies that to `127.0.0.1:8787`. This is live chat,
+not a mock. The launcher uses port `5179` by default (`LEO_DEV_PORT` overrides
+it) and `8787` for the API (`LEO_HTTP_PORT` / `LEO_HTTP_BIND`). It runs
+`fuser -k` against those ports before starting.
+
+Point another device at this machine with `LEO_HTTP_BIND=0.0.0.0:8787` after
+`npm run build` so `leo-server` also serves `desktop/dist`.
 
 ## Code map
 
@@ -34,15 +39,16 @@ The launcher uses port `5179` by default (`LEO_DEV_PORT` overrides it) and runs
 | --- | --- |
 | `src/App.tsx` | Chat history, display bubbles, catalog state, and theme. |
 | `src/Catalog.tsx` | Provider/model forms and catalog mutations. |
-| `src/api.ts` | Native commands and browser-preview implementations. |
+| `src/api.ts` | Tauri commands or `leo-server` HTTP (`/api`). |
 | `src/types.ts` | DTOs and operation tags mirrored by Rust. |
 | `src/theme.ts`, `src/styles.css` | Theme persistence and presentation. |
 | `src-tauri/src/lib.rs` | Command handlers and shared service initialization. |
 | `src-tauri/src/main.rs` | Native process entry point and renderer environment setup. |
 
-Changing a bridge contract requires updating both TypeScript types and Rust
-DTOs. Native catalog responses expose key availability, not stored key values.
-Chat history is held in frontend memory and is separate from persistent settings.
+Changing a bridge contract requires updating TypeScript types, `leo-api` DTOs,
+and `leo-server` routes together. Catalog responses expose key availability, not
+stored key values. Chat history is held in frontend memory and is separate from
+persistent settings.
 
 ## Checks
 

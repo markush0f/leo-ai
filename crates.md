@@ -8,16 +8,17 @@ Leo is a Cargo workspace containing `crates/leo-*`, integration crates under
 ```text
 Chat
   TUI / Telegram / React → Tauri
+  React (browser) → leo-server
           │                 │
           ├─────────────────┘
           ▼
-      leo-store → PostgreSQL catalog
+      leo-api → leo-store → PostgreSQL catalog
           │
           ▼
       leo-tools → integration crates
           │
           ▼
-       leo-llm → provider HTTP API
+       leo-llm → provider HTTP API (Ollama, Grok, GPT, Claude)
 
 Voice
   leo-ctl / Tauri → leo-ipc → leo-daemon
@@ -28,8 +29,9 @@ Voice
 ```
 
 Chat surfaces share the PostgreSQL catalog (providers, models, engines, settings)
-and conversation history. Voice crates remain in the workspace but are not
-exposed in TUI, Telegram, or desktop until that work is scheduled.
+and conversation history. The browser uses `leo-server` so it can reach Ollama
+without CORS. Voice crates remain in the workspace but are not exposed in TUI,
+Telegram, desktop, or the browser until that work is scheduled.
 
 ## Applications
 
@@ -38,6 +40,8 @@ exposed in TUI, Telegram, or desktop until that work is scheduled.
 | `leo-tui` | `leo` | Ratatui chat and catalog editor. `app` owns state; `input` and `slash` route input; `settings` and `ui` handle editing and rendering. |
 | `leo-telegram` | `leo-telegram` | Long polling, allowlist enforcement, per-session history, and shared chat tools. Library routing is separate from `tg` HTTP transport. |
 | `desktop/` | `npm run tauri dev` | React shell and native commands for chat and catalog editing. |
+| `leo-api` | library | Shared catalog DTOs and chat used by Tauri and `leo-server`. |
+| `leo-server` | `leo-server` | HTTP `/api` for the browser and other machines. Talks to Ollama from the server process. |
 | `leo-daemon` | `leo-daemon` | Voice process; deferred. Loads catalog and engines, serves Unix IPC. |
 | `leo-ctl` | `leo-ctl` | Voice CLI; deferred. |
 
@@ -107,6 +111,7 @@ arguments, resolves paths, and registers these implementations.
 | `github` | Issues and pull requests | `GITHUB_TOKEN` or `GH_TOKEN`. |
 | `google` | Calendars and events | `GOOGLE_ACCESS_TOKEN` or `GOOGLE_API_KEY`. |
 | `home-assistant` | Entity states and service calls | Server URL and token. |
+| `db` | SQL and schema discovery through a local MCP Toolbox (`db_list_tools`, `db_invoke`, `db_execute_sql`, …) | Container built from `third_party/mcp-toolbox` (`deploy/toolbox/Dockerfile`). `docker compose up -d postgres toolbox` and `MCP_TOOLBOX_URL=http://127.0.0.1:5000`. |
 | `notion`, `spotify` | None | Placeholder crates, not registered. |
 
 ## Voice layer (deferred)
@@ -157,27 +162,32 @@ Commands are `status`, `listen`, `stop`, `speak`, and `shutdown`. The client doe
 not impose a timeout. Server binding removes the existing socket entry, so the
 caller must ensure another daemon is not already using it.
 
-## Desktop boundary
+## Desktop and HTTP boundary
 
-- `src/App.tsx`: conversation state, display bubbles, theme, and catalog visibility.
+- `src/App.tsx`: conversation state, display bubbles, theme, catalog, and host service start.
 - `src/Catalog.tsx`: local form drafts and catalog operations.
-- `src/api.ts`: Tauri invocation or browser-preview mocks.
-- `src/types.ts`: frontend DTOs and tagged operations mirrored by Rust.
+- `src/api.ts`: Tauri invocation, or `fetch` to `leo-server` when not in the webview.
+- `src/types.ts`: frontend DTOs and tagged operations mirrored by `leo-api`.
 - `src/theme.ts`: saved theme preference and root CSS selector.
-- `src-tauri/src/lib.rs`: native commands, database access, and tool-enabled chat.
+- `src-tauri/src/lib.rs`: thin Tauri commands over `leo_api::App`.
+- `crates/leo-server`: HTTP `/api` over the same `App`. Default bind `127.0.0.1:8787`.
+  `LEO_HTTP_BIND=0.0.0.0:8787` serves the LAN; that also exposes tools.
+  `GET/POST /api/services` reports and starts Compose `postgres` + `toolbox`.
 
-Keep frontend field names, operation tags, and native DTOs synchronized. Browser
-preview validates interaction and layout, not live provider, database, or IPC behavior.
+Keep frontend field names, operation tags, and `leo-api` DTOs synchronized.
+The browser never calls Ollama; `leo-server` does.
 
 ## Extending the code
 
 - **New tool:** implement its schema and typed operation in an integration crate,
-  then register argument conversion in `leo-tools/src/catalog.rs`.
+  then register argument conversion in `leo-tools/src/catalog.rs`. Database
+  tools go through `leo-tools-db` and the local MCP Toolbox process (source in
+  `third_party/mcp-toolbox`), not a direct `sqlx` connection from the model.
 - **New LLM provider:** extend provider identity/defaults, client dispatch, and a
   protocol adapter; add offline payload and response tests.
 - **New speech backend:** implement the relevant voice trait and wire it in the
   daemon, keeping playback in `leo-audio`.
 - **New catalog operation:** update `DbOp`, persistence, and affected UI adapters;
-  desktop also requires matching TypeScript and Rust operation variants.
+  desktop and `leo-server` share `leo-api` operation variants and TypeScript types.
 
 See [README.md](README.md#development-checks) for build, documentation, and test commands.

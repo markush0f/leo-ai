@@ -123,7 +123,7 @@ Controls 10px. Composer 22px. User bubble 18px with a square inner corner. Send 
 - Elevated fill, 1px `--border`, 10px radius. Focus: 2px accent outline.
 
 ### Navigation
-- Rail: Nuevo chat, Catálogo, theme. Esc closes catalog and the mobile rail.
+- Rail: Nuevo chat, Catálogo, Servicios (Postgres + Toolbox), theme. Esc closes catalog and the mobile rail.
 
 ### Composer
 - Card with textarea, model `<select>`, circular send.
