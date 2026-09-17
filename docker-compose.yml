@@ -31,7 +31,7 @@ services:
       POSTGRES_PASSWORD: leo
       POSTGRES_DB: leo
     ports:
-      - "5439:5432"
+      - "127.0.0.1:5439:5432"
     volumes:
       - leo-pg:/var/lib/postgresql/data
       - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
