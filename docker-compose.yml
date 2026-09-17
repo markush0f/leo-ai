@@ -41,5 +41,34 @@ services:
       timeout: 5s
       retries: 20
 
+  toolbox:
+    build:
+      context: ./third_party
+      dockerfile: ../deploy/toolbox/Dockerfile
+    image: leo-ai-toolbox:1.11.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DATABASE: leo
+      POSTGRES_USER: leo
+      POSTGRES_PASSWORD: leo
+    ports:
+      - "127.0.0.1:5000:5000"
+    command:
+      - --prebuilt=postgres
+      - --address=0.0.0.0
+      - --allowed-hosts=127.0.0.1
+      - --allowed-hosts=localhost
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5000/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
 volumes:
   leo-pg:
