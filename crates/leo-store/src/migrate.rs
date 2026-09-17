@@ -3,8 +3,10 @@ use sqlx::PgPool;
 const SCHEMA: &str = include_str!("../../../deploy/postgres/init.sql");
 const MIGRATION_001: &str =
     include_str!("../../../deploy/postgres/migrations/001_engines_conversations.sql");
+const MIGRATION_002: &str =
+    include_str!("../../../deploy/postgres/migrations/002_codex_provider.sql");
 
-const MIGRATIONS: &[(i32, &str)] = &[(1, MIGRATION_001)];
+const MIGRATIONS: &[(i32, &str)] = &[(1, MIGRATION_001), (2, MIGRATION_002)];
 
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
     sqlx::query(

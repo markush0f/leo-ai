@@ -4,6 +4,7 @@
 //! The base schema lives in `deploy/postgres/init.sql`; additive changes are
 //! versioned under `deploy/postgres/migrations/`.
 
+mod codex;
 mod conversations;
 mod migrate;
 mod secrets;
@@ -13,6 +14,7 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
+pub use codex::{PostgresCodexTokenStore, client_with_pool};
 pub use conversations::{
     CHANNEL_LOCAL, CHANNEL_TELEGRAM, CHANNEL_VOICE, CONTEXT_LIMIT, ConversationRow, MessageRow,
     NewMessage, append_message, archive_conversation, context_messages, conversation_messages,
