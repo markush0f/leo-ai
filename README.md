@@ -43,8 +43,14 @@ Chat queries databases through a **local** MCP Toolbox container, not a hosted
 server. Compose builds `deploy/toolbox/Dockerfile` from the submodule
 `third_party/mcp-toolbox` (tag `v1.11.0`) and publishes `127.0.0.1:5000`.
 
-Set `MCP_TOOLBOX_URL=http://127.0.0.1:5000` in `.env`. Custom SQL tools go in a
-Toolbox `tools.yaml` (see `config/toolbox.example.yaml`).
+Set `MCP_TOOLBOX_URL=http://127.0.0.1:5000` and a persistent
+`LEO_MASTER_KEY` generated with `openssl rand -base64 32` in `.env`. The web
+panel writes encrypted PostgreSQL credentials to Leo's catalog and renders the
+enabled connections into `.leo/toolbox` for Toolbox hot reload. Database users
+must have read-only grants; the session default alone is not an authorization
+boundary. Use `host.docker.internal` for PostgreSQL running on the Docker host.
+Set `LEO_UID` and `LEO_GID` when Leo writes runtime files under a user other
+than `1000:1000`.
 
 ## Run desktop chat
 
