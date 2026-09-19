@@ -66,6 +66,13 @@ pub struct ChatOut {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct CodexLoginDto {
+    pub id: Uuid,
+    pub verification_url: String,
+    pub user_code: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct DatabaseConnectionDto {
     pub id: Uuid,
     pub name: String,

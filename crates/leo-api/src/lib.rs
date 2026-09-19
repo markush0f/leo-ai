@@ -9,11 +9,13 @@ mod dto;
 mod host;
 mod toolbox;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
 use leo_llm::ChatRequest;
-use leo_store::{self as db, CHANNEL_LOCAL, CONTEXT_LIMIT, NewMessage};
+use leo_llm::providers::codex::{DeviceLogin, OAuthClient, TokenStore};
+use leo_store::{self as db, CHANNEL_LOCAL, CONTEXT_LIMIT, NewMessage, PostgresCodexTokenStore};
 use leo_tools::Registry;
 use sqlx::PgPool;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
@@ -21,7 +23,7 @@ use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
 pub use dto::{
-    ChatOut, ConversationDto, DatabaseConnectionDto, DatabaseInput, DatabaseTestDto,
+    ChatOut, CodexLoginDto, ConversationDto, DatabaseConnectionDto, DatabaseInput, DatabaseTestDto,
     DeleteDto, EngineDto, ModelDto, Op, ProviderDto, SnapshotDto, TurnDto,
 };
 pub use host::{ServiceDto, ServicesDto};
@@ -36,9 +38,14 @@ struct Inner {
     db_error: RwLock<Option<String>>,
     tools: Registry,
     toolbox_sync: Mutex<()>,
+    codex_logins: Mutex<HashMap<Uuid, PendingCodexLogin>>,
 }
 
 #[derive(Clone)]
+struct PendingCodexLogin {
+    provider_id: Uuid,
+    login: DeviceLogin,
+}
 
 impl App {
     pub fn new(pool: Option<PgPool>, db_error: Option<String>, tools: Registry) -> Self {
@@ -48,6 +55,7 @@ impl App {
                 db_error: RwLock::new(db_error),
                 tools,
                 toolbox_sync: Mutex::new(()),
+                codex_logins: Mutex::new(HashMap::new()),
             }),
         }
     }
@@ -116,6 +124,7 @@ impl App {
                 }
                 let _ = db::apply_secrets_to_env(&pool).await;
                 let _ = db::sync_ollama_providers(&pool).await;
+                let _ = db::sync_codex_providers(&pool).await;
                 *self.inner.pool.write().await = Some(pool.clone());
                 *self.inner.db_error.write().await = None;
                 if let Ok(cipher) = db::DatabaseCipher::from_env() {
@@ -369,6 +378,64 @@ impl App {
         Ok(())
     }
 
+    pub async fn begin_codex_login(&self, provider_id: Uuid) -> Result<CodexLoginDto, String> {
+        let pool = self.pool().await?;
+        let snap = db::load(&pool).await.map_err(|e| e.to_string())?;
+        let provider = snap
+            .providers
+            .iter()
+            .find(|provider| provider.id == provider_id)
+            .ok_or_else(|| "proveedor inexistente".to_string())?;
+        if !provider.kind.eq_ignore_ascii_case("codex") {
+            return Err("el proveedor no es Codex".into());
+        }
+
+        let login = OAuthClient::new()
+            .begin_device_login()
+            .await
+            .map_err(|e| e.to_string())?;
+        let id = Uuid::new_v4();
+        let out = CodexLoginDto {
+            id,
+            verification_url: login.verification_url.clone(),
+            user_code: login.authorization.user_code.clone(),
+        };
+        self.inner
+            .codex_logins
+            .lock()
+            .await
+            .insert(id, PendingCodexLogin { provider_id, login });
+        Ok(out)
+    }
+
+    pub async fn finish_codex_login(&self, id: Uuid) -> Result<SnapshotDto, String> {
+        let pending = self
+            .inner
+            .codex_logins
+            .lock()
+            .await
+            .get(&id)
+            .cloned()
+            .ok_or_else(|| "login Codex inexistente o caducado".to_string())?;
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(15 * 60),
+            OAuthClient::new().finish_device_login(&pending.login),
+        )
+        .await;
+        self.inner.codex_logins.lock().await.remove(&id);
+        let credentials = result
+            .map_err(|_| "el login Codex ha caducado".to_string())?
+            .map_err(|e| e.to_string())?;
+        let pool = self.pool().await?;
+        PostgresCodexTokenStore::new(pool.clone(), pending.provider_id)
+            .save(&credentials)
+            .await
+            .map_err(|e| e.to_string())?;
+        db::sync_codex_provider(&pool, pending.provider_id).await?;
+        let snap = db::load(&pool).await.map_err(|e| e.to_string())?;
+        Ok(dto::snapshot_dto(snap, &self.inner.tools.names()))
+    }
 
     pub async fn list_chats(&self) -> Result<Vec<ConversationDto>, String> {
         let pool = self.pool().await?;
@@ -615,6 +682,14 @@ mod tests {
         assert_eq!(dto::key_status(&provider("grok", Some("sk"))), "db");
     }
 
+    #[test]
+    fn codex_reports_missing_oauth_credentials() {
+        assert_eq!(dto::key_status(&provider("codex", None)), "falta");
+        assert_eq!(
+            dto::key_status(&provider("codex", Some("oauth-json"))),
+            "db"
+        );
+    }
 
     #[test]
     fn op_json_matches_frontend_tags() {
