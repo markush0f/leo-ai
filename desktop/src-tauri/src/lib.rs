@@ -82,6 +82,51 @@ async fn chat(
     state.api.chat(conversation_id, text).await
 }
 
+#[tauri::command]
+async fn list_databases(state: tauri::State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let databases = state.api.list_databases().await?;
+    serde_json::to_value(databases).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn create_database(
+    state: tauri::State<'_, AppState>,
+    input: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let input = serde_json::from_value(input).map_err(|err| err.to_string())?;
+    let database = state.api.create_database(input).await?;
+    serde_json::to_value(database).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn update_database(
+    state: tauri::State<'_, AppState>,
+    id: Uuid,
+    input: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let input = serde_json::from_value(input).map_err(|err| err.to_string())?;
+    let database = state.api.update_database(id, input).await?;
+    serde_json::to_value(database).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn delete_database(
+    state: tauri::State<'_, AppState>,
+    id: Uuid,
+) -> Result<serde_json::Value, String> {
+    state.api.delete_database(id).await?;
+    Ok(serde_json::json!({ "ok": true }))
+}
+
+#[tauri::command]
+async fn test_database(
+    state: tauri::State<'_, AppState>,
+    id: Uuid,
+) -> Result<serde_json::Value, String> {
+    let tested = state.api.test_database(id).await?;
+    serde_json::to_value(tested).map_err(|err| err.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -102,6 +147,11 @@ pub fn run() {
             chat,
             services,
             start_services,
+            list_databases,
+            create_database,
+            update_database,
+            delete_database,
+            test_database,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

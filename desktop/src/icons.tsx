@@ -87,3 +87,12 @@ export function IconClose({ className }: Props) {
     </svg>
   );
 }
+
+export function IconDatabase({ className }: Props) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <ellipse cx="12" cy="5.5" rx="7" ry="3" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M5 5.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6M5 11.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}

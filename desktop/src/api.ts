@@ -8,6 +8,9 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import type {
   CodexLogin,
   Conversation,
+  DatabaseConnection,
+  DatabaseInput,
+  DatabaseTest,
   Op,
   Services,
   Snapshot,
@@ -132,3 +135,33 @@ export async function sendChat(conversationId: string, text: string): Promise<st
   return out.text;
 }
 
+export async function listDatabases(): Promise<DatabaseConnection[]> {
+  if (inTauri) return invoke<DatabaseConnection[]>("list_databases");
+  return http<DatabaseConnection[]>("/api/databases");
+}
+
+export async function createDatabase(input: DatabaseInput): Promise<DatabaseConnection> {
+  if (inTauri) return invoke<DatabaseConnection>("create_database", { input });
+  return http<DatabaseConnection>("/api/databases", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateDatabase(id: string, input: DatabaseInput): Promise<DatabaseConnection> {
+  if (inTauri) return invoke<DatabaseConnection>("update_database", { id, input });
+  return http<DatabaseConnection>(`/api/databases/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteDatabase(id: string): Promise<{ ok: boolean }> {
+  if (inTauri) return invoke<{ ok: boolean }>("delete_database", { id });
+  return http<{ ok: boolean }>(`/api/databases/${id}`, { method: "DELETE" });
+}
+
+export async function testDatabase(id: string): Promise<DatabaseTest> {
+  if (inTauri) return invoke<DatabaseTest>("test_database", { id });
+  return http<DatabaseTest>(`/api/databases/${id}/test`, { method: "POST" });
+}

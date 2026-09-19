@@ -17,10 +17,12 @@ import {
   startServices,
 } from "./api";
 import { Catalog } from "./Catalog";
+import { Databases } from "./Databases";
 import { Markdown } from "./Markdown";
 import { ServiceBoard } from "./Services";
 import {
   IconClose,
+  IconDatabase,
   IconMenu,
   IconMoon,
   IconPlus,
@@ -62,6 +64,7 @@ export default function App() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [catalog, setCatalog] = useState(false);
+  const [databases, setDatabases] = useState(false);
   const [rail, setRail] = useState(false);
   const [theme, setTheme] = useState<Theme>("dark");
   const [services, setServices] = useState<Services | null>(null);
@@ -145,6 +148,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setCatalog(false);
+        setDatabases(false);
         setRail(false);
       }
     };
@@ -343,7 +347,7 @@ export default function App() {
   );
 
   return (
-    <div className={`app${rail ? " rail-open" : ""}${catalog ? " sheet-open" : ""}`}>
+    <div className={`app${rail ? " rail-open" : ""}${catalog || databases ? " sheet-open" : ""}`}>
       {rail && (
         <button
           type="button"
@@ -383,10 +387,18 @@ export default function App() {
           <button
             type="button"
             className={`nav-item${catalog ? " on" : ""}`}
-            onClick={() => { setCatalog(true); setRail(false); }}
+            onClick={() => { setCatalog(true); setDatabases(false); setRail(false); }}
           >
             <IconSliders />
             Catálogo
+          </button>
+          <button
+            type="button"
+            className={`nav-item${databases ? " on" : ""}`}
+            onClick={() => { setDatabases(true); setCatalog(false); setRail(false); }}
+          >
+            <IconDatabase />
+            Bases de datos
           </button>
         </nav>
 
@@ -493,6 +505,12 @@ export default function App() {
             onCodexLogin={onCodexLogin}
             onClose={() => setCatalog(false)}
           />
+        </>
+      )}
+      {databases && (
+        <>
+          <button type="button" className="scrim settings" aria-label="cerrar bases de datos" onClick={() => setDatabases(false)} />
+          <Databases onClose={() => setDatabases(false)} />
         </>
       )}
     </div>

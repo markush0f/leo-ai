@@ -57,6 +57,44 @@ export type Services = {
   error?: string | null;
 };
 
+export type DatabaseConnection = {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  ssl_mode: string;
+  enabled: boolean;
+  password_set: boolean;
+  last_test_ok: boolean | null;
+  last_test_error: string | null;
+  last_tested_at: string | null;
+};
+
+export type DatabaseInput = {
+  name: string;
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password?: string;
+  ssl_mode: string;
+  enabled: boolean;
+};
+
+export type DatabaseTest = {
+  ok: boolean;
+  read_only: boolean;
+  detail: string;
+};
+
+export type CodexLogin = {
+  id: string;
+  verification_url: string;
+  user_code: string;
+};
+
 export type Conversation = {
   id: string;
   title: string | null;
@@ -99,9 +137,3 @@ export type Op =
   | { op: "set_stt_language"; text: string }
   | { op: "set_thinking"; value: boolean }
   | { op: "set_tools_enabled"; value: boolean };
-
-export type CodexLogin = {
-  id: string;
-  verification_url: string;
-  user_code: string;
-};
