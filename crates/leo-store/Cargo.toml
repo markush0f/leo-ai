@@ -6,9 +6,13 @@ license.workspace = true
 description = "Catálogo de proveedores y modelos en Postgres"
 
 [dependencies]
+base64.workspace = true
+chacha20poly1305.workspace = true
+getrandom.workspace = true
 leo-llm.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true
+thiserror.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]

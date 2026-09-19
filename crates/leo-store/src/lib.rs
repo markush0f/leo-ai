@@ -6,6 +6,7 @@
 
 mod codex;
 mod conversations;
+mod databases;
 mod migrate;
 mod secrets;
 
@@ -20,6 +21,11 @@ pub use conversations::{
     NewMessage, append_message, archive_conversation, context_messages, conversation_messages,
     create_conversation, display_kind, ensure_local, ensure_telegram, ensure_voice,
     get_conversation, list_conversations, new_local, new_telegram, set_active_conversation,
+};
+pub use databases::{
+    DatabaseCipher, DatabaseConnectionRow, DatabaseError, DatabaseWrite,
+    create_database_connection, database_connection, database_password, delete_database_connection,
+    list_database_connections, set_database_test_result, update_database_connection,
 };
 pub use migrate::migrate;
 pub use secrets::{SecretRow, apply_secrets_to_env, get_secret, list_secrets, set_secret};

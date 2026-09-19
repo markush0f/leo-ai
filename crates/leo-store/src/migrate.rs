@@ -5,8 +5,10 @@ const MIGRATION_001: &str =
     include_str!("../../../deploy/postgres/migrations/001_engines_conversations.sql");
 const MIGRATION_002: &str =
     include_str!("../../../deploy/postgres/migrations/002_codex_provider.sql");
+const MIGRATION_003: &str =
+    include_str!("../../../deploy/postgres/migrations/003_database_connections.sql");
 
-const MIGRATIONS: &[(i32, &str)] = &[(1, MIGRATION_001), (2, MIGRATION_002)];
+const MIGRATIONS: &[(i32, &str)] = &[(1, MIGRATION_001), (2, MIGRATION_002), (3, MIGRATION_003)];
 
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
     sqlx::query(
