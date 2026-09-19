@@ -225,9 +225,6 @@ fn request_body(model: &str, request: &ChatRequest) -> Value {
         body["reasoning"] = json!({ "effort": effort, "summary": "auto" });
         body["include"] = json!(["reasoning.encrypted_content"]);
     }
-    if let Some(max_tokens) = request.max_tokens {
-        body["max_output_tokens"] = max_tokens.into();
-    }
     body
 }
 
@@ -388,7 +385,7 @@ mod tests {
         assert_eq!(body["instructions"], "sé breve");
         assert_eq!(body["input"][0]["role"], "user");
         assert_eq!(body["store"], false);
-        assert_eq!(body["max_output_tokens"], 512);
+        assert!(body.get("max_output_tokens").is_none());
     }
 
     #[test]
