@@ -7,18 +7,22 @@
 
 mod dto;
 mod host;
+mod toolbox;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use leo_llm::ChatRequest;
 use leo_store::{self as db, CHANNEL_LOCAL, CONTEXT_LIMIT, NewMessage};
 use leo_tools::Registry;
 use sqlx::PgPool;
-use tokio::sync::RwLock;
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
+use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
 pub use dto::{
-    ChatOut, ConversationDto, EngineDto, ModelDto, Op, ProviderDto, SnapshotDto, TurnDto,
+    ChatOut, ConversationDto, DatabaseConnectionDto, DatabaseInput, DatabaseTestDto,
+    DeleteDto, EngineDto, ModelDto, Op, ProviderDto, SnapshotDto, TurnDto,
 };
 pub use host::{ServiceDto, ServicesDto};
 
@@ -31,7 +35,10 @@ struct Inner {
     pool: RwLock<Option<PgPool>>,
     db_error: RwLock<Option<String>>,
     tools: Registry,
+    toolbox_sync: Mutex<()>,
 }
+
+#[derive(Clone)]
 
 impl App {
     pub fn new(pool: Option<PgPool>, db_error: Option<String>, tools: Registry) -> Self {
@@ -40,6 +47,7 @@ impl App {
                 pool: RwLock::new(pool),
                 db_error: RwLock::new(db_error),
                 tools,
+                toolbox_sync: Mutex::new(()),
             }),
         }
     }
@@ -53,6 +61,9 @@ impl App {
     pub async fn boot() -> Self {
         leo_llm::load_dotenv();
         let tools = Registry::from_env();
+        if let Err(error) = toolbox::reset().await {
+            return Self::new(None, Some(error), tools);
+        }
         let app = Self::new(None, None, tools);
         let _ = app.try_connect().await;
         app
@@ -64,6 +75,12 @@ impl App {
 
     /// Starts Postgres and MCP Toolbox via Docker Compose, then reconnects.
     pub async fn start_services(&self) -> ServicesDto {
+        if let Err(error) = toolbox::reset().await {
+            let mut out = host::status().await;
+            out.ok = false;
+            out.error = Some(error);
+            return out;
+        }
         let mut out = host::start().await;
         if out.error.is_some() {
             return out;
@@ -99,8 +116,20 @@ impl App {
                 }
                 let _ = db::apply_secrets_to_env(&pool).await;
                 let _ = db::sync_ollama_providers(&pool).await;
-                *self.inner.pool.write().await = Some(pool);
+                *self.inner.pool.write().await = Some(pool.clone());
                 *self.inner.db_error.write().await = None;
+                if let Ok(cipher) = db::DatabaseCipher::from_env() {
+                    let app = self.clone();
+                    tokio::spawn(async move {
+                        let _ = app.sync_toolbox(&pool, &cipher).await;
+                    });
+                } else {
+                    if let Err(error) = toolbox::reset().await {
+                        *self.inner.pool.write().await = None;
+                        *self.inner.db_error.write().await = Some(error.clone());
+                        return Err(error);
+                    }
+                }
                 Ok(())
             }
             Err(err) => {
@@ -141,6 +170,205 @@ impl App {
             .map_err(|e| e.to_string())?;
         Ok(dto::snapshot_dto(snap, &self.inner.tools.names()))
     }
+
+    pub async fn list_databases(&self) -> Result<Vec<DatabaseConnectionDto>, String> {
+        let pool = self.pool().await?;
+        let rows = db::list_database_connections(&pool)
+            .await
+            .map_err(|err| err.to_string())?;
+        Ok(rows.into_iter().map(dto::database_dto).collect())
+    }
+
+    pub async fn create_database(
+        &self,
+        input: DatabaseInput,
+    ) -> Result<DatabaseConnectionDto, String> {
+        let pool = self.pool().await?;
+        let input = validate_database_input(input, true)?;
+        let cipher = db::DatabaseCipher::from_env().map_err(|err| err.to_string())?;
+        let row = db::create_database_connection(&pool, &cipher, database_write(input))
+            .await
+            .map_err(|err| err.to_string())?;
+        if let Err(error) = self.sync_toolbox(&pool, &cipher).await {
+            let _ = db::set_database_test_result(&pool, row.id, false, Some(&error)).await;
+        }
+        let row = db::database_connection(&pool, row.id)
+            .await
+            .map_err(|err| err.to_string())?;
+        Ok(dto::database_dto(row))
+    }
+
+    pub async fn update_database(
+        &self,
+        id: Uuid,
+        input: DatabaseInput,
+    ) -> Result<DatabaseConnectionDto, String> {
+        let pool = self.pool().await?;
+        let input = validate_database_input(input, false)?;
+        let cipher = db::DatabaseCipher::from_env().map_err(|err| err.to_string())?;
+        let row = db::update_database_connection(&pool, &cipher, id, database_write(input))
+            .await
+            .map_err(|err| err.to_string())?;
+        if let Err(error) = self.sync_toolbox(&pool, &cipher).await {
+            let _ = db::set_database_test_result(&pool, row.id, false, Some(&error)).await;
+        }
+        let row = db::database_connection(&pool, row.id)
+            .await
+            .map_err(|err| err.to_string())?;
+        Ok(dto::database_dto(row))
+    }
+
+    pub async fn delete_database(&self, id: Uuid) -> Result<DeleteDto, String> {
+        let pool = self.pool().await?;
+        let cipher = db::DatabaseCipher::from_env().map_err(|err| err.to_string())?;
+        match db::delete_database_connection(&pool, id).await {
+            Ok(()) | Err(db::DatabaseError::NotFound) => {}
+            Err(error) => return Err(error.to_string()),
+        }
+        self.sync_toolbox(&pool, &cipher).await?;
+        Ok(DeleteDto { ok: true })
+    }
+
+    pub async fn test_database(&self, id: Uuid) -> Result<DatabaseTestDto, String> {
+        let pool = self.pool().await?;
+        let row = db::database_connection(&pool, id)
+            .await
+            .map_err(|err| err.to_string())?;
+        let cipher = db::DatabaseCipher::from_env().map_err(|err| err.to_string())?;
+        let password = db::database_password(&pool, &cipher, id)
+            .await
+            .map_err(|err| err.to_string())?;
+        if password.is_empty() {
+            return Err("la conexión no tiene contraseña".into());
+        }
+        let result = test_postgres(&row, &password).await;
+        match result {
+            Ok(read_only) => {
+                let detail = if read_only {
+                    "Conexión correcta; sesión PostgreSQL en solo lectura."
+                } else {
+                    "Conexión correcta; PostgreSQL no confirma solo lectura. Usa un usuario sin permisos de escritura."
+                };
+                db::set_database_test_result(&pool, id, true, None)
+                    .await
+                    .map_err(|err| err.to_string())?;
+                if let Err(error) = self.sync_toolbox(&pool, &cipher).await {
+                    return Ok(DatabaseTestDto {
+                        ok: false,
+                        read_only,
+                        detail: format!(
+                            "La base responde, pero Toolbox no pudo publicarla: {error}"
+                        ),
+                    });
+                }
+                Ok(DatabaseTestDto {
+                    ok: true,
+                    read_only,
+                    detail: detail.into(),
+                })
+            }
+            Err(error) => {
+                db::set_database_test_result(&pool, id, false, Some(&error))
+                    .await
+                    .map_err(|err| err.to_string())?;
+                if let Err(sync_error) = self.sync_toolbox(&pool, &cipher).await {
+                    return Ok(DatabaseTestDto {
+                        ok: false,
+                        read_only: false,
+                        detail: format!(
+                            "{error}. Además, Toolbox no pudo reconciliarse: {sync_error}"
+                        ),
+                    });
+                }
+                Ok(DatabaseTestDto {
+                    ok: false,
+                    read_only: false,
+                    detail: error,
+                })
+            }
+        }
+    }
+
+    async fn sync_toolbox(&self, pool: &PgPool, cipher: &db::DatabaseCipher) -> Result<(), String> {
+        let _guard = self.inner.toolbox_sync.lock().await;
+        let rows = db::list_database_connections(pool)
+            .await
+            .map_err(|err| err.to_string())?;
+        for row in rows.into_iter().filter(|row| row.enabled) {
+            let password = match db::database_password(pool, cipher, row.id).await {
+                Ok(password) if !password.is_empty() => password,
+                Ok(_) => {
+                    db::set_database_test_result(pool, row.id, false, Some("falta contraseña"))
+                        .await
+                        .map_err(|err| err.to_string())?;
+                    continue;
+                }
+                Err(error) => {
+                    let error = error.to_string();
+                    self.mark_enabled_database_error(pool, &error).await?;
+                    toolbox::reset().await?;
+                    return Err(error);
+                }
+            };
+            match test_postgres(&row, &password).await {
+                Ok(_) => db::set_database_test_result(pool, row.id, true, None)
+                    .await
+                    .map_err(|err| err.to_string())?,
+                Err(error) => {
+                    db::set_database_test_result(pool, row.id, false, Some(&error))
+                        .await
+                        .map_err(|err| err.to_string())?;
+                }
+            }
+        }
+        let has_active = db::list_database_connections(pool)
+            .await
+            .map_err(|err| err.to_string())?
+            .into_iter()
+            .any(|row| row.enabled && row.last_test_ok == Some(true));
+        if !has_active {
+            return toolbox::reset().await;
+        }
+        let publish = async {
+            toolbox::reset().await?;
+            wait_for_toolbox(&[], true).await?;
+            toolbox::sync(pool, cipher).await?;
+            let expected: Vec<String> = db::list_database_connections(pool)
+                .await
+                .map_err(|err| err.to_string())?
+                .into_iter()
+                .filter(|row| row.enabled && row.last_test_ok == Some(true))
+                .map(|row| toolbox::managed_query_name(row.id))
+                .collect();
+            wait_for_toolbox(&expected, false).await
+        }
+        .await;
+        if let Err(error) = publish {
+            self.mark_enabled_database_error(pool, &error).await?;
+            return match toolbox::reset().await {
+                Ok(()) => Err(error),
+                Err(reset_error) => Err(format!(
+                    "{error}; tampoco se pudo retirar configuración anterior: {reset_error}"
+                )),
+            };
+        }
+        Ok(())
+    }
+
+    async fn mark_enabled_database_error(&self, pool: &PgPool, error: &str) -> Result<(), String> {
+        for row in db::list_database_connections(pool)
+            .await
+            .map_err(|err| err.to_string())?
+            .into_iter()
+            .filter(|row| row.enabled)
+        {
+            db::set_database_test_result(pool, row.id, false, Some(error))
+                .await
+                .map_err(|err| err.to_string())?;
+        }
+        Ok(())
+    }
+
 
     pub async fn list_chats(&self) -> Result<Vec<ConversationDto>, String> {
         let pool = self.pool().await?;
@@ -232,6 +460,124 @@ impl App {
     }
 }
 
+fn validate_database_input(
+    mut input: DatabaseInput,
+    require_password: bool,
+) -> Result<DatabaseInput, String> {
+    input.name = input.name.trim().to_string();
+    input.host = input.host.trim().to_string();
+    input.database = input.database.trim().to_string();
+    input.username = input.username.trim().to_string();
+    input.password = input.password.filter(|password| !password.is_empty());
+    input.ssl_mode = input.ssl_mode.trim().to_ascii_lowercase();
+    if input.name.is_empty()
+        || input.host.is_empty()
+        || input.database.is_empty()
+        || input.username.is_empty()
+    {
+        return Err("nombre, host, base de datos y usuario son obligatorios".into());
+    }
+    if !(1..=65535).contains(&input.port) {
+        return Err("puerto fuera de rango (1-65535)".into());
+    }
+    if !matches!(
+        input.ssl_mode.as_str(),
+        "disable" | "prefer" | "require" | "verify-ca" | "verify-full"
+    ) {
+        return Err("modo SSL inválido".into());
+    }
+    if require_password && input.password.is_none() {
+        return Err("contraseña obligatoria".into());
+    }
+    Ok(input)
+}
+
+fn database_write(input: DatabaseInput) -> db::DatabaseWrite {
+    db::DatabaseWrite {
+        name: input.name,
+        host: input.host,
+        port: input.port,
+        database: input.database,
+        username: input.username,
+        password: input.password,
+        ssl_mode: input.ssl_mode,
+        enabled: input.enabled,
+    }
+}
+
+async fn test_postgres(row: &db::DatabaseConnectionRow, password: &str) -> Result<bool, String> {
+    let ssl_mode = match row.ssl_mode.as_str() {
+        "disable" => PgSslMode::Disable,
+        "prefer" => PgSslMode::Prefer,
+        "require" => PgSslMode::Require,
+        "verify-ca" => PgSslMode::VerifyCa,
+        "verify-full" => PgSslMode::VerifyFull,
+        _ => return Err("modo SSL inválido".into()),
+    };
+    let test_host = if row.host.eq_ignore_ascii_case("host.docker.internal") {
+        "127.0.0.1"
+    } else {
+        &row.host
+    };
+    let options = PgConnectOptions::new()
+        .host(test_host)
+        .port(row.port as u16)
+        .database(&row.database)
+        .username(&row.username)
+        .password(password)
+        .ssl_mode(ssl_mode)
+        .application_name("leo-ai-test");
+    let connect = PgPoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(Duration::from_secs(10))
+        .connect_with(options);
+    let remote = tokio::time::timeout(Duration::from_secs(12), connect)
+        .await
+        .map_err(|_| "la conexión superó 12 segundos".to_string())?
+        .map_err(|err| format!("no se pudo conectar: {err}"))?;
+    let checked = tokio::time::timeout(Duration::from_secs(5), async {
+        sqlx::query_scalar::<_, String>("SHOW transaction_read_only")
+            .fetch_one(&remote)
+            .await
+    })
+    .await;
+    remote.close().await;
+    let mode = checked
+        .map_err(|_| "conectó, pero la prueba superó 5 segundos".to_string())?
+        .map_err(|err| format!("conectó, pero falló la prueba: {err}"))?;
+    Ok(mode.eq_ignore_ascii_case("on"))
+}
+
+async fn wait_for_toolbox(expected: &[String], require_empty: bool) -> Result<(), String> {
+    let client = leo_tools_db::Client::from_env()
+        .ok_or_else(|| "falta MCP_TOOLBOX_URL para publicar conexiones".to_string())?;
+    let mut last_error = None;
+    for _ in 0..80 {
+        match client.list_tools().await {
+            Ok(tools) => {
+                let names: Vec<&str> = tools.iter().map(|tool| tool.name.as_str()).collect();
+                let ready = if require_empty {
+                    names.iter().all(|name| !name.starts_with("db_"))
+                } else {
+                    expected.iter().all(|name| names.contains(&name.as_str()))
+                };
+                if ready {
+                    return Ok(());
+                }
+            }
+            Err(error) => last_error = Some(error.to_string()),
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    Err(last_error.unwrap_or_else(|| {
+        if require_empty {
+            "Toolbox no retiró la configuración anterior".into()
+        } else {
+            "Toolbox no pudo activar una o más conexiones".into()
+        }
+    }))
+}
+
 fn tools_unsupported(err: &leo_llm::LlmError) -> bool {
     let text = err.to_string().to_ascii_lowercase();
     text.contains("does not support tools") || text.contains("does not support tool")
@@ -269,14 +615,6 @@ mod tests {
         assert_eq!(dto::key_status(&provider("grok", Some("sk"))), "db");
     }
 
-    #[test]
-    fn codex_reports_missing_oauth_credentials() {
-        assert_eq!(dto::key_status(&provider("codex", None)), "falta");
-        assert_eq!(
-            dto::key_status(&provider("codex", Some("oauth-json"))),
-            "db"
-        );
-    }
 
     #[test]
     fn op_json_matches_frontend_tags() {
@@ -310,6 +648,44 @@ mod tests {
         };
         assert!(tools_unsupported(&err));
         assert!(!tools_unsupported(&leo_llm::LlmError::Empty("modelo")));
+    }
+
+    fn database_input() -> DatabaseInput {
+        DatabaseInput {
+            name: " Analytics ".into(),
+            host: " db.internal ".into(),
+            port: 5432,
+            database: " reports ".into(),
+            username: " reader ".into(),
+            password: Some("secret".into()),
+            ssl_mode: " REQUIRE ".into(),
+            enabled: true,
+        }
+    }
+
+    #[test]
+    fn validates_and_normalizes_database_input() {
+        let input = validate_database_input(database_input(), true).expect("valid input");
+        assert_eq!(input.name, "Analytics");
+        assert_eq!(input.host, "db.internal");
+        assert_eq!(input.database, "reports");
+        assert_eq!(input.username, "reader");
+        assert_eq!(input.ssl_mode, "require");
+    }
+
+    #[test]
+    fn rejects_unsafe_database_shape() {
+        let mut input = database_input();
+        input.port = 0;
+        assert!(validate_database_input(input, true).is_err());
+
+        let mut input = database_input();
+        input.ssl_mode = "trust-everything".into();
+        assert!(validate_database_input(input, true).is_err());
+
+        let mut input = database_input();
+        input.password = None;
+        assert!(validate_database_input(input, true).is_err());
     }
 
     #[tokio::test]

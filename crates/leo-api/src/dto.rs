@@ -1,5 +1,7 @@
 use leo_llm::ProviderId;
-use leo_store::{ConversationRow, DbOp, EngineRole, MessageRow, ProviderRow, Snapshot};
+use leo_store::{
+    ConversationRow, DatabaseConnectionRow, DbOp, EngineRole, MessageRow, ProviderRow, Snapshot,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -61,6 +63,47 @@ pub struct ModelDto {
 #[derive(Debug, Clone, Serialize)]
 pub struct ChatOut {
     pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DatabaseConnectionDto {
+    pub id: Uuid,
+    pub name: String,
+    pub host: String,
+    pub port: i32,
+    pub database: String,
+    pub username: String,
+    pub ssl_mode: String,
+    pub enabled: bool,
+    pub password_set: bool,
+    pub last_test_ok: Option<bool>,
+    pub last_test_error: Option<String>,
+    pub last_tested_at: Option<String>,
+}
+
+#[derive(Clone, Deserialize)]
+pub struct DatabaseInput {
+    pub name: String,
+    pub host: String,
+    pub port: i32,
+    pub database: String,
+    pub username: String,
+    #[serde(default)]
+    pub password: Option<String>,
+    pub ssl_mode: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DatabaseTestDto {
+    pub ok: bool,
+    pub read_only: bool,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DeleteDto {
+    pub ok: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -171,6 +214,23 @@ pub fn turn_dto(row: MessageRow) -> TurnDto {
         id: row.id,
         role: row.role,
         content: row.content,
+    }
+}
+
+pub fn database_dto(row: DatabaseConnectionRow) -> DatabaseConnectionDto {
+    DatabaseConnectionDto {
+        id: row.id,
+        name: row.name,
+        host: row.host,
+        port: row.port,
+        database: row.database,
+        username: row.username,
+        ssl_mode: row.ssl_mode,
+        enabled: row.enabled,
+        password_set: row.password_set,
+        last_test_ok: row.last_test_ok,
+        last_test_error: row.last_test_error,
+        last_tested_at: row.last_tested_at,
     }
 }
 
