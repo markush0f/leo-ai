@@ -1,4 +1,18 @@
 services:
+  leo-realtime:
+    build:
+      context: ./services/leo-realtime
+    image: leo-ai-realtime:0.1.0
+    environment:
+      LEO_REALTIME_HOST: 0.0.0.0
+      LEO_REALTIME_PORT: "8765"
+      LEO_REALTIME_MODE: echo
+      LEO_REALTIME_SAMPLE_RATE: "16000"
+      LEO_REALTIME_CHANNELS: "1"
+    ports:
+      - "127.0.0.1:${LEO_REALTIME_PORT:-8765}:8765"
+    restart: unless-stopped
+
   colibri:
     build:
       context: .

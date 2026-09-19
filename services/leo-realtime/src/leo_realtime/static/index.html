@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Leo Realtime · Prueba de audio</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Source Sans 3", system-ui, sans-serif;
+        background: #0c0c0d;
+        color: #f2f2f4;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      main {
+        width: min(100%, 520px);
+        padding: 32px;
+        border-radius: 22px;
+        background: #1c1c1f;
+      }
+
+      h1 {
+        margin: 0 0 10px;
+        font-size: 2.4rem;
+        letter-spacing: -0.03em;
+      }
+
+      p { color: #9a9aa3; line-height: 1.55; }
+
+      button {
+        width: 100%;
+        margin-top: 18px;
+        padding: 13px 18px;
+        border: 0;
+        border-radius: 10px;
+        background: #f4f4f5;
+        color: #0c0c0d;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:hover { filter: brightness(0.9); }
+      button:focus-visible { outline: 3px solid #c4b5fd; outline-offset: 3px; }
+      button[data-active="true"] { background: #f87171; }
+
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 24px 0 0;
+        color: #f2f2f4;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #9a9aa3;
+      }
+
+      .dot.on { background: #34d399; }
+      .hint { margin-bottom: 0; font-size: 0.9rem; }
+      ::selection { background: #c4b5fd; color: #0c0c0d; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Prueba de audio</h1>
+      <p>Habla al micrófono. Leo enviará PCM16 por WebSocket y reproducirá el mismo audio de vuelta.</p>
+      <button id="toggle" type="button">Iniciar micrófono</button>
+      <p class="status" aria-live="polite">
+        <span id="dot" class="dot" aria-hidden="true"></span>
+        <span id="status">Desconectado</span>
+      </p>
+      <p class="hint">Usa auriculares para evitar acople entre altavoz y micrófono.</p>
+    </main>
+
+    <script>
+      const targetRate = 16000;
+      const packetSamples = 320;
+      const button = document.querySelector("#toggle");
+      const status = document.querySelector("#status");
+      const dot = document.querySelector("#dot");
+      let context;
+      let stream;
+      let source;
+      let processor;
+      let silentGain;
+      let socket;
+      let queuedSamples = [];
+      let playbackAt = 0;
+      let packets = 0;
+
+      function setStatus(message, active = false) {
+        status.textContent = message;
+        dot.classList.toggle("on", active);
+        button.dataset.active = String(active);
+        button.textContent = active ? "Detener prueba" : "Iniciar micrófono";
+      }
+
+      function resample(input, inputRate) {
+        if (inputRate === targetRate) return input;
+        const length = Math.floor(input.length * targetRate / inputRate);
+        const output = new Float32Array(length);
+        const ratio = inputRate / targetRate;
+        for (let i = 0; i < length; i += 1) {
+          const position = i * ratio;
+          const left = Math.floor(position);
+          const right = Math.min(left + 1, input.length - 1);
+          const mix = position - left;
+          output[i] = input[left] * (1 - mix) + input[right] * mix;
+        }
+        return output;
+      }
+
+      function sendAudio(input) {
+        const samples = resample(input, context.sampleRate);
+        for (const sample of samples) queuedSamples.push(Math.max(-1, Math.min(1, sample)));
+
+        while (queuedSamples.length >= packetSamples && socket?.readyState === WebSocket.OPEN) {
+          const packet = queuedSamples.splice(0, packetSamples);
+          const bytes = new ArrayBuffer(packetSamples * 2);
+          const view = new DataView(bytes);
+          packet.forEach((sample, index) => {
+            view.setInt16(index * 2, sample < 0 ? sample * 32768 : sample * 32767, true);
+          });
+          socket.send(bytes);
+        }
+      }
+
+      function playAudio(bytes) {
+        const view = new DataView(bytes);
+        const sampleCount = bytes.byteLength / 2;
+        const buffer = context.createBuffer(1, sampleCount, targetRate);
+        const channel = buffer.getChannelData(0);
+        for (let i = 0; i < sampleCount; i += 1) channel[i] = view.getInt16(i * 2, true) / 32768;
+
+        const player = context.createBufferSource();
+        player.buffer = buffer;
+        player.connect(context.destination);
+        playbackAt = Math.max(playbackAt, context.currentTime + 0.03);
+        player.start(playbackAt);
+        playbackAt += buffer.duration;
+        packets += 1;
+        setStatus(`Conectado · ${packets} paquetes recibidos`, true);
+      }
+
+      async function start() {
+        setStatus("Solicitando micrófono…");
+        context = new AudioContext();
+        await context.resume();
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+        });
+
+        const protocol = location.protocol === "https:" ? "wss" : "ws";
+        socket = new WebSocket(`${protocol}://${location.host}/ws/audio`);
+        socket.binaryType = "arraybuffer";
+        await new Promise((resolve, reject) => {
+          socket.addEventListener("open", resolve, { once: true });
+          socket.addEventListener("error", reject, { once: true });
+        });
+
+        source = context.createMediaStreamSource(stream);
+        processor = context.createScriptProcessor(2048, 1, 1);
+        silentGain = context.createGain();
+        silentGain.gain.value = 0;
+        processor.onaudioprocess = (event) => sendAudio(event.inputBuffer.getChannelData(0));
+        source.connect(processor);
+        processor.connect(silentGain);
+        silentGain.connect(context.destination);
+        socket.addEventListener("message", (event) => playAudio(event.data));
+        socket.addEventListener("close", () => stop("Servidor desconectado"));
+        packets = 0;
+        setStatus("Conectado · habla ahora", true);
+      }
+
+      function stop(message = "Desconectado") {
+        processor?.disconnect();
+        source?.disconnect();
+        silentGain?.disconnect();
+        stream?.getTracks().forEach((track) => track.stop());
+        if (socket?.readyState === WebSocket.OPEN) socket.close();
+        context?.close();
+        context = stream = source = processor = silentGain = socket = null;
+        queuedSamples = [];
+        playbackAt = 0;
+        setStatus(message);
+      }
+
+      button.addEventListener("click", async () => {
+        if (socket) {
+          stop();
+          return;
+        }
+        try {
+          await start();
+        } catch (error) {
+          stop(`No se pudo iniciar: ${error.message}`);
+        }
+      });
+    </script>
+  </body>
+</html>

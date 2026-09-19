@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "leo-realtime"
+version = "0.1.0"
+description = "Pipecat realtime audio service for Leo"
+requires-python = ">=3.11"
+dependencies = [
+  "pipecat-ai[websocket]==1.11.0",
+  "pydantic-settings>=2.10,<3",
+  "uvicorn[standard]>=0.35,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.28,<1",
+  "pytest>=8.4,<9",
+  "pytest-asyncio>=1.1,<2",
+]
+
+[project.scripts]
+leo-realtime = "leo_realtime.main:run"
+leo-realtime-client = "leo_realtime.leo_client:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/leo_realtime"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+asyncio_mode = "auto"
+testpaths = ["tests"]
