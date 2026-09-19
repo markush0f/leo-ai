@@ -7,6 +7,7 @@ use leo_llm::ToolSpec;
 use crate::context::Context;
 use crate::error::ToolError;
 
+/// Sendable boxed future returned by tool implementations.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// Contract connecting a model-visible function description to local execution.
@@ -14,6 +15,7 @@ pub trait Tool: Send + Sync {
     /// Name, description, and argument JSON Schema sent to the model.
     fn spec(&self) -> ToolSpec;
 
+    /// Returns the model-facing tool name from [`Self::spec`].
     fn name(&self) -> String {
         self.spec().name
     }
@@ -33,14 +35,15 @@ type RunFn = dyn Fn(Context, serde_json::Value) -> BoxFuture<'static, Result<Str
     + Send
     + Sync;
 
-#[derive(Clone)]
 /// Adapts an async function into a tool with shared ownership through `Arc`.
+#[derive(Clone)]
 pub struct DynTool {
     spec: ToolSpec,
     run: Arc<RunFn>,
 }
 
 impl DynTool {
+    /// Creates a tool from a specification and asynchronous execution function.
     pub fn new<F, Fut>(spec: ToolSpec, f: F) -> Self
     where
         F: Fn(Context, serde_json::Value) -> Fut + Send + Sync + 'static,

@@ -7,14 +7,15 @@ use crate::context::Context;
 use crate::error::ToolError;
 use crate::tool::{DynTool, Tool};
 
-#[derive(Clone, Default)]
 /// Cloneable catalog with shared tools; an empty registry offers no tools.
+#[derive(Clone, Default)]
 pub struct Registry {
     ctx: Context,
     tools: Arc<Vec<DynTool>>,
 }
 
 impl Registry {
+    /// Starts a registry builder with the execution context shared by its tools.
     pub fn builder(ctx: Context) -> Builder {
         Builder {
             ctx,
@@ -29,14 +30,17 @@ impl Registry {
         b.build()
     }
 
+    /// Returns whether the registry contains no tools.
     pub fn is_empty(&self) -> bool {
         self.tools.is_empty()
     }
 
+    /// Returns model-facing specifications for all registered tools.
     pub fn specs(&self) -> Vec<ToolSpec> {
         self.tools.iter().map(|t| t.spec()).collect()
     }
 
+    /// Returns registered tool names in insertion order.
     pub fn names(&self) -> Vec<String> {
         self.tools.iter().map(|t| t.name()).collect()
     }
@@ -53,16 +57,19 @@ impl Registry {
     }
 }
 
+/// Incrementally constructs a [`Registry`] with one shared [`Context`].
 pub struct Builder {
     ctx: Context,
     tools: Vec<DynTool>,
 }
 
 impl Builder {
+    /// Adds an already type-erased tool to the registry.
     pub fn add(&mut self, tool: DynTool) {
         self.tools.push(tool);
     }
 
+    /// Adapts and adds an asynchronous function with its model-facing specification.
     pub fn add_fn<F, Fut>(&mut self, spec: ToolSpec, f: F)
     where
         F: Fn(Context, serde_json::Value) -> Fut + Send + Sync + 'static,
@@ -71,6 +78,7 @@ impl Builder {
         self.add(DynTool::new(spec, f));
     }
 
+    /// Finishes construction of the registry.
     pub fn build(self) -> Registry {
         Registry {
             ctx: self.ctx,

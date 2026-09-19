@@ -19,6 +19,9 @@ impl Default for Context {
 }
 
 impl Context {
+    /// Builds an execution context from the current process environment.
+    ///
+    /// Currently this uses the process working directory and a new HTTP client.
     pub fn from_env() -> Self {
         Self::default()
     }
