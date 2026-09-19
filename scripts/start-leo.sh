@@ -55,10 +55,42 @@ if [[ ! -d "$desktop/node_modules" ]]; then
 fi
 
 export MCP_TOOLBOX_URL="${MCP_TOOLBOX_URL:-http://127.0.0.1:5000}"
+api_port="${LEO_HTTP_PORT:-8787}"
+api_bind="${LEO_HTTP_BIND:-127.0.0.1:$api_port}"
+api_health="http://127.0.0.1:$api_port/api/health"
+api_pid=""
+
+cleanup() {
+  if [[ -n "$api_pid" ]] && kill -0 "$api_pid" >/dev/null 2>&1; then
+    kill "$api_pid" >/dev/null 2>&1 || true
+    wait "$api_pid" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT INT TERM
+
+if ! curl -fsS "$api_health" >/dev/null 2>&1; then
+  printf 'Arrancando leo-server...\n'
+  cargo run -p leo-server -- --bind "$api_bind" &
+  api_pid=$!
+
+  deadline=$((SECONDS + 180))
+  until curl -fsS "$api_health" >/dev/null 2>&1; do
+    if ! kill -0 "$api_pid" >/dev/null 2>&1; then
+      wait "$api_pid"
+      exit $?
+    fi
+    if (( SECONDS >= deadline )); then
+      printf 'leo-server no respondió antes del timeout.\n' >&2
+      exit 1
+    fi
+    sleep 1
+  done
+fi
 
 printf '\nLeo listo:\n'
-printf '  Frontend  http://127.0.0.1:${LEO_DEV_PORT:-5179}\n'
-printf '  API       http://127.0.0.1:${LEO_HTTP_PORT:-8787}\n'
+printf '  Frontend  http://127.0.0.1:%s\n' "${LEO_DEV_PORT:-5179}"
+printf '  API       http://127.0.0.1:%s\n' "$api_port"
 printf '  Toolbox   http://127.0.0.1:5000\n\n'
 
-exec npm --prefix "$desktop" run web
+cd "$desktop"
+npm exec vite -- --host 127.0.0.1 --port "${LEO_DEV_PORT:-5179}" --strictPort
