@@ -8,9 +8,9 @@ use std::path::PathBuf;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::{Json, Router};
-use leo_api::{App, Op};
+use leo_api::{App, DatabaseInput, Op};
 use serde::{Deserialize, Serialize};
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
@@ -33,12 +33,19 @@ struct ChatIn {
     text: String,
 }
 
+
 pub fn router(app: App, web_root: Option<PathBuf>) -> Router {
     let api = Router::new()
         .route("/health", get(health))
         .route("/services", get(services).post(start_services))
         .route("/snapshot", get(snapshot))
         .route("/apply", post(apply))
+        .route("/databases", get(list_databases).post(create_database))
+        .route(
+            "/databases/{id}",
+            put(update_database).delete(delete_database),
+        )
+        .route("/databases/{id}/test", post(test_database))
         .route("/chats", get(list_chats).post(new_chat))
         .route("/chats/{id}", get(open_chat))
         .route("/chats/{id}/messages", post(chat));
@@ -80,6 +87,31 @@ async fn apply(State(app): State<App>, Json(op): Json<Op>) -> Response {
     send(app.apply(op).await)
 }
 
+async fn list_databases(State(app): State<App>) -> Response {
+    send(app.list_databases().await)
+}
+
+async fn create_database(State(app): State<App>, Json(input): Json<DatabaseInput>) -> Response {
+    send(app.create_database(input).await)
+}
+
+async fn update_database(
+    State(app): State<App>,
+    Path(id): Path<Uuid>,
+    Json(input): Json<DatabaseInput>,
+) -> Response {
+    send(app.update_database(id, input).await)
+}
+
+async fn delete_database(State(app): State<App>, Path(id): Path<Uuid>) -> Response {
+    send(app.delete_database(id).await)
+}
+
+async fn test_database(State(app): State<App>, Path(id): Path<Uuid>) -> Response {
+    send(app.test_database(id).await)
+}
+
+
 async fn list_chats(State(app): State<App>) -> Response {
     send(app.list_chats().await)
 }
@@ -120,6 +152,15 @@ fn fail(status: StatusCode, error: impl Into<String>) -> Response {
 fn status_for(msg: &str) -> StatusCode {
     if msg.contains("postgres") || msg.contains("sin postgres") || msg.starts_with("migrate:") {
         StatusCode::SERVICE_UNAVAILABLE
+    } else if msg.contains("inexistente") {
+        StatusCode::NOT_FOUND
+    } else if msg.contains("obligatori")
+        || msg.contains("fuera de rango")
+        || msg.contains("modo SSL inválido")
+    {
+        StatusCode::BAD_REQUEST
+    } else if msg.contains("duplicate key") || msg.contains("database_connections_name_key") {
+        StatusCode::CONFLICT
     } else {
         StatusCode::BAD_GATEWAY
     }
@@ -164,6 +205,7 @@ mod tests {
         let json = body_json(resp).await;
         assert!(json["error"].as_str().unwrap().contains("postgres"));
     }
+
 
     #[tokio::test]
     async fn cors_allows_vite_origin() {
