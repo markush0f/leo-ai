@@ -7,3 +7,11 @@
 .impeccable/questions/
 desktop/dist
 desktop/src-tauri/target
+/.leo/*
+!/.leo/toolbox/
+/.leo/toolbox/*
+!/.leo/toolbox/leo-base.yaml
+
+# Vite optimize cache
+.vite/
+desktop/.vite/
