@@ -15,7 +15,9 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-pub use codex::{PostgresCodexTokenStore, client_with_pool};
+pub use codex::{
+    PostgresCodexTokenStore, client_with_pool, sync_codex_provider, sync_codex_providers,
+};
 pub use conversations::{
     CHANNEL_LOCAL, CHANNEL_TELEGRAM, CHANNEL_VOICE, CONTEXT_LIMIT, ConversationRow, MessageRow,
     NewMessage, append_message, archive_conversation, context_messages, conversation_messages,

@@ -76,6 +76,31 @@ pub fn client_with_pool(snapshot: &Snapshot, pool: &PgPool) -> Result<Client, Ll
     Ok(client)
 }
 
+pub async fn sync_codex_providers(pool: &PgPool) -> Result<(), String> {
+    let snapshot = crate::load(pool).await.map_err(|e| e.to_string())?;
+    for provider in snapshot.providers {
+        if !provider.kind.eq_ignore_ascii_case("codex") || provider.api_key.is_none() {
+            continue;
+        }
+        sync_codex_provider(pool, provider.id).await?;
+    }
+    Ok(())
+}
+
+pub async fn sync_codex_provider(pool: &PgPool, provider_id: Uuid) -> Result<(), String> {
+    let store = Arc::new(PostgresCodexTokenStore::new(pool.clone(), provider_id));
+    let names = Client::codex(store)
+        .list_models()
+        .await
+        .map_err(|e| e.to_string())?;
+    if names.is_empty() {
+        return Err("Codex no devolvió modelos disponibles para esta cuenta".into());
+    }
+    crate::replace_models(pool, provider_id, &names)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 fn store_error(error: impl std::fmt::Display) -> TokenStoreError {
     TokenStoreError(error.to_string())
 }
