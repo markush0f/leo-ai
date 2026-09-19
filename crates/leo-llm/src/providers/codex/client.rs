@@ -1,11 +1,16 @@
 use std::sync::Arc;
+use std::time::Duration;
 
+use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::provider::{Provider, ProviderFuture};
 use crate::{ChatRequest, ChatResponse, LlmError, ProviderId, Role, ToolCall};
 
 use super::{AuthManager, CodexConfig, MemoryTokenStore, OAuthCredentials, TokenStore};
+
+// Codex backend filters its catalog by Codex CLI protocol version, not Leo's package version.
+const CODEX_MODELS_CLIENT_VERSION: &str = "0.155.0";
 
 #[derive(Clone)]
 pub struct Codex {
@@ -64,6 +69,24 @@ impl Codex {
         parse_response(model, &body)
     }
 
+    pub async fn list_models(&self) -> Result<Vec<String>, LlmError> {
+        let mut credentials = self.auth.authorization().await?;
+        let mut response = self.send_models(&credentials).await?;
+        if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+            credentials = self.auth.refresh_after(&credentials.access_token).await?;
+            response = self.send_models(&credentials).await?;
+        }
+        let status = response.status();
+        let body = response.text().await?;
+        if !status.is_success() {
+            return Err(LlmError::Http {
+                status: status.as_u16(),
+                body: crate::extract_error_message(&body).unwrap_or(body),
+            });
+        }
+        parse_models(&body)
+    }
+
     async fn send(
         &self,
         credentials: &OAuthCredentials,
@@ -81,12 +104,68 @@ impl Codex {
         }
         Ok(builder.send().await?)
     }
+
+    async fn send_models(
+        &self,
+        credentials: &OAuthCredentials,
+    ) -> Result<reqwest::Response, LlmError> {
+        let base = self
+            .config
+            .endpoint
+            .trim_end_matches('/')
+            .strip_suffix("/responses")
+            .unwrap_or(self.config.endpoint.trim_end_matches('/'));
+        let client_version = std::env::var("CODEX_CLIENT_VERSION")
+            .ok()
+            .filter(|version| !version.trim().is_empty())
+            .unwrap_or_else(|| CODEX_MODELS_CLIENT_VERSION.into());
+        let mut builder = self
+            .http
+            .get(format!("{base}/models"))
+            .query(&[("client_version", client_version.as_str())])
+            .timeout(Duration::from_secs(5))
+            .bearer_auth(&credentials.access_token)
+            .header("originator", &self.config.originator)
+            .header("version", &client_version)
+            .header("User-Agent", format!("leo-ai/{client_version}"));
+        if let Some(account_id) = &credentials.account_id {
+            builder = builder.header("ChatGPT-Account-Id", account_id);
+        }
+        Ok(builder.send().await?)
+    }
 }
 
 impl Provider for Codex {
     fn complete(&self, request: ChatRequest) -> ProviderFuture<'_> {
         Box::pin(async move { Codex::complete(self, request).await })
     }
+}
+
+#[derive(Deserialize)]
+struct ModelsResponse {
+    models: Vec<CodexModel>,
+}
+
+#[derive(Deserialize)]
+struct CodexModel {
+    slug: String,
+    #[serde(default)]
+    visibility: Option<String>,
+    #[serde(default)]
+    priority: i64,
+}
+
+fn parse_models(body: &str) -> Result<Vec<String>, LlmError> {
+    let mut models = serde_json::from_str::<ModelsResponse>(body)?.models;
+    models.retain(|model| model.visibility.as_deref() == Some("list"));
+    models.sort_by(|a, b| {
+        a.priority
+            .cmp(&b.priority)
+            .then_with(|| a.slug.cmp(&b.slug))
+    });
+    let mut names: Vec<String> = models.into_iter().map(|model| model.slug).collect();
+    names.dedup();
+    Ok(names)
 }
 
 fn request_body(model: &str, request: &ChatRequest) -> Value {
@@ -310,6 +389,20 @@ mod tests {
         assert_eq!(body["input"][0]["role"], "user");
         assert_eq!(body["store"], false);
         assert_eq!(body["max_output_tokens"], 512);
+    }
+
+    #[test]
+    fn parses_visible_models_by_priority() {
+        let names = parse_models(
+            r#"{"models":[
+                {"slug":"gpt-b","visibility":"list","priority":2},
+                {"slug":"hidden","visibility":"hide","priority":0},
+                {"slug":"unspecified","priority":0},
+                {"slug":"gpt-a","visibility":"list","priority":1}
+            ]}"#,
+        )
+        .unwrap();
+        assert_eq!(names, ["gpt-a", "gpt-b"]);
     }
 
     #[test]
