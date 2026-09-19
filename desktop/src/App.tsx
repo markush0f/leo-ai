@@ -6,6 +6,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyOp,
+  beginCodexLogin,
+  finishCodexLogin,
   listChats,
   loadServices,
   loadSnapshot,
@@ -27,7 +29,15 @@ import {
   IconSun,
 } from "./icons";
 import { applyTheme, readTheme, type Theme } from "./theme";
-import type { Bubble, Conversation, Op, Services, Snapshot, Turn } from "./types";
+import type {
+  Bubble,
+  CodexLogin,
+  Conversation,
+  Op,
+  Services,
+  Snapshot,
+  Turn,
+} from "./types";
 
 function uid() {
   return crypto.randomUUID();
@@ -146,6 +156,15 @@ export default function App() {
     setSnap(await applyOp(op));
   };
 
+  const onCodexLogin = async (
+    providerId: string,
+    onReady: (login: CodexLogin) => void,
+  ) => {
+    const login = await beginCodexLogin(providerId);
+    onReady(login);
+    setSnap(await finishCodexLogin(login.id));
+  };
+
   const resizeBox = () => {
     const el = boxRef.current;
     if (!el) return;
@@ -241,6 +260,7 @@ export default function App() {
   const useTools = snap?.tools_enabled ?? true;
   const model = snap?.models.find((m) => m.id === snap.active_model_id);
   const provider = snap?.providers.find((p) => p.id === model?.provider_id);
+  const providerModels = snap?.models.filter((m) => m.provider_id === provider?.id) ?? [];
   const chatting = bubbles.length > 0 || busy;
   const canSend = Boolean(snap) && !busy && input.trim().length > 0;
 
@@ -281,14 +301,11 @@ export default function App() {
             if (id) void onOp({ op: "activate_model", id });
           }}
         >
-          {snap?.models.map((m) => {
-            const p = snap.providers.find((x) => x.id === m.provider_id);
-            return (
-              <option key={m.id} value={m.id}>
-                {m.name} · {p?.name ?? ""}
-              </option>
-            );
-          })}
+          {providerModels.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
         </select>
         <button
           type="button"
@@ -366,7 +383,7 @@ export default function App() {
           <button
             type="button"
             className={`nav-item${catalog ? " on" : ""}`}
-            onClick={() => setCatalog(true)}
+            onClick={() => { setCatalog(true); setRail(false); }}
           >
             <IconSliders />
             Catálogo
@@ -470,7 +487,12 @@ export default function App() {
             aria-label="cerrar catálogo"
             onClick={() => setCatalog(false)}
           />
-          <Catalog snap={snap} onOp={onOp} onClose={() => setCatalog(false)} />
+          <Catalog
+            snap={snap}
+            onOp={onOp}
+            onCodexLogin={onCodexLogin}
+            onClose={() => setCatalog(false)}
+          />
         </>
       )}
     </div>

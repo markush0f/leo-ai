@@ -4,7 +4,15 @@
  * path). Keep command names and DTOs aligned with `leo-api` when extending.
  */
 import { invoke } from "@tauri-apps/api/core";
-import type { Conversation, Op, Services, Snapshot, Turn } from "./types";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import type {
+  CodexLogin,
+  Conversation,
+  Op,
+  Services,
+  Snapshot,
+  Turn,
+} from "./types";
 
 export const inTauri =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -63,6 +71,27 @@ export async function applyOp(op: Op): Promise<Snapshot> {
   return http<Snapshot>("/api/apply", { method: "POST", body: JSON.stringify(op) });
 }
 
+export async function beginCodexLogin(providerId: string): Promise<CodexLogin> {
+  if (inTauri) return invoke<CodexLogin>("begin_codex_login", { providerId });
+  return http<CodexLogin>("/api/codex/login", {
+    method: "POST",
+    body: JSON.stringify({ provider_id: providerId }),
+  });
+}
+
+export async function finishCodexLogin(id: string): Promise<Snapshot> {
+  if (inTauri) return invoke<Snapshot>("finish_codex_login", { id });
+  return http<Snapshot>(`/api/codex/login/${id}/finish`, { method: "POST" });
+}
+
+export async function openExternal(url: string): Promise<void> {
+  if (inTauri) {
+    await openUrl(url);
+    return;
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 export async function listChats(): Promise<Conversation[]> {
   if (inTauri) return invoke<Conversation[]>("list_chats");
   return http<Conversation[]>("/api/chats");
@@ -102,3 +131,4 @@ export async function sendChat(conversationId: string, text: string): Promise<st
   });
   return out.text;
 }
+

@@ -11,7 +11,9 @@
 //! - [`leo_api`] — catalog DTOs, local conversations, and chat with the tool
 //!   loop. Setup is [`leo_api::App::boot`].
 
-use leo_api::{App, ChatOut, ConversationDto, Op, ServicesDto, SnapshotDto, TurnDto};
+use leo_api::{
+    App, ChatOut, CodexLoginDto, ConversationDto, Op, ServicesDto, SnapshotDto, TurnDto,
+};
 use tauri::Manager;
 use uuid::Uuid;
 
@@ -28,6 +30,22 @@ async fn snapshot(state: tauri::State<'_, AppState>) -> Result<SnapshotDto, Stri
 #[tauri::command]
 async fn apply(state: tauri::State<'_, AppState>, op: Op) -> Result<SnapshotDto, String> {
     state.api.apply(op).await
+}
+
+#[tauri::command]
+async fn begin_codex_login(
+    state: tauri::State<'_, AppState>,
+    provider_id: Uuid,
+) -> Result<CodexLoginDto, String> {
+    state.api.begin_codex_login(provider_id).await
+}
+
+#[tauri::command]
+async fn finish_codex_login(
+    state: tauri::State<'_, AppState>,
+    id: Uuid,
+) -> Result<SnapshotDto, String> {
+    state.api.finish_codex_login(id).await
 }
 
 #[tauri::command]
@@ -76,6 +94,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             snapshot,
             apply,
+            begin_codex_login,
+            finish_codex_login,
             list_chats,
             open_chat,
             new_chat,

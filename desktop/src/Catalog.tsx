@@ -4,31 +4,38 @@
  * exposing stored secrets.
  */
 import { useState } from "react";
-import type { Model, Op, Provider, Snapshot } from "./types";
+import { openExternal } from "./api";
+import type { CodexLogin, Model, Op, Provider, Snapshot } from "./types";
 
 const KINDS = ["grok", "gpt", "ollama", "claude", "codex"] as const;
 
 const KEY_LABEL: Record<string, string> = {
-  db: "en bbdd",
-  env: "env",
-  falta: "falta",
-  none: "—",
+  db: "Clave guardada",
+  env: "Configurada en el entorno",
+  falta: "Sin configurar",
+  none: "No requiere clave",
+};
+
+const KIND_LABEL: Record<string, string> = {
+  grok: "xAI", gpt: "OpenAI", ollama: "Ollama", claude: "Anthropic", codex: "ChatGPT / Codex",
 };
 
 type Props = {
   snap: Snapshot;
   onOp: (op: Op) => Promise<void>;
+  onCodexLogin: (
+    providerId: string,
+    onReady: (login: CodexLogin) => void,
+  ) => Promise<void>;
   onClose: () => void;
 };
 
-export function Catalog({ snap, onOp, onClose }: Props) {
+export function Catalog({ snap, onOp, onCodexLogin, onClose }: Props) {
   const active = snap.providers.find((p) =>
     snap.models.some((m) => m.id === snap.active_model_id && m.provider_id === p.id),
   );
   const [openId, setOpenId] = useState<string | null>(active?.id ?? snap.providers[0]?.id ?? null);
   const [system, setSystem] = useState(snap.system);
-  const [newProvider, setNewProvider] = useState("");
-  const [newModel, setNewModel] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -44,34 +51,31 @@ export function Catalog({ snap, onOp, onClose }: Props) {
     }
   };
 
-  const open = snap.providers.find((p) => p.id === openId);
+  const open = snap.providers.find((p) => p.id === openId) ?? active ?? snap.providers[0];
+  const activeModel = snap.models.find((m) => m.id === snap.active_model_id);
 
   return (
-    <aside className="sheet" aria-label="Catálogo">
+    <aside className="sheet catalog" aria-label="Catálogo">
       <header className="sheet-head">
-        <h2>Catálogo</h2>
+        <div>
+          <h2>Catálogo</h2>
+          <p>Elige el modelo con el que quieres conversar.</p>
+        </div>
         <button type="button" className="btn-ghost" onClick={onClose}>
           Cerrar
         </button>
       </header>
 
-      <label className="field">
-        <span>system prompt</span>
-        <textarea
-          value={system}
-          rows={4}
-          onChange={(e) => setSystem(e.target.value)}
-          onBlur={() => {
-            if (system !== snap.system) void run({ op: "set_system", text: system });
-          }}
-        />
-      </label>
+      <div className="catalog-current">
+        <span className={activeModel ? "dot on" : "dot"} aria-hidden />
+        <div><span>Modelo en uso</span><strong>{activeModel?.name ?? "Ningún modelo seleccionado"}</strong></div>
+        {active && <span className="catalog-current-provider">{active.name}</span>}
+      </div>
 
-      {snap.tools.length > 0 && (
-        <p className="tools">tools: {snap.tools.join(", ")}</p>
-      )}
-
-      <ul className="providers">
+      <div className="catalog-layout">
+      <nav className="catalog-nav" aria-label="Proveedores del catálogo">
+      <h3>Proveedores <span>{snap.providers.length}</span></h3>
+      <ul className="catalog-providers">
         {snap.providers.map((p) => {
           const isActive =
             snap.models.find((m) => m.id === snap.active_model_id)?.provider_id === p.id;
@@ -79,53 +83,51 @@ export function Catalog({ snap, onOp, onClose }: Props) {
             <li key={p.id}>
               <button
                 type="button"
-                className={openId === p.id ? "row on" : "row"}
+                className={open?.id === p.id ? "catalog-provider selected" : "catalog-provider"}
+                aria-pressed={open?.id === p.id}
+                aria-controls="catalog-provider-detail"
                 onClick={() => setOpenId(p.id)}
               >
-                <span className={isActive ? "dot on" : "dot"} aria-hidden />
-                <span className="row-name">{p.name}</span>
-                <span className="row-meta">{p.kind}</span>
+                <span className="catalog-provider-name">{p.name}</span>
+                <span className="catalog-provider-meta">{snap.models.filter((m) => m.provider_id === p.id).length} modelos{isActive ? " · En uso" : ""}</span>
               </button>
             </li>
           );
         })}
       </ul>
+      </nav>
 
-      {open && (
+      <div id="catalog-provider-detail" className="catalog-detail">
+      {open ? (
         <ProviderEditor
           key={open.id}
           provider={open}
           models={snap.models.filter((m) => m.provider_id === open.id)}
           activeModelId={snap.active_model_id}
           canDelete={snap.providers.length > 1}
-          newModel={newModel}
-          setNewModel={setNewModel}
           busy={busy}
           onOp={run}
+          onCodexLogin={onCodexLogin}
         />
-      )}
+      ) : <p className="catalog-empty">No hay proveedores configurados.</p>}
+      </div>
+      </div>
 
-      <form
-        className="add"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const name = newProvider.trim();
-          if (!name) return;
-          void run({ op: "new_provider", name }).then(() => setNewProvider(""));
-        }}
-      >
-        <input
-          value={newProvider}
-          onChange={(e) => setNewProvider(e.target.value)}
-          placeholder="nuevo proveedor"
-          aria-label="nuevo proveedor"
-        />
-        <button type="submit" className="btn-primary" disabled={busy || !newProvider.trim()}>
-          Añadir
-        </button>
-      </form>
-
-      {err && <p className="sheet-err">{err}</p>}
+      {err && <p className="sheet-err" role="alert">{err}</p>}
+      <details className="catalog-settings catalog-global">
+        <summary>Instrucciones de Leo <span>Para todos los modelos</span></summary>
+        <div className="catalog-settings-body">
+          <label className="field">
+            <span>Instrucciones del sistema</span>
+            <textarea value={system} rows={4} onChange={(e) => setSystem(e.target.value)}
+              onBlur={() => {
+                if (system !== snap.system) void run({ op: "set_system", text: system });
+              }} />
+          </label>
+          <p className="field-help">Se guardan al salir del campo.</p>
+          {snap.tools.length > 0 && <div className="catalog-tools"><h4>Herramientas disponibles</h4><ul>{snap.tools.map((tool) => <li key={tool}>{tool}</li>)}</ul></div>}
+        </div>
+      </details>
     </aside>
   );
 }
@@ -135,32 +137,78 @@ function ProviderEditor({
   models,
   activeModelId,
   canDelete,
-  newModel,
-  setNewModel,
   busy,
   onOp,
+  onCodexLogin,
 }: {
   provider: Provider;
   models: Model[];
   activeModelId: string | null;
   canDelete: boolean;
-  newModel: string;
-  setNewModel: (v: string) => void;
   busy: boolean;
   onOp: (op: Op) => Promise<void>;
+  onCodexLogin: (
+    providerId: string,
+    onReady: (login: CodexLogin) => void,
+  ) => Promise<void>;
 }) {
   const [name, setName] = useState(provider.name);
   const [url, setUrl] = useState(provider.base_url ?? "");
   const [key, setKey] = useState("");
   const [pendingDelete, setPendingDelete] = useState<"provider" | string | null>(null);
+  const [login, setLogin] = useState<CodexLogin | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authErr, setAuthErr] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const isCodex = provider.kind === "codex";
-
-  const nextKind = KINDS[(KINDS.indexOf(provider.kind as (typeof KINDS)[number]) + 1) % KINDS.length];
+  const filteredModels = models.filter((model) => model.name.toLowerCase().includes(query.trim().toLowerCase()));
 
   return (
-    <div className="editor">
+    <div className="catalog-editor" aria-busy={busy}>
+      <header className="catalog-detail-head">
+        <h3>{provider.name}</h3>
+        <p>{KIND_LABEL[provider.kind] ?? provider.kind} <span>·</span> {isCodex ? (provider.key === "db" ? "Cuenta conectada" : "Sin conectar") : KEY_LABEL[provider.key]}</p>
+      </header>
+      <section className="catalog-model-section" aria-label="Modelos disponibles">
+        <div className="catalog-section-head"><h4>Modelos</h4><span>{models.length} disponibles</span></div>
+        {models.length > 0 && <label className="field catalog-search"><span>Buscar modelo</span><input type="search" placeholder="Buscar por nombre…" value={query} onChange={(e) => setQuery(e.target.value)} /></label>}
+        <ul className="catalog-models">
+          {filteredModels.map((m) => (
+            <li key={m.id} className={m.id === activeModelId ? "active" : undefined}>
+              {pendingDelete === m.id ? (
+                <div className="confirm">
+                  <span>¿Borrar {m.name}?</span>
+                  <button type="button" className="btn-danger sm" disabled={busy} onClick={() => void onOp({ op: "delete_model", id: m.id })}>Borrar</button>
+                  <button type="button" className="btn-secondary sm" onClick={() => setPendingDelete(null)}>Cancelar</button>
+                </div>
+              ) : (
+                <>
+                  <button type="button" className="catalog-model-pick" disabled={busy || m.id === activeModelId} onClick={() => void onOp({ op: "activate_model", id: m.id })} aria-label={`${m.id === activeModelId ? "Modelo en uso:" : "Usar modelo"} ${m.name}`}>
+                    <span className="catalog-model-name">{m.name}</span>
+                    <span className="catalog-model-action">{m.id === activeModelId ? "En uso" : "Usar"}</span>
+                  </button>
+                  <button type="button" className="catalog-remove" disabled={busy} aria-label={`Borrar modelo ${m.name}`} title={`Borrar ${m.name}`} onClick={() => setPendingDelete(m.id)}>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5" /></svg>
+                  </button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+        {filteredModels.length === 0 && <div className="catalog-empty"><p>{models.length === 0 ? "Este proveedor todavía no tiene modelos." : "No hay modelos con ese nombre."}</p>{query && <button type="button" className="btn-secondary" onClick={() => setQuery("")}>Limpiar búsqueda</button>}</div>}
+      </section>
+
+      <details className="catalog-settings">
+      <summary>Configuración del proveedor <span>Conexión y credenciales</span></summary>
+      <div className="catalog-settings-body">
+      <p className="catalog-help">Los cambios se guardan al salir de cada campo.</p>
+      <div className="pair">
+        <button type="button" className="btn-secondary" disabled={busy} onClick={() => void onOp({ op: "activate_provider", id: provider.id })}>
+          Activar proveedor
+        </button>
+      </div>
       <label className="field">
-        <span>nombre</span>
+        <span>Nombre del proveedor</span>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -172,52 +220,78 @@ function ProviderEditor({
         />
       </label>
 
-      <div className="pair">
-        <button
-          type="button"
-          className="btn-secondary"
-          disabled={busy}
-          onClick={() => void onOp({ op: "set_kind", id: provider.id, kind: nextKind })}
-        >
-          {provider.kind}
-        </button>
-        <button
-          type="button"
-          className="btn-primary"
-          disabled={busy}
-          onClick={() => void onOp({ op: "activate_provider", id: provider.id })}
-        >
-          Activar
-        </button>
-      </div>
-
       <label className="field">
-        <span>{isCodex ? "credenciales OAuth" : "api key"} · {KEY_LABEL[provider.key]}</span>
-        <input
-          type="password"
-          autoComplete="off"
-          value={key}
-          placeholder={isCodex ? "pegar JSON OAuth para guardar" : "escribir para guardar"}
-          onChange={(e) => setKey(e.target.value)}
-          onBlur={() => {
-            if (key.length > 0) {
-              void onOp({ op: "set_api_key", id: provider.id, api_key: key }).then(() =>
-                setKey(""),
-              );
-            }
-          }}
-        />
+        <span>Tipo de conexión</span>
+        <select value={provider.kind} disabled={busy} onChange={(e) => void onOp({ op: "set_kind", id: provider.id, kind: e.target.value })}>
+          {!KINDS.some((kind) => kind === provider.kind) && <option value={provider.kind}>{provider.kind}</option>}
+          {KINDS.map((kind) => <option key={kind} value={kind}>{KIND_LABEL[kind]}</option>)}
+        </select>
       </label>
-      {isCodex && (
-        <p className="field-help">
-          Usa la sesión OAuth de ChatGPT. No introduzcas una API key de OpenAI.
-        </p>
+
+      {isCodex ? (
+        <section className="codex-auth" aria-live="polite">
+          <div className="codex-auth-head">
+            <span>ChatGPT Plus</span>
+            <span className={provider.key === "db" ? "auth-status on" : "auth-status"}>
+              {provider.key === "db" ? "conectado" : "sin conectar"}
+            </span>
+          </div>
+          <p>Inicia sesión con ChatGPT para usar Codex. Leo nunca muestra tus tokens.</p>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy || authBusy}
+            onClick={() => {
+              setAuthBusy(true);
+              setAuthErr(null);
+              setLogin(null);
+              void onCodexLogin(provider.id, setLogin)
+                .catch((e) => setAuthErr(e instanceof Error ? e.message : String(e)))
+                .finally(() => setAuthBusy(false));
+            }}
+          >
+            {authBusy ? "Esperando autorización…" : provider.key === "db" ? "Volver a conectar" : "Iniciar sesión con ChatGPT"}
+          </button>
+          {login && (
+            <div className="codex-code">
+              <span>Código</span>
+              <strong>{login.user_code}</strong>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => void openExternal(login.verification_url)}
+              >
+                Abrir ChatGPT
+              </button>
+            </div>
+          )}
+          {authErr && <p className="sheet-err">{authErr}</p>}
+        </section>
+      ) : (
+        <label className="field">
+          <span>Clave API · {KEY_LABEL[provider.key]}</span>
+          <input
+            type="password"
+            autoComplete="off"
+            value={key}
+            placeholder="Introduce una clave para guardarla"
+            onChange={(e) => setKey(e.target.value)}
+            onBlur={() => {
+              if (key.length > 0) {
+                void onOp({ op: "set_api_key", id: provider.id, api_key: key }).then(() =>
+                  setKey(""),
+                );
+              }
+            }}
+          />
+        </label>
       )}
 
       <label className="field">
-        <span>base url</span>
+        <span>URL base</span>
         <input
           value={url}
+          placeholder="URL predeterminada del proveedor"
           onChange={(e) => setUrl(e.target.value)}
           onBlur={() => {
             if (url !== (provider.base_url ?? "")) {
@@ -227,69 +301,6 @@ function ProviderEditor({
         />
       </label>
 
-      <ul className="models">
-        {models.map((m) => (
-          <li key={m.id} className={m.id === activeModelId ? "on" : undefined}>
-            {pendingDelete === m.id ? (
-              <span className="confirm">
-                ¿borrar {m.name}?
-                <button
-                  type="button"
-                  className="btn-danger sm"
-                  onClick={() => void onOp({ op: "delete_model", id: m.id })}
-                >
-                  Sí
-                </button>
-                <button type="button" className="btn-secondary sm" onClick={() => setPendingDelete(null)}>
-                  No
-                </button>
-              </span>
-            ) : (
-              <>
-                <span className="model-name">{m.name}</span>
-                <button
-                  type="button"
-                  className={m.id === activeModelId ? "model-active" : "btn-primary sm"}
-                  disabled={busy || m.id === activeModelId}
-                  onClick={() => void onOp({ op: "activate_model", id: m.id })}
-                >
-                  {m.id === activeModelId ? "Activo" : "Activar"}
-                </button>
-                <button
-                  type="button"
-                  className="btn-danger sm"
-                  onClick={() => setPendingDelete(m.id)}
-                >
-                  Borrar
-                </button>
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
-
-      <form
-        className="add"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const n = newModel.trim();
-          if (!n) return;
-          void onOp({ op: "new_model", provider_id: provider.id, name: n }).then(() =>
-            setNewModel(""),
-          );
-        }}
-      >
-        <input
-          value={newModel}
-          onChange={(e) => setNewModel(e.target.value)}
-          placeholder="nuevo modelo"
-          aria-label="nuevo modelo"
-        />
-        <button type="submit" className="btn-primary" disabled={busy || !newModel.trim()}>
-          Añadir
-        </button>
-      </form>
-
       {canDelete &&
         (pendingDelete === "provider" ? (
           <p className="confirm">
@@ -297,23 +308,27 @@ function ProviderEditor({
             <button
               type="button"
               className="btn-danger sm"
+              disabled={busy}
               onClick={() => void onOp({ op: "delete_provider", id: provider.id })}
             >
-              Sí
+              Borrar
             </button>
             <button type="button" className="btn-secondary sm" onClick={() => setPendingDelete(null)}>
-              No
+              Cancelar
             </button>
           </p>
         ) : (
           <button
             type="button"
             className="btn-danger"
+            disabled={busy}
             onClick={() => setPendingDelete("provider")}
           >
             Borrar proveedor
           </button>
         ))}
+      </div>
+      </details>
     </div>
   );
 }

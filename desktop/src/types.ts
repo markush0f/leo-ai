@@ -99,3 +99,9 @@ export type Op =
   | { op: "set_stt_language"; text: string }
   | { op: "set_thinking"; value: boolean }
   | { op: "set_tools_enabled"; value: boolean };
+
+export type CodexLogin = {
+  id: string;
+  verification_url: string;
+  user_code: string;
+};
