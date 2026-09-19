@@ -1,1 +1,1 @@
-//! xAI provider module. Existing OpenAI-compatible implementation remains active.
+//! xAI provider using the shared OpenAI-compatible protocol.
