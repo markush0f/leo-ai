@@ -46,6 +46,7 @@ services:
       context: ./third_party
       dockerfile: ../deploy/toolbox/Dockerfile
     image: leo-ai-toolbox:1.11.0
+    user: "${LEO_UID:-1000}:${LEO_GID:-1000}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -57,8 +58,13 @@ services:
       POSTGRES_PASSWORD: leo
     ports:
       - "127.0.0.1:5000:5000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./.leo/toolbox:/config:ro
     command:
-      - --prebuilt=postgres
+      - --config-folder=/config
+      - --poll-interval=2
       - --address=0.0.0.0
       - --allowed-hosts=127.0.0.1
       - --allowed-hosts=localhost

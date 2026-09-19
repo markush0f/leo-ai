@@ -31,4 +31,4 @@ HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=12 \
     CMD curl -fsS http://127.0.0.1:5000/healthz
 
 ENTRYPOINT ["/toolbox"]
-CMD ["--prebuilt=postgres", "--address=0.0.0.0"]
+CMD ["--config-folder=/config", "--poll-interval=2", "--address=0.0.0.0"]

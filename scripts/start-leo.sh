@@ -4,6 +4,8 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 desktop="$root/desktop"
+export LEO_UID="${LEO_UID:-$(id -u)}"
+export LEO_GID="${LEO_GID:-$(id -g)}"
 
 for command in docker cargo npm curl; do
   if ! command -v "$command" >/dev/null 2>&1; then

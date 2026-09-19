@@ -74,7 +74,7 @@ pub async fn start() -> ServicesDto {
             Some("no encuentro docker-compose.yml (pon LEO_ROOT)".into()),
         );
     };
-    let output = Command::new("docker")
+    let output = docker_command()
         .args(["compose", "up", "-d", "postgres", "toolbox"])
         .current_dir(&root)
         .stdin(Stdio::null())
@@ -109,7 +109,7 @@ async fn compose_ps() -> Result<Vec<ComposeRow>, String> {
     let root = workspace_root().ok_or_else(|| {
         "no encuentro docker-compose.yml (pon LEO_ROOT al raíz del repo)".to_string()
     })?;
-    let output = Command::new("docker")
+    let output = docker_command()
         .args(["compose", "ps", "--format", "json", "postgres", "toolbox"])
         .current_dir(&root)
         .stdin(Stdio::null())
@@ -121,6 +121,34 @@ async fn compose_ps() -> Result<Vec<ComposeRow>, String> {
         return Err(clip(err.trim()));
     }
     Ok(parse_ps(&String::from_utf8_lossy(&output.stdout)))
+}
+
+fn docker_command() -> Command {
+    let mut command = Command::new("docker");
+    if std::env::var_os("LEO_UID").is_none()
+        && let Some(uid) = process_id("-u")
+    {
+        command.env("LEO_UID", uid);
+    }
+    if std::env::var_os("LEO_GID").is_none()
+        && let Some(gid) = process_id("-g")
+    {
+        command.env("LEO_GID", gid);
+    }
+    command
+}
+
+fn process_id(flag: &str) -> Option<String> {
+    let output = std::process::Command::new("id")
+        .arg(flag)
+        .stdin(Stdio::null())
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
+        .filter(|value| !value.is_empty())
 }
 
 fn parse_ps(stdout: &str) -> Vec<ComposeRow> {
