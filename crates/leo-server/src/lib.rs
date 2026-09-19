@@ -33,6 +33,10 @@ struct ChatIn {
     text: String,
 }
 
+#[derive(Deserialize)]
+struct CodexLoginIn {
+    provider_id: Uuid,
+}
 
 pub fn router(app: App, web_root: Option<PathBuf>) -> Router {
     let api = Router::new()
@@ -46,6 +50,8 @@ pub fn router(app: App, web_root: Option<PathBuf>) -> Router {
             put(update_database).delete(delete_database),
         )
         .route("/databases/{id}/test", post(test_database))
+        .route("/codex/login", post(begin_codex_login))
+        .route("/codex/login/{id}/finish", post(finish_codex_login))
         .route("/chats", get(list_chats).post(new_chat))
         .route("/chats/{id}", get(open_chat))
         .route("/chats/{id}/messages", post(chat));
@@ -111,6 +117,13 @@ async fn test_database(State(app): State<App>, Path(id): Path<Uuid>) -> Response
     send(app.test_database(id).await)
 }
 
+async fn begin_codex_login(State(app): State<App>, Json(body): Json<CodexLoginIn>) -> Response {
+    send(app.begin_codex_login(body.provider_id).await)
+}
+
+async fn finish_codex_login(State(app): State<App>, Path(id): Path<Uuid>) -> Response {
+    send(app.finish_codex_login(id).await)
+}
 
 async fn list_chats(State(app): State<App>) -> Response {
     send(app.list_chats().await)
@@ -206,6 +219,23 @@ mod tests {
         assert!(json["error"].as_str().unwrap().contains("postgres"));
     }
 
+    #[tokio::test]
+    async fn codex_login_uses_shared_app_surface() {
+        let resp = test_router()
+            .oneshot(
+                Request::post("/api/codex/login")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        r#"{"provider_id":"00000000-0000-4000-8000-000000000003"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let json = body_json(resp).await;
+        assert!(json["error"].as_str().unwrap().contains("postgres"));
+    }
 
     #[tokio::test]
     async fn cors_allows_vite_origin() {
