@@ -1,22 +1,46 @@
 # Leo Realtime
 
-Prototype Pipecat service for bidirectional audio. Current `echo` mode proves
-the complete WebSocket transport and Pipecat pipeline without API keys:
+Pipecat service for bidirectional audio. `echo` mode proves the WebSocket
+transport without API keys. `leo` mode sends transcripts to the Leo agent over
+HTTP (`leo-server`) and returns the reply as JSON text (and TTS audio when a
+TTS processor is configured).
 
 ```text
-WebSocket PCM16 -> Pipecat input -> echo processor -> Pipecat output -> WebSocket PCM16
+echo:
+  WebSocket PCM16 -> Pipecat input -> echo processor -> Pipecat output -> WebSocket PCM16
+
+leo:
+  WebSocket PCM16 or text -> STT (optional) -> POST leo-server /api/chats/{id}/messages
+    -> TTS (optional) -> WebSocket PCM16 and/or JSON text
 ```
 
 ## Protocol
 
 - Endpoint: `ws://127.0.0.1:8765/ws/audio`
-- Payload: binary little-endian signed PCM16
-- Audio: mono, 16 kHz by default
+- Binary payload: little-endian signed PCM16, mono, 16 kHz by default
 - Packet recommendation: 640 bytes (20 ms)
-- Output: one binary PCM16 message for every accepted input message
+- Text payload: plain UTF-8 or `{"text": "..."}` (treated as a user transcript)
+- Odd-sized PCM payloads are ignored
+- In `echo` mode, each accepted PCM message is echoed as PCM
+- In `leo` mode, each Leo reply is sent as `{"type":"assistant","text":"..."}`
 
-Text messages and odd-sized PCM payloads are ignored. WebSocket mode is for
-local prototyping; use WebRTC before exposing this service in production.
+WebSocket mode is for local prototyping; use WebRTC before exposing this
+service in production.
+
+## Connect to Leo
+
+1. Start `leo-server` (default `http://127.0.0.1:8787`).
+2. Set `LEO_REALTIME_MODE=leo` and `LEO_REALTIME_LEO_URL` to that origin.
+3. Restart `leo-realtime`. Each WebSocket session creates a conversation unless
+   `LEO_REALTIME_CONVERSATION_ID` is set, or the client passes
+   `?conversation_id=` on `ws://127.0.0.1:8765/ws/audio`.
+
+The agent call is a blocking HTTP turn: Pipecat waits for `{ "text": "..." }`
+before continuing. Tools, catalog, and history stay in Leo; this service does
+not call the LLM provider itself.
+
+STT and TTS factories currently return `None`. Until they are filled in, send
+text on the WebSocket (or use `/test` once a microphone STT exists).
 
 ## Run locally
 

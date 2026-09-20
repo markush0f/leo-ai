@@ -7,6 +7,7 @@ desktop="$root/desktop"
 export LEO_UID="${LEO_UID:-$(id -u)}"
 export LEO_GID="${LEO_GID:-$(id -g)}"
 realtime_port="${LEO_REALTIME_PORT:-8765}"
+export LEO_REALTIME_MODE="${LEO_REALTIME_MODE:-leo}"
 
 for command in docker cargo npm curl; do
   if ! command -v "$command" >/dev/null 2>&1; then

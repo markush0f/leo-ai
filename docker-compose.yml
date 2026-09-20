@@ -3,14 +3,16 @@ services:
     build:
       context: ./services/leo-realtime
     image: leo-ai-realtime:0.1.0
+    network_mode: host
     environment:
-      LEO_REALTIME_HOST: 0.0.0.0
-      LEO_REALTIME_PORT: "8765"
-      LEO_REALTIME_MODE: echo
+      LEO_REALTIME_HOST: 127.0.0.1
+      LEO_REALTIME_PORT: "${LEO_REALTIME_PORT:-8765}"
+      LEO_REALTIME_MODE: ${LEO_REALTIME_MODE:-leo}
       LEO_REALTIME_SAMPLE_RATE: "16000"
       LEO_REALTIME_CHANNELS: "1"
-    ports:
-      - "127.0.0.1:${LEO_REALTIME_PORT:-8765}:8765"
+      LEO_REALTIME_LEO_URL: ${LEO_REALTIME_LEO_URL:-http://127.0.0.1:8787}
+      LEO_REALTIME_CONVERSATION_ID: ${LEO_REALTIME_CONVERSATION_ID:-}
+      LEO_REALTIME_LEO_TIMEOUT_SECS: ${LEO_REALTIME_LEO_TIMEOUT_SECS:-120}
     restart: unless-stopped
 
   colibri:

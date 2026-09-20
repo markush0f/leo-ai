@@ -6,5 +6,8 @@ from .config import Settings
 
 
 def create_stt(_settings: Settings) -> FrameProcessor | None:
-    """Return no STT processor while the service runs in transport-test mode."""
+    """Return an STT processor when one is configured; otherwise None.
+
+    Without STT, leo mode still accepts WebSocket text as a transcript.
+    """
     return None

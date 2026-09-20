@@ -78,7 +78,7 @@
   <body>
     <main>
       <h1>Prueba de audio</h1>
-      <p>Habla al micrófono. Leo enviará PCM16 por WebSocket y reproducirá el mismo audio de vuelta.</p>
+      <p>Habla al micrófono. En modo echo se reproduce el mismo PCM; en modo leo el texto del agente vuelve por WebSocket.</p>
       <button id="toggle" type="button">Iniciar micrófono</button>
       <p class="status" aria-live="polite">
         <span id="dot" class="dot" aria-hidden="true"></span>
@@ -181,7 +181,22 @@
         source.connect(processor);
         processor.connect(silentGain);
         silentGain.connect(context.destination);
-        socket.addEventListener("message", (event) => playAudio(event.data));
+        socket.addEventListener("message", (event) => {
+          if (typeof event.data === "string") {
+            try {
+              const payload = JSON.parse(event.data);
+              if (payload && payload.text) {
+                setStatus(`Leo: ${payload.text}`, true);
+                return;
+              }
+            } catch {
+              /* fall through */
+            }
+            setStatus(event.data, true);
+            return;
+          }
+          playAudio(event.data);
+        });
         socket.addEventListener("close", () => stop("Servidor desconectado"));
         packets = 0;
         setStatus("Conectado · habla ahora", true);
