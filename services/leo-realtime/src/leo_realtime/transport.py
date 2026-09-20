@@ -10,6 +10,7 @@ from pipecat.frames.frames import (
     LLMTextFrame,
     OutputAudioRawFrame,
     TranscriptionFrame,
+    TTSTextFrame,
 )
 from pipecat.serializers.base_serializer import FrameSerializer
 from pipecat.transports.websocket.fastapi import (
@@ -31,7 +32,7 @@ class RawPcmSerializer(FrameSerializer):
     async def serialize(self, frame: Frame) -> str | bytes | None:
         if isinstance(frame, OutputAudioRawFrame):
             return frame.audio
-        if isinstance(frame, LLMTextFrame):
+        if isinstance(frame, (LLMTextFrame, TTSTextFrame)):
             text = frame.text.strip()
             if not text:
                 return None

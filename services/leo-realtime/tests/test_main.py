@@ -22,6 +22,8 @@ def test_root_reports_echo_mode() -> None:
     body = response.json()
     assert body["service"] == "leo-realtime"
     assert body["mode"] == "echo"
+    assert body["tts"] == "pocket"
+    assert body["tts_voice"] == "lola"
     assert "leo_url" not in body
 
 

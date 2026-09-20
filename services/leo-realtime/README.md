@@ -23,6 +23,7 @@ leo:
 - Odd-sized PCM payloads are ignored
 - In `echo` mode, each accepted PCM message is echoed as PCM
 - In `leo` mode, each Leo reply is sent as `{"type":"assistant","text":"..."}`
+  and, with Pocket TTS, as PCM16 audio at the configured sample rate
 
 WebSocket mode is for local prototyping; use WebRTC before exposing this
 service in production.
@@ -39,8 +40,14 @@ The agent call is a blocking HTTP turn: Pipecat waits for `{ "text": "..." }`
 before continuing. Tools, catalog, and history stay in Leo; this service does
 not call the LLM provider itself.
 
-STT and TTS factories currently return `None`. Until they are filled in, send
-text on the WebSocket (or use `/test` once a microphone STT exists).
+STT still returns `None`; send text on the WebSocket (browser Web Speech or
+`{"text": "..."}`). TTS defaults to Kyutai [Pocket TTS](https://github.com/kyutai-labs/pocket-tts)
+on CPU (`LEO_REALTIME_TTS=pocket`): Spanish weights and the `lola` voice.
+Set `LEO_REALTIME_TTS=none` to keep JSON text only.
+
+Pocket TTS speaks at 24 kHz; the pipeline resamples to the WebSocket rate
+(16 kHz). The first synthesis downloads model weights from Hugging Face and
+can take a minute. Docker stores that cache in the `leo-hf` volume.
 
 ## Run locally
 
@@ -49,6 +56,8 @@ cp .env.example .env
 python -m venv .venv
 . .venv/bin/activate
 pip install -e '.[dev]'
+# CPU PyTorch (Linux). Skip this if you only run echo mode or TTS=none.
+pip install -e '.[tts]' --extra-index-url https://download.pytorch.org/whl/cpu
 leo-realtime
 ```
 

@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     leo_url: str = "http://127.0.0.1:8787"
     conversation_id: str | None = None
     leo_timeout_secs: float = Field(default=120.0, gt=0)
+    tts: Literal["none", "pocket"] = "pocket"
+    tts_language: str = "spanish"
+    tts_voice: str = "lola"
+    tts_quantize: bool = True
+    tts_temp: float | None = Field(default=None, ge=0)
 
     @field_validator("allowed_origins", mode="before")
     @classmethod
@@ -34,11 +39,18 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
 
-    @field_validator("conversation_id", mode="before")
+    @field_validator("conversation_id", "tts_temp", mode="before")
     @classmethod
-    def empty_conversation_id(cls, value: object) -> object:
+    def empty_optional(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return None
+        return value
+
+    @field_validator("tts_language", "tts_voice", mode="before")
+    @classmethod
+    def strip_tts_fields(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip()
         return value
 
     @model_validator(mode="after")
@@ -46,6 +58,8 @@ class Settings(BaseSettings):
         self.leo_url = self.leo_url.strip().rstrip("/")
         if self.mode == "leo" and not self.leo_url:
             raise ValueError("LEO_REALTIME_LEO_URL is required when mode is leo")
+        if self.tts == "pocket" and (not self.tts_language or not self.tts_voice):
+            raise ValueError("LEO_REALTIME_TTS_LANGUAGE and LEO_REALTIME_TTS_VOICE are required")
         return self
 
 

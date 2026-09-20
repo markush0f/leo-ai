@@ -13,6 +13,13 @@ services:
       LEO_REALTIME_LEO_URL: ${LEO_REALTIME_LEO_URL:-http://127.0.0.1:8787}
       LEO_REALTIME_CONVERSATION_ID: ${LEO_REALTIME_CONVERSATION_ID:-}
       LEO_REALTIME_LEO_TIMEOUT_SECS: ${LEO_REALTIME_LEO_TIMEOUT_SECS:-120}
+      LEO_REALTIME_TTS: ${LEO_REALTIME_TTS:-pocket}
+      LEO_REALTIME_TTS_LANGUAGE: ${LEO_REALTIME_TTS_LANGUAGE:-spanish}
+      LEO_REALTIME_TTS_VOICE: ${LEO_REALTIME_TTS_VOICE:-lola}
+      LEO_REALTIME_TTS_QUANTIZE: ${LEO_REALTIME_TTS_QUANTIZE:-true}
+      HF_HOME: /models/huggingface
+    volumes:
+      - leo-hf:/models/huggingface
     restart: unless-stopped
 
   colibri:
@@ -94,3 +101,4 @@ services:
 
 volumes:
   leo-pg:
+  leo-hf:

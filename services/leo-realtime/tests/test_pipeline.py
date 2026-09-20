@@ -48,7 +48,7 @@ def test_echo_pipeline_is_passthrough() -> None:
 def test_leo_pipeline_inserts_agent() -> None:
     processors = create_processors(
         DummyTransport(),
-        Settings(_env_file=None, mode="leo"),
+        Settings(_env_file=None, mode="leo", tts="none"),
         client=FakeLeo(),
     )
     assert [type(processor) for processor in processors] == [
@@ -56,6 +56,17 @@ def test_leo_pipeline_inserts_agent() -> None:
         LeoAgentProcessor,
         DummyProcessor,
     ]
+
+
+def test_leo_pipeline_inserts_tts(monkeypatch: pytest.MonkeyPatch) -> None:
+    tts = DummyProcessor("tts")
+    monkeypatch.setattr("leo_realtime.pipeline.create_tts", lambda _settings: tts)
+    processors = create_processors(
+        DummyTransport(),
+        Settings(_env_file=None, mode="leo", tts="pocket"),
+        client=FakeLeo(),
+    )
+    assert processors[-2] is tts
 
 
 def test_leo_pipeline_requires_client() -> None:

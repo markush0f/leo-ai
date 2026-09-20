@@ -15,6 +15,20 @@ def test_default_audio_format() -> None:
     assert settings.channels == 1
     assert settings.mode == "echo"
     assert settings.leo_url == "http://127.0.0.1:8787"
+    assert settings.tts == "pocket"
+    assert settings.tts_language == "spanish"
+    assert settings.tts_voice == "lola"
+    assert settings.tts_quantize is True
+
+
+def test_empty_tts_temp_is_none() -> None:
+    settings = Settings(_env_file=None, tts_temp="  ")
+    assert settings.tts_temp is None
+
+
+def test_pocket_tts_requires_voice() -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, tts="pocket", tts_voice="")
 
 
 def test_leo_url_is_stripped() -> None:

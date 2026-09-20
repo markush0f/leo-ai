@@ -5,6 +5,7 @@ from pipecat.frames.frames import (
     LLMTextFrame,
     OutputAudioRawFrame,
     TranscriptionFrame,
+    TTSTextFrame,
 )
 
 from leo_realtime.transport import RawPcmSerializer
@@ -44,3 +45,6 @@ async def test_assistant_text_is_json() -> None:
     serializer = RawPcmSerializer(sample_rate=16000, channels=1)
     payload = await serializer.serialize(LLMTextFrame(text="listo"))
     assert json.loads(payload) == {"type": "assistant", "text": "listo"}
+
+    spoken = await serializer.serialize(TTSTextFrame(text="  hola  ", aggregated_by="sentence"))
+    assert json.loads(spoken) == {"type": "assistant", "text": "hola"}

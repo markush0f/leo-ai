@@ -29,9 +29,13 @@ async def root() -> dict[str, object]:
         "audio_endpoint": "/ws/audio",
         "test_page": "/test",
         "format": f"pcm_s16le/{settings.sample_rate}/{settings.channels}",
+        "tts": settings.tts,
     }
     if settings.mode == "leo":
         payload["leo_url"] = settings.leo_url
+    if settings.tts == "pocket":
+        payload["tts_language"] = settings.tts_language
+        payload["tts_voice"] = settings.tts_voice
     return payload
 
 
