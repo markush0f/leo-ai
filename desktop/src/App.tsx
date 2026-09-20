@@ -24,12 +24,15 @@ import {
   IconClose,
   IconDatabase,
   IconMenu,
+  IconMic,
   IconMoon,
   IconPlus,
   IconSend,
   IconSliders,
   IconSun,
 } from "./icons";
+import { VoiceStage, type VoicePhase } from "./VoiceStage";
+import { startVoice, type VoiceSession } from "./voice";
 import { applyTheme, readTheme, type Theme } from "./theme";
 import type {
   Bubble,
@@ -43,6 +46,13 @@ import type {
 
 function uid() {
   return crypto.randomUUID();
+}
+
+function mergeReply(prev: string, next: string): string {
+  if (!prev) return next;
+  if (next.startsWith(prev)) return next;
+  if (prev.includes(next)) return prev;
+  return `${prev} ${next}`.replace(/\s+/g, " ").trim();
 }
 
 function turnsToBubbles(turns: Turn[]): Bubble[] {
@@ -69,8 +79,20 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>("dark");
   const [services, setServices] = useState<Services | null>(null);
   const [starting, setStarting] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [voicePhase, setVoicePhase] = useState<VoicePhase>("connect");
+  const [voiceUser, setVoiceUser] = useState("");
+  const [voiceLeo, setVoiceLeo] = useState("");
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLTextAreaElement>(null);
+  const voiceRef = useRef<VoiceSession | null>(null);
+  const voiceBusy = useRef(false);
+  const voiceSpeaking = useRef(false);
+  const voiceLevel = useRef(0);
+  const leoVoiceBubble = useRef<string | null>(null);
+  const voiceHangup = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -144,17 +166,38 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [services?.ok, starting]);
 
+  const stopVoice = useCallback(() => {
+    const session = voiceRef.current;
+    voiceRef.current = null;
+    voiceHangup.current = true;
+    session?.stop();
+    voiceHangup.current = false;
+    voiceBusy.current = false;
+    voiceSpeaking.current = false;
+    voiceLevel.current = 0;
+    leoVoiceBubble.current = null;
+    setListening(false);
+    setVoiceOpen(false);
+    setVoicePhase("connect");
+    setVoiceUser("");
+    setVoiceLeo("");
+    setVoiceError(null);
+  }, []);
+
+  useEffect(() => () => stopVoice(), [stopVoice]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setCatalog(false);
         setDatabases(false);
         setRail(false);
+        stopVoice();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [stopVoice]);
 
   const onOp = async (op: Op) => {
     setSnap(await applyOp(op));
@@ -178,7 +221,7 @@ export default function App() {
 
   const send = async () => {
     const text = input.trim();
-    if (!text || busy || !snap || !conversationId) return;
+    if (!text || busy || listening || !snap || !conversationId) return;
     setInput("");
     if (boxRef.current) boxRef.current.style.height = "auto";
     setBubbles((b) => [...b, { id: uid(), kind: "user", text }]);
@@ -196,7 +239,93 @@ export default function App() {
     }
   };
 
+  const talk = async () => {
+    if (listening || voiceOpen) {
+      stopVoice();
+      return;
+    }
+    if (busy || !snap || !conversationId) return;
+    setVoiceOpen(true);
+    setVoicePhase("connect");
+    setVoiceUser("");
+    setVoiceLeo("");
+    setVoiceError(null);
+    leoVoiceBubble.current = null;
+    try {
+      setListening(true);
+      voiceRef.current = await startVoice(conversationId, {
+        onTranscript: (text, final) => {
+          setVoiceUser(text);
+          if (!final) return false;
+          if (voiceBusy.current) return false;
+          voiceBusy.current = true;
+          leoVoiceBubble.current = null;
+          setVoiceLeo("");
+          setVoicePhase("wait");
+          setBubbles((b) => [...b, { id: uid(), kind: "user", text }]);
+          setBusy(true);
+          return true;
+        },
+        onReply: (text) => {
+          setVoiceLeo((prev) => mergeReply(prev, text));
+          setBubbles((b) => {
+            const id = leoVoiceBubble.current;
+            if (id) {
+              return b.map((bubble) =>
+                bubble.id === id ? { ...bubble, text: mergeReply(bubble.text, text) } : bubble,
+              );
+            }
+            const created = uid();
+            leoVoiceBubble.current = created;
+            return [...b, { id: created, kind: "leo", text }];
+          });
+          setBusy(false);
+          if (!voiceSpeaking.current) voiceBusy.current = false;
+          void listChats().then(setChats);
+        },
+        onLevel: (rms) => {
+          voiceLevel.current = rms;
+        },
+        onSpeaking: (speaking) => {
+          voiceSpeaking.current = speaking;
+          if (speaking) {
+            setVoicePhase("speak");
+            return;
+          }
+          voiceBusy.current = false;
+          setVoicePhase((phase) => (phase === "error" ? phase : "listen"));
+        },
+        onError: (message) => {
+          setVoiceError(message);
+          setVoicePhase("error");
+          setBubbles((b) => [...b, { id: uid(), kind: "error", text: message }]);
+          setBusy(false);
+          voiceBusy.current = false;
+        },
+        onClose: () => {
+          voiceRef.current = null;
+          voiceBusy.current = false;
+          voiceSpeaking.current = false;
+          setListening(false);
+          setBusy(false);
+          if (!voiceHangup.current) {
+            setVoicePhase("error");
+            setVoiceError((err) => err ?? "conexión perdida");
+          }
+        },
+      });
+      setVoicePhase((phase) => (phase === "connect" ? "listen" : phase));
+    } catch (e) {
+      setListening(false);
+      const msg = e instanceof Error ? e.message : String(e);
+      setVoiceError(msg);
+      setVoicePhase("error");
+      setBubbles((b) => [...b, { id: uid(), kind: "error", text: msg }]);
+    }
+  };
+
   const clear = async () => {
+    stopVoice();
     try {
       const created = await newChat();
       setChats(await listChats());
@@ -210,6 +339,7 @@ export default function App() {
   };
 
   const open = async (id: string) => {
+    stopVoice();
     const turns = await openChat(id);
     setConversationId(id);
     setBubbles(turnsToBubbles(turns));
@@ -265,8 +395,9 @@ export default function App() {
   const model = snap?.models.find((m) => m.id === snap.active_model_id);
   const provider = snap?.providers.find((p) => p.id === model?.provider_id);
   const providerModels = snap?.models.filter((m) => m.provider_id === provider?.id) ?? [];
-  const chatting = bubbles.length > 0 || busy;
-  const canSend = Boolean(snap) && !busy && input.trim().length > 0;
+  const chatting = bubbles.length > 0 || busy || listening;
+  const canSend = Boolean(snap) && !busy && !listening && input.trim().length > 0;
+  const canTalk = Boolean(snap) && Boolean(conversationId) && (listening || !busy);
 
   const composer = (
     <form
@@ -280,8 +411,8 @@ export default function App() {
         ref={boxRef}
         value={input}
         rows={1}
-        disabled={!snap && !boot}
-        placeholder={snap ? "Pregúntale a Leo" : "sin catálogo"}
+        disabled={(!snap && !boot) || listening}
+        placeholder={listening ? "Te escucho…" : snap ? "Pregúntale a Leo" : "sin catálogo"}
         aria-label="mensaje"
         onChange={(e) => {
           setInput(e.target.value);
@@ -335,6 +466,17 @@ export default function App() {
         </button>
         <span className="composer-grow" />
         <button
+          type="button"
+          className={`btn-mic${listening ? " on" : ""}`}
+          disabled={!canTalk}
+          aria-pressed={listening}
+          aria-label={listening ? "dejar de hablar" : "hablar"}
+          title={listening ? "Dejar de hablar" : "Hablar con Leo"}
+          onClick={() => void talk()}
+        >
+          <IconMic />
+        </button>
+        <button
           type="submit"
           className="btn-send"
           disabled={!canSend}
@@ -347,7 +489,7 @@ export default function App() {
   );
 
   return (
-    <div className={`app${rail ? " rail-open" : ""}${catalog || databases ? " sheet-open" : ""}`}>
+    <div className={`app${rail ? " rail-open" : ""}${catalog || databases || voiceOpen ? " sheet-open" : ""}`}>
       {rail && (
         <button
           type="button"
@@ -512,6 +654,16 @@ export default function App() {
           <button type="button" className="scrim settings" aria-label="cerrar bases de datos" onClick={() => setDatabases(false)} />
           <Databases onClose={() => setDatabases(false)} />
         </>
+      )}
+      {voiceOpen && (
+        <VoiceStage
+          phase={voicePhase}
+          userText={voiceUser}
+          leoText={voiceLeo}
+          error={voiceError}
+          levelRef={voiceLevel}
+          onHangup={stopVoice}
+        />
       )}
     </div>
   );

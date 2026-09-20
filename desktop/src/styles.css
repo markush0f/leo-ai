@@ -270,7 +270,8 @@ button {
 .btn-secondary,
 .btn-danger,
 .btn-ghost,
-.btn-send {
+.btn-send,
+.btn-mic {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -287,7 +288,8 @@ button {
 .btn-secondary svg,
 .btn-danger svg,
 .btn-ghost svg,
-.btn-send svg {
+.btn-send svg,
+.btn-mic svg {
   width: 16px;
   height: 16px;
 }
@@ -347,6 +349,26 @@ button {
 
 .btn-send:hover:not(:disabled) {
   filter: brightness(1.08);
+}
+
+.btn-mic {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--elevated);
+  color: var(--text);
+}
+
+.btn-mic:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.btn-mic.on {
+  border-color: var(--listen);
+  background: var(--listen);
+  color: #0c0c0d;
 }
 
 .sm {
@@ -735,6 +757,147 @@ button:disabled {
 
 .scrim.settings {
   z-index: 6;
+}
+
+.scrim.voice {
+  z-index: 8;
+}
+
+.voice-card {
+  position: fixed;
+  z-index: 9;
+  top: 50%;
+  left: 50%;
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 1.35rem 1.35rem 1.2rem;
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.voice-close {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+}
+
+.voice-halo {
+  position: relative;
+  width: 9.5rem;
+  height: 9.5rem;
+  margin: 0.55rem auto 1rem;
+}
+
+.voice-halo::before,
+.voice-halo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--listen) 40%, transparent);
+  animation: voice-ring 2s ease-out infinite;
+}
+
+.voice-halo::after {
+  animation-delay: 1s;
+}
+
+.voice-halo[data-phase="speak"]::before,
+.voice-halo[data-phase="speak"]::after {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.voice-halo[data-phase="wait"]::before,
+.voice-halo[data-phase="wait"]::after,
+.voice-halo[data-phase="connect"]::before,
+.voice-halo[data-phase="connect"]::after,
+.voice-halo[data-phase="error"]::before,
+.voice-halo[data-phase="error"]::after {
+  animation-duration: 1.4s;
+}
+
+.voice-orb {
+  --voice-level: 0;
+  position: absolute;
+  inset: 1.15rem;
+  border-radius: 999px;
+  background: var(--listen);
+  transform: scale(calc(1 + var(--voice-level) * 0.48));
+  transition: background 0.2s ease;
+}
+
+.voice-orb[data-phase="speak"] {
+  background: var(--accent);
+}
+
+.voice-orb[data-phase="wait"],
+.voice-orb[data-phase="connect"] {
+  animation: voice-wait 1.15s ease-in-out infinite;
+}
+
+.voice-orb[data-phase="error"] {
+  background: var(--danger);
+}
+
+.voice-status {
+  margin: 0 0 0.45rem;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+
+.voice-you,
+.voice-leo {
+  margin: 0 auto 0.35rem;
+  max-width: 36ch;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.voice-leo {
+  color: var(--text);
+  font-weight: 450;
+}
+
+.voice-hangup {
+  width: 100%;
+  margin-top: 0.95rem;
+}
+
+@keyframes voice-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(1.38);
+    opacity: 0;
+  }
+}
+
+@keyframes voice-wait {
+  0%,
+  100% {
+    transform: scale(0.94);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-halo::before,
+  .voice-halo::after,
+  .voice-orb[data-phase="wait"],
+  .voice-orb[data-phase="connect"] {
+    animation: none;
+  }
 }
 
 .sheet {
