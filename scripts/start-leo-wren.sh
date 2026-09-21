@@ -48,6 +48,13 @@ if (( $# == 0 )); then
   set -- check
 fi
 
+dynamic=false
+for argument in "$@"; do
+  if [[ "$argument" == serve || "$argument" == --database-id ]]; then
+    dynamic=true
+  fi
+done
+
 python_bin="${PYTHON_BIN:-}"
 if [[ -z "$python_bin" ]]; then
   for candidate in python3.13 python3.12 python3.11; do
@@ -122,8 +129,13 @@ elif [[ "$project" == "$service" ]] && ! (
   )
 fi
 
-(
-  cd "$project"
-  "$venv/bin/wren" context build
-)
+if [[ -f "$project/wren_project.yml" ]]; then
+  (
+    cd "$project"
+    "$venv/bin/wren" context build
+  )
+elif [[ "$dynamic" != true ]]; then
+  printf 'Falta wren_project.yml; usa serve o --database-id para generarlo.\n' >&2
+  exit 1
+fi
 exec "$venv/bin/leo-wren" --project "$project" "$@"

@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Datasource-agnostic Wren AI SDK runner for Leo"
 requires-python = ">=3.11,<3.14"
 dependencies = [
+  "PyYAML>=6,<7",
   "wren-langchain[all]==0.2.2",
 ]
 

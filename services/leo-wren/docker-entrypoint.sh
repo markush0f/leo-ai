@@ -2,6 +2,20 @@
 set -eu
 
 project="${WREN_PROJECT:-/app}"
+dynamic=false
+for argument in "$@"; do
+  if [ "$argument" = "serve" ] || [ "$argument" = "--database-id" ]; then
+    dynamic=true
+  fi
+done
+
+if [ -n "${WREN_SCHEMA_JSON:-}" ]; then
+  leo-wren generate "$WREN_SCHEMA_JSON" --output "$project" \
+    --profile "${WREN_PROFILE:-leo-local}"
+elif [ ! -f "$project/wren_project.yml" ] && [ "$dynamic" = false ]; then
+  echo "falta wren_project.yml; monta WREN_SCHEMA_JSON para generarlo" >&2
+  exit 1
+fi
 
 if [ -n "${WREN_CONNECTION_FILE:-}" ]; then
   if [ -z "${WREN_PROFILE:-}" ]; then
@@ -14,5 +28,7 @@ elif [ "$project" = /app ] && ! wren profile debug leo-local >/dev/null 2>&1; th
 fi
 
 cd "$project"
-wren context build
+if [ -f wren_project.yml ]; then
+  wren context build
+fi
 exec leo-wren --project "$project" "$@"

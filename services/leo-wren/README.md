@@ -44,6 +44,23 @@ Build source MDL into `target/mdl.json`:
 wren context build
 ```
 
+## Generate Project From Rust JSON
+
+`leo-pgjson` includes schema metadata, primary keys, and foreign keys in its
+JSON output. Generate all Wren YAML files from that dump:
+
+```sh
+cargo run -p leo-pgjson -- --url "$DATABASE_URL" --schema-only --out /tmp/database.json
+leo-wren generate /tmp/database.json --output services/leo-wren --profile leo-local
+wren context build
+```
+
+Generation replaces `models/` and writes `wren_project.yml` and
+`relationships.yml`. Connection credentials remain separate. Sensitive tables
+and columns are excluded unless `--include-sensitive` is explicitly supplied.
+Containers can generate on startup by mounting this schema-only JSON and setting
+`WREN_SCHEMA_JSON` to its container path.
+
 ## Test connection
 
 From repository root, complete setup and smoke test with one command:
@@ -75,9 +92,9 @@ Expected output includes `"status": "ok"`, SQL translated to selected dialect, a
 Run other MDL queries:
 
 ```sh
-leo-wren dry-plan 'SELECT channel, COUNT(*) AS total FROM conversations GROUP BY channel'
-leo-wren query 'SELECT channel, COUNT(*) AS total FROM conversations GROUP BY channel'
-leo-wren query 'SELECT role, COUNT(*) AS total FROM messages GROUP BY role'
+leo-wren dry-plan 'SELECT channel, COUNT(*) AS total FROM conversations GROUP BY channel' --database-id "$DATABASE_ID"
+leo-wren query 'SELECT channel, COUNT(*) AS total FROM conversations GROUP BY channel' --database-id "$DATABASE_ID"
+leo-wren query 'SELECT role, COUNT(*) AS total FROM messages GROUP BY role' --database-id "$DATABASE_ID"
 ```
 
 Queries reference MDL model names, not physical `schema.table` names.
@@ -127,6 +144,8 @@ leo-wren ask 'Cuantas conversaciones hay por canal?'
 ```
 
 Override model with `--model` or `WREN_AGENT_MODEL`, using any LangChain-supported provider installed in environment.
+Pass `--database-id UUID` to `ask`; immediately before every question Leo fetches
+fresh schema JSON from `leo-server`, regenerates YAML, and rebuilds Wren context.
 
 ## Tests
 

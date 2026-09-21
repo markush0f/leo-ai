@@ -1,7 +1,0 @@
-schema_version: 5
-name: leo_analytics
-version: "0.1"
-catalog: wren
-schema: public
-data_source: postgres
-profile: leo-local

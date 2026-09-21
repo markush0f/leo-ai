@@ -88,12 +88,14 @@ def test_ask_requires_agent_extra(monkeypatch, tmp_path):
         cli.run(args)
 
 
-def _start(tmp_path, monkeypatch):
+def _start(tmp_path, monkeypatch, refresh_toolkit=None):
     monkeypatch.setattr(cli, "load_toolkit", lambda project, profile=None: FakeToolkit())
     web = tmp_path / "web"
     web.mkdir()
     (web / "index.html").write_text("<!doctype html><title>Leo Wren</title>", encoding="utf-8")
-    server = cli.make_server(tmp_path, FakeToolkit(), "127.0.0.1", 0)
+    server = cli.make_server(
+        tmp_path, FakeToolkit(), "127.0.0.1", 0, refresh_toolkit
+    )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server
@@ -132,6 +134,31 @@ def test_query_rejects_empty_sql(monkeypatch, tmp_path):
         with pytest.raises(HTTPError) as error:
             urlopen(request)
         assert error.value.code == 400
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_query_refreshes_wren_for_every_database_request(monkeypatch, tmp_path):
+    refreshed = []
+    server = _start(
+        tmp_path,
+        monkeypatch,
+        lambda database_id: refreshed.append(database_id) or FakeToolkit(),
+    )
+    port = server.server_address[1]
+    try:
+        for _ in range(2):
+            request = Request(
+                f"http://127.0.0.1:{port}/api/query",
+                data=json.dumps(
+                    {"sql": "SELECT 1", "database_id": "database-123"}
+                ).encode(),
+                headers={"content-type": "application/json"},
+            )
+            with urlopen(request) as response:
+                assert response.status == 200
+        assert refreshed == ["database-123", "database-123"]
     finally:
         server.shutdown()
         server.server_close()

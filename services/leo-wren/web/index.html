@@ -34,7 +34,7 @@
     .status { margin-top: 10px; color: var(--accent); }
     .status.error { color: var(--danger); }
     label { display: block; margin: 22px 0 8px; font-size: 13px; color: var(--muted); }
-    textarea {
+    textarea, input {
       width: 100%;
       min-height: 120px;
       resize: vertical;
@@ -46,6 +46,7 @@
       font: 15px/1.4 ui-monospace, "Cascadia Code", monospace;
     }
     textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    input { min-height: 44px; }
     .examples { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     button {
       border: 1px solid var(--line);
@@ -92,6 +93,8 @@
       <p>Consulta el catálogo de Leo. Usa los nombres del modelo, no <code>public.tabla</code>.</p>
       <p class="status" id="status">Conectando…</p>
     </header>
+    <label for="database-id">ID de base de datos</label>
+    <input id="database-id" placeholder="UUID de la conexión en Leo" autocomplete="off">
     <label for="sql">SQL</label>
     <textarea id="sql">SELECT channel, COUNT(*) AS total FROM conversations GROUP BY channel</textarea>
     <div class="examples" id="examples"></div>
@@ -109,6 +112,7 @@
       "SELECT p.name AS provider, m.name AS model FROM models m JOIN providers p ON m.provider_id = p.id"
     ];
     const sql = document.querySelector("#sql");
+    const databaseId = document.querySelector("#database-id");
     const out = document.querySelector("#out");
     const status = document.querySelector("#status");
     const buttons = [document.querySelector("#run"), document.querySelector("#plan")];
@@ -129,7 +133,7 @@
         const response = await fetch(path, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ sql: sql.value })
+          body: JSON.stringify({ sql: sql.value, database_id: databaseId.value })
         });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "La consulta falló");
@@ -194,8 +198,7 @@
       .then((response) => response.json().then((payload) => ({ ok: response.ok, payload })))
       .then(({ ok, payload }) => {
         if (!ok) throw new Error(payload.error || "Sin conexión");
-        const count = payload.result.rows[0].conversation_count;
-        status.textContent = "Conectado. " + count + " conversaciones.";
+        status.textContent = "Servicio conectado. Indica una base para consultar.";
       })
       .catch((error) => {
         status.textContent = error.message;
