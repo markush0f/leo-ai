@@ -1,3 +1,7 @@
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+
 use base64::Engine;
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{XChaCha20Poly1305, XNonce};
@@ -13,10 +17,18 @@ pub struct DatabaseCipher([u8; 32]);
 pub enum DatabaseError {
     #[error(transparent)]
     Sql(#[from] sqlx::Error),
-    #[error("falta {MASTER_KEY_ENV}; genera una clave con `openssl rand -base64 32`")]
-    MissingMasterKey,
     #[error("{MASTER_KEY_ENV} debe ser base64 de exactamente 32 bytes")]
     InvalidMasterKey,
+    #[error("la clave guardada en {path} no es válida")]
+    InvalidStoredKey { path: String },
+    #[error("no se pudo generar la clave maestra")]
+    Generate,
+    #[error("no se pudo guardar la clave maestra en {path}: {source}")]
+    MasterKeyStore {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
     #[error("no se pudo cifrar la contraseña")]
     Encrypt,
     #[error("no se pudo descifrar la contraseña; comprueba {MASTER_KEY_ENV}")]
@@ -53,14 +65,22 @@ pub struct DatabaseWrite {
 }
 
 impl DatabaseCipher {
+    /// Usa `LEO_MASTER_KEY` si existe. Si no, crea `.leo/master.key` y la reutiliza.
     pub fn from_env() -> Result<Self, DatabaseError> {
-        let raw = std::env::var(MASTER_KEY_ENV).map_err(|_| DatabaseError::MissingMasterKey)?;
+        if let Ok(raw) = std::env::var(MASTER_KEY_ENV) {
+            let raw = raw.trim();
+            if !raw.is_empty() {
+                return Self::parse(raw).map_err(|_| DatabaseError::InvalidMasterKey);
+            }
+        }
+        Ok(ensure_master_key(&master_key_path())?.0)
+    }
+
+    fn parse(raw: &str) -> Result<Self, ()> {
         let bytes = base64::engine::general_purpose::STANDARD
             .decode(raw.trim())
-            .map_err(|_| DatabaseError::InvalidMasterKey)?;
-        let key: [u8; 32] = bytes
-            .try_into()
-            .map_err(|_| DatabaseError::InvalidMasterKey)?;
+            .map_err(|_| ())?;
+        let key: [u8; 32] = bytes.try_into().map_err(|_| ())?;
         Ok(Self(key))
     }
 
@@ -272,6 +292,73 @@ pub async fn set_database_test_result(
     Ok(())
 }
 
+fn master_key_path() -> PathBuf {
+    let start = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let mut dir = start.clone();
+    for _ in 0..16 {
+        if dir.join("Cargo.toml").is_file() && dir.join("crates").is_dir() {
+            return dir.join(".leo/master.key");
+        }
+        if !dir.pop() {
+            break;
+        }
+    }
+    start.join(".leo/master.key")
+}
+
+fn ensure_master_key(path: &Path) -> Result<(DatabaseCipher, String), DatabaseError> {
+    if path.is_file() {
+        return read_master_key(path);
+    }
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).map_err(|source| store_error(path, source))?;
+    }
+    let mut key = [0_u8; 32];
+    getrandom::fill(&mut key).map_err(|_| DatabaseError::Generate)?;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(key);
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    match options.open(path) {
+        Ok(mut file) => {
+            file.write_all(encoded.as_bytes())
+                .and_then(|()| file.write_all(b"\n"))
+                .map_err(|source| store_error(path, source))?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+                    .map_err(|source| store_error(path, source))?;
+            }
+            Ok((DatabaseCipher(key), encoded))
+        }
+        Err(source) if source.kind() == std::io::ErrorKind::AlreadyExists => read_master_key(path),
+        Err(source) => Err(store_error(path, source)),
+    }
+}
+
+fn read_master_key(path: &Path) -> Result<(DatabaseCipher, String), DatabaseError> {
+    let raw = std::fs::read_to_string(path).map_err(|source| store_error(path, source))?;
+    let encoded = raw.trim().to_string();
+    let cipher = DatabaseCipher::parse(&encoded).map_err(|_| DatabaseError::InvalidStoredKey {
+        path: path.display().to_string(),
+    })?;
+    Ok((cipher, encoded))
+}
+
+fn store_error(path: &Path, source: std::io::Error) -> DatabaseError {
+    DatabaseError::MasterKeyStore {
+        path: path.display().to_string(),
+        source,
+    }
+}
+
 fn row_from_sql(row: sqlx::postgres::PgRow) -> DatabaseConnectionRow {
     DatabaseConnectionRow {
         id: row.get("id"),
@@ -292,6 +379,33 @@ fn row_from_sql(row: sqlx::postgres::PgRow) -> DatabaseConnectionRow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn creates_a_stable_master_key_without_env() {
+        let root = std::env::temp_dir().join(format!("leo-master-{}", Uuid::new_v4()));
+        let path = root.join("master.key");
+        let (first, encoded) = ensure_master_key(&path).unwrap();
+        let (second, again) = ensure_master_key(&path).unwrap();
+        assert_eq!(encoded, again);
+        assert_eq!(first.0, second.0);
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn env_key_overrides_a_stored_file() {
+        let encoded = base64::engine::general_purpose::STANDARD.encode([3_u8; 32]);
+        let previous = std::env::var(MASTER_KEY_ENV).ok();
+        unsafe { std::env::set_var(MASTER_KEY_ENV, &encoded) };
+        let cipher = DatabaseCipher::from_env().unwrap();
+        match previous {
+            Some(value) => unsafe { std::env::set_var(MASTER_KEY_ENV, value) },
+            None => unsafe { std::env::remove_var(MASTER_KEY_ENV) },
+        }
+        assert_eq!(cipher.0, [3_u8; 32]);
+    }
 
     #[test]
     fn cipher_round_trip_and_binds_id() {
