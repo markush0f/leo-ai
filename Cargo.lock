@@ -2717,6 +2717,7 @@ name = "leo-api"
 version = "0.1.0"
 dependencies = [
  "leo-llm",
+ "leo-pgjson",
  "leo-store",
  "leo-tools",
  "leo-tools-db",
@@ -2824,6 +2825,18 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+]
+
+[[package]]
+name = "leo-pgjson"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.20",
+ "tokio",
 ]
 
 [[package]]

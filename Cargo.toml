@@ -70,3 +70,4 @@ leo-tools-home-assistant = { path = "crates/tools/leo-tools-home-assistant" }
 leo-tools-shell = { path = "crates/tools/leo-tools-shell" }
 leo-tools-system = { path = "crates/tools/leo-tools-system" }
 leo-tools-weather = { path = "crates/tools/leo-tools-weather" }
+leo-pgjson = { path = "crates/leo-pgjson" }
