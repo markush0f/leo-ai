@@ -132,6 +132,8 @@ pub struct ExportOptions {
     /// Máximo de filas por tabla. `None` lee la tabla completa.
     pub limit: Option<u64>,
     pub include_views: bool,
+    /// Exporta metadatos sin leer filas. Útil para generar proyectos Wren.
+    pub schema_only: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -144,7 +146,26 @@ pub struct Dump {
 pub struct TableJson {
     pub schema: String,
     pub name: String,
+    pub columns: Vec<ColumnJson>,
+    pub foreign_keys: Vec<ForeignKeyJson>,
     pub rows: Vec<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ColumnJson {
+    pub name: String,
+    pub data_type: String,
+    pub not_null: bool,
+    pub is_primary_key: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ForeignKeyJson {
+    pub name: String,
+    pub columns: Vec<String>,
+    pub referenced_schema: String,
+    pub referenced_table: String,
+    pub referenced_columns: Vec<String>,
 }
 
 pub fn include_table(schema: &str, table: &str, options: &ExportOptions) -> bool {
@@ -204,9 +225,13 @@ async fn export_with_pool(pool: &PgPool, request: &ExportOptions) -> Result<Dump
         if !include_table(&schema, &name, request) {
             continue;
         }
-        let sql = table_sql(&schema, &name, request.limit);
-        let value: serde_json::Value =
-            sqlx::query_scalar(&sql)
+        let columns = table_columns(&mut tx, &schema, &name).await?;
+        let foreign_keys = table_foreign_keys(&mut tx, &schema, &name).await?;
+        let rows = if request.schema_only {
+            Vec::new()
+        } else {
+            let sql = table_sql(&schema, &name, request.limit);
+            let value: serde_json::Value = sqlx::query_scalar(&sql)
                 .fetch_one(&mut *tx)
                 .await
                 .map_err(|source| ExportError::Table {
@@ -214,17 +239,112 @@ async fn export_with_pool(pool: &PgPool, request: &ExportOptions) -> Result<Dump
                     table: name.clone(),
                     source,
                 })?;
-        let serde_json::Value::Array(rows) = value else {
-            return Err(ExportError::NotAnArray {
-                schema,
-                table: name,
-            });
+            let serde_json::Value::Array(rows) = value else {
+                return Err(ExportError::NotAnArray {
+                    schema,
+                    table: name,
+                });
+            };
+            rows
         };
-        tables.push(TableJson { schema, name, rows });
+        tables.push(TableJson {
+            schema,
+            name,
+            columns,
+            foreign_keys,
+            rows,
+        });
     }
 
     tx.rollback().await?;
     Ok(Dump { database, tables })
+}
+
+async fn table_columns(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    schema: &str,
+    table: &str,
+) -> Result<Vec<ColumnJson>, ExportError> {
+    let rows: Vec<(String, String, bool, bool)> = sqlx::query_as(
+        "SELECT a.attname::text,
+                pg_catalog.format_type(a.atttypid, a.atttypmod)::text,
+                a.attnotnull,
+                EXISTS (
+                    SELECT 1
+                    FROM pg_constraint p
+                    WHERE p.conrelid = c.oid
+                      AND p.contype = 'p'
+                      AND a.attnum = ANY(p.conkey)
+                )
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+         JOIN pg_attribute a ON a.attrelid = c.oid
+         WHERE n.nspname = $1
+           AND c.relname = $2
+           AND a.attnum > 0
+           AND NOT a.attisdropped
+         ORDER BY a.attnum",
+    )
+    .bind(schema)
+    .bind(table)
+    .fetch_all(&mut **tx)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(name, data_type, not_null, is_primary_key)| ColumnJson {
+            name,
+            data_type,
+            not_null,
+            is_primary_key,
+        })
+        .collect())
+}
+
+async fn table_foreign_keys(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    schema: &str,
+    table: &str,
+) -> Result<Vec<ForeignKeyJson>, ExportError> {
+    type ForeignKeyRow = (String, Vec<String>, String, String, Vec<String>);
+    let rows: Vec<ForeignKeyRow> = sqlx::query_as(
+        "SELECT con.conname::text,
+                array_agg(src.attname::text ORDER BY keys.ord),
+                target_ns.nspname::text,
+                target.relname::text,
+                array_agg(dst.attname::text ORDER BY keys.ord)
+         FROM pg_constraint con
+         JOIN pg_class source ON source.oid = con.conrelid
+         JOIN pg_namespace source_ns ON source_ns.oid = source.relnamespace
+         JOIN pg_class target ON target.oid = con.confrelid
+         JOIN pg_namespace target_ns ON target_ns.oid = target.relnamespace
+         JOIN LATERAL unnest(con.conkey, con.confkey) WITH ORDINALITY
+              AS keys(src_num, dst_num, ord) ON true
+         JOIN pg_attribute src ON src.attrelid = source.oid AND src.attnum = keys.src_num
+         JOIN pg_attribute dst ON dst.attrelid = target.oid AND dst.attnum = keys.dst_num
+         WHERE con.contype = 'f'
+           AND source_ns.nspname = $1
+           AND source.relname = $2
+         GROUP BY con.conname, target_ns.nspname, target.relname
+         ORDER BY con.conname",
+    )
+    .bind(schema)
+    .bind(table)
+    .fetch_all(&mut **tx)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(
+            |(name, columns, referenced_schema, referenced_table, referenced_columns)| {
+                ForeignKeyJson {
+                    name,
+                    columns,
+                    referenced_schema,
+                    referenced_table,
+                    referenced_columns,
+                }
+            },
+        )
+        .collect())
 }
 
 fn list_sql(include_views: bool) -> String {
@@ -321,6 +441,13 @@ mod tests {
             tables: vec![TableJson {
                 schema: "public".into(),
                 name: "events".into(),
+                columns: vec![ColumnJson {
+                    name: "id".into(),
+                    data_type: "integer".into(),
+                    not_null: true,
+                    is_primary_key: true,
+                }],
+                foreign_keys: vec![],
                 rows: vec![serde_json::json!({"id": 7, "title": "hola"})],
             }],
         };

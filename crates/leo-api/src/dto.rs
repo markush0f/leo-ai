@@ -115,6 +115,8 @@ pub struct DatabaseExportRequest {
     pub limit: Option<u64>,
     #[serde(default)]
     pub views: bool,
+    #[serde(default)]
+    pub schema_only: bool,
 }
 
 fn one_or_many<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>

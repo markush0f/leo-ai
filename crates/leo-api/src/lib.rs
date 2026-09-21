@@ -275,6 +275,7 @@ impl App {
             tables: filled(request.tables),
             limit: request.limit,
             include_views: request.views,
+            schema_only: request.schema_only,
         };
         leo_pgjson::export(options, &export)
             .await

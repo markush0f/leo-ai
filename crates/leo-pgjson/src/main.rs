@@ -40,6 +40,9 @@ struct Cli {
     /// Incluye vistas y vistas materializadas.
     #[arg(long)]
     views: bool,
+    /// Incluye solo esquema, claves y relaciones; no lee filas.
+    #[arg(long)]
+    schema_only: bool,
     /// Archivo de salida. Sin este argumento escribe en stdout.
     #[arg(long)]
     out: Option<PathBuf>,
@@ -94,6 +97,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         tables: cli.tables,
         limit: cli.limit,
         include_views: cli.views,
+        schema_only: cli.schema_only,
     };
     let dump = export(options, &request).await?;
     let json = to_json(&dump, !cli.compact)?;
