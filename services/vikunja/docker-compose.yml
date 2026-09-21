@@ -1,0 +1,42 @@
+# External Vikunja service for Leo tasks and reminders.
+# Run from this directory: docker compose up -d
+# Host access is bound to loopback. Containers on this Compose network
+# reach the service at http://vikunja:3456.
+
+services:
+  # The official image is scratch and runs as uid 1000. Docker creates named
+  # volumes as root, and the image has no shell to chown them itself.
+  vikunja-init:
+    image: alpine:3
+    user: "0:0"
+    restart: "no"
+    volumes:
+      - vikunja-db:/db
+      - vikunja-files:/files
+    command: ["sh", "-c", "chown 1000:1000 /db /files"]
+
+  vikunja:
+    image: vikunja/vikunja
+    restart: unless-stopped
+    depends_on:
+      vikunja-init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${VIKUNJA_PORT:-3456}:3456"
+    environment:
+      VIKUNJA_SERVICE_PUBLICURL: ${VIKUNJA_PUBLIC_URL:-http://localhost:3456/}
+      VIKUNJA_DATABASE_TYPE: sqlite
+      VIKUNJA_DATABASE_PATH: /db/vikunja.db
+    volumes:
+      - vikunja-db:/db
+      - vikunja-files:/app/vikunja/files
+    healthcheck:
+      test: ["CMD", "/app/vikunja/vikunja", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  vikunja-db:
+  vikunja-files:
