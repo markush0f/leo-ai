@@ -1,0 +1,7 @@
+relationships:
+  - name: conversations_messages
+    models:
+      - conversations
+      - messages
+    join_type: ONE_TO_MANY
+    condition: conversations.id = messages.conversation_id

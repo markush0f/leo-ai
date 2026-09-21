@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Leo Wren</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #161616;
+      --paper: #1e1e1e;
+      --line: #2e2e2e;
+      --text: #f4f1ea;
+      --muted: #a39e94;
+      --accent: #34d399;
+      --danger: #f0a8a0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.45 "Source Sans 3", "Segoe UI", sans-serif;
+    }
+    main {
+      width: min(920px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 40px 0 64px;
+    }
+    header { margin-bottom: 28px; }
+    h1 { margin: 0 0 6px; font-size: 28px; font-weight: 650; letter-spacing: -0.03em; }
+    p { margin: 0; color: var(--muted); }
+    .status { margin-top: 10px; color: var(--accent); }
+    .status.error { color: var(--danger); }
+    label { display: block; margin: 22px 0 8px; font-size: 13px; color: var(--muted); }
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--paper);
+      color: var(--text);
+      padding: 14px 16px;
+      font: 15px/1.4 ui-monospace, "Cascadia Code", monospace;
+    }
+    textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .examples { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    button {
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); }
+    button.primary { background: var(--accent); color: #10241c; border-color: transparent; font-weight: 650; }
+    button:disabled { opacity: 0.55; cursor: progress; }
+    .actions { display: flex; gap: 8px; margin-top: 14px; }
+    .error {
+      margin-top: 18px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: #2a1818;
+      color: var(--danger);
+      white-space: pre-wrap;
+    }
+    .plan {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: var(--paper);
+      overflow: auto;
+      font: 13px/1.45 ui-monospace, "Cascadia Code", monospace;
+      color: var(--muted);
+    }
+    .table-wrap { margin-top: 18px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: 13px; }
+    tr:last-child td { border-bottom: 0; }
+    caption { caption-side: bottom; padding: 8px 12px 10px; text-align: left; color: var(--muted); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Leo Wren</h1>
+      <p>Consulta el catálogo de Leo. Usa los nombres del modelo, no <code>public.tabla</code>.</p>
+      <p class="status" id="status">Conectando…</p>
+    </header>
+    <label for="sql">SQL</label>
+    <textarea id="sql">SELECT channel, COUNT(*) AS total FROM conversations GROUP BY channel</textarea>
+    <div class="examples" id="examples"></div>
+    <div class="actions">
+      <button class="primary" id="run" type="button">Consultar</button>
+      <button id="plan" type="button">Solo el plan</button>
+    </div>
+    <div id="out"></div>
+  </main>
+  <script>
+    const examples = [
+      "SELECT COUNT(*) AS conversation_count FROM conversations",
+      "SELECT channel, COUNT(*) AS total FROM conversations GROUP BY channel",
+      "SELECT role, COUNT(*) AS total FROM messages GROUP BY role",
+      "SELECT p.name AS provider, m.name AS model FROM models m JOIN providers p ON m.provider_id = p.id"
+    ];
+    const sql = document.querySelector("#sql");
+    const out = document.querySelector("#out");
+    const status = document.querySelector("#status");
+    const buttons = [document.querySelector("#run"), document.querySelector("#plan")];
+
+    document.querySelector("#examples").append(...examples.map((example) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = example.replace(/\s+/g, " ").slice(0, 42) + "…";
+      button.title = example;
+      button.addEventListener("click", () => { sql.value = example; });
+      return button;
+    }));
+
+    async function call(path) {
+      buttons.forEach((button) => { button.disabled = true; });
+      out.replaceChildren();
+      try {
+        const response = await fetch(path, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ sql: sql.value })
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "La consulta falló");
+        render(payload);
+      } catch (error) {
+        const note = document.createElement("div");
+        note.className = "error";
+        note.textContent = error.message;
+        out.replaceChildren(note);
+      } finally {
+        buttons.forEach((button) => { button.disabled = false; });
+      }
+    }
+
+    function render(payload) {
+      const parts = [];
+      if (payload.planned_sql) {
+        const plan = document.createElement("pre");
+        plan.className = "plan";
+        plan.textContent = payload.planned_sql;
+        parts.push(plan);
+      }
+      const table = payload.result || payload;
+      if (table.columns) {
+        const wrap = document.createElement("div");
+        wrap.className = "table-wrap";
+        const grid = document.createElement("table");
+        const head = document.createElement("tr");
+        for (const column of table.columns) {
+          const cell = document.createElement("th");
+          cell.textContent = column;
+          head.append(cell);
+        }
+        const body = document.createElement("tbody");
+        body.append(head);
+        for (const row of table.rows) {
+          const line = document.createElement("tr");
+          for (const column of table.columns) {
+            const cell = document.createElement("td");
+            const value = row[column];
+            cell.textContent = value == null ? "" : String(value);
+            line.append(cell);
+          }
+          body.append(line);
+        }
+        const caption = document.createElement("caption");
+        caption.textContent = table.row_count + (table.row_count === 1 ? " fila" : " filas");
+        grid.append(body, caption);
+        wrap.append(grid);
+        parts.push(wrap);
+      }
+      out.replaceChildren(...parts);
+    }
+
+    document.querySelector("#run").addEventListener("click", () => call("/api/query"));
+    document.querySelector("#plan").addEventListener("click", () => call("/api/plan"));
+    sql.addEventListener("keydown", (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") call("/api/query");
+    });
+
+    fetch("/api/health")
+      .then((response) => response.json().then((payload) => ({ ok: response.ok, payload })))
+      .then(({ ok, payload }) => {
+        if (!ok) throw new Error(payload.error || "Sin conexión");
+        const count = payload.result.rows[0].conversation_count;
+        status.textContent = "Conectado. " + count + " conversaciones.";
+      })
+      .catch((error) => {
+        status.textContent = error.message;
+        status.classList.add("error");
+      });
+  </script>
+</body>
+</html>

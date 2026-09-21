@@ -64,10 +64,11 @@ El script espera a que los contenedores estén sanos, instala las dependencias
 del frontend cuando faltan y abre los servicios en `127.0.0.1`. Los contenedores
 permanecen activos al cerrar el frontend.
 
-Leo Realtime también arranca solo:
+Leo Realtime y Wren también arrancan solos:
 
 ```sh
 ./scripts/start-leo-realtime.sh
+./scripts/start-leo-wren.sh
 ```
 
 Run these commands from `desktop/`:

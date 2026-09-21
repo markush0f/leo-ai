@@ -1,0 +1,31 @@
+name: messages
+table_reference:
+  schema: public
+  table: messages
+primary_key: id
+columns:
+  - name: id
+    type: VARCHAR
+    is_primary_key: true
+    not_null: true
+  - name: conversation_id
+    type: VARCHAR
+    not_null: true
+  - name: role
+    type: VARCHAR
+    not_null: true
+  - name: content
+    type: VARCHAR
+    not_null: true
+  - name: name
+    type: VARCHAR
+  - name: model_id
+    type: VARCHAR
+  - name: created_at
+    type: TIMESTAMPTZ
+    not_null: true
+  - name: conversation
+    type: conversations
+    relationship: conversations_messages
+properties:
+  description: Messages exchanged in Leo conversations. Tool payloads are intentionally hidden.
