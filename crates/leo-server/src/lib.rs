@@ -5,7 +5,7 @@
 
 use std::path::PathBuf;
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
@@ -51,6 +51,7 @@ pub fn router(app: App, web_root: Option<PathBuf>) -> Router {
         )
         .route("/databases/{id}/test", post(test_database))
         .route("/databases/{id}/json", get(export_database))
+        .route("/databases/{id}/schema", get(export_database_schema))
         .route("/codex/login", post(begin_codex_login))
         .route("/codex/login/{id}/finish", post(finish_codex_login))
         .route("/chats", get(list_chats).post(new_chat))
@@ -118,12 +119,24 @@ async fn test_database(State(app): State<App>, Path(id): Path<Uuid>) -> Response
     send(app.test_database(id).await)
 }
 
-async fn export_database(
-    State(app): State<App>,
-    Path(id): Path<Uuid>,
-    Query(request): Query<DatabaseExportRequest>,
-) -> Response {
-    send(app.export_database(id, request).await)
+async fn export_database(State(app): State<App>, Path(id): Path<Uuid>) -> Response {
+    send(
+        app.export_database(id, DatabaseExportRequest::default())
+            .await,
+    )
+}
+
+async fn export_database_schema(State(app): State<App>, Path(id): Path<Uuid>) -> Response {
+    send(
+        app.export_database(
+            id,
+            DatabaseExportRequest {
+                schema_only: true,
+                ..DatabaseExportRequest::default()
+            },
+        )
+        .await,
+    )
 }
 
 async fn begin_codex_login(State(app): State<App>, Json(body): Json<CodexLoginIn>) -> Response {
@@ -286,15 +299,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn database_json_without_db_is_unavailable() {
+    async fn database_json_ignores_table_filters() {
         let id = Uuid::from_u128(1);
         let resp = test_router()
             .oneshot(
                 Request::get(format!(
-                    "/api/databases/{id}/json?schema=public&table=messages&limit=0"
+                    "/api/databases/{id}/json?table=messages&table=conversations"
                 ))
                 .body(Body::empty())
                 .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let json = body_json(resp).await;
+        assert!(json["error"].as_str().unwrap().contains("postgres"));
+    }
+
+    #[tokio::test]
+    async fn database_schema_uses_shared_app_surface() {
+        let id = Uuid::from_u128(1);
+        let resp = test_router()
+            .oneshot(
+                Request::get(format!("/api/databases/{id}/schema"))
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();
