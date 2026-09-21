@@ -73,8 +73,10 @@ leo-realtime-client --output echo.wav
 From repository root:
 
 ```sh
-docker compose up --build leo-realtime
+./scripts/start-leo-realtime.sh
 ```
+
+Set `LEO_REALTIME_MODE=echo` before running it when `leo-server` is not active.
 
 Health and metadata are available from `GET /healthz` and `GET /`.
 Open `http://127.0.0.1:8765/test` for a browser microphone and playback test.
