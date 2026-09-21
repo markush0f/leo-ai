@@ -23,10 +23,12 @@ use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
 pub use dto::{
-    ChatOut, CodexLoginDto, ConversationDto, DatabaseConnectionDto, DatabaseInput, DatabaseTestDto,
-    DeleteDto, EngineDto, ModelDto, Op, ProviderDto, SnapshotDto, TurnDto,
+    ChatOut, CodexLoginDto, ConversationDto, DatabaseConnectionDto, DatabaseExportRequest,
+    DatabaseInput, DatabaseTestDto, DeleteDto, EngineDto, ModelDto, Op, ProviderDto, SnapshotDto,
+    TurnDto,
 };
 pub use host::{ServiceDto, ServicesDto};
+pub use leo_pgjson::Dump as DatabaseDump;
 
 #[derive(Clone)]
 pub struct App {
@@ -236,6 +238,47 @@ impl App {
         }
         self.sync_toolbox(&pool, &cipher).await?;
         Ok(DeleteDto { ok: true })
+    }
+
+    /// Lee las tablas de la conexión guardada `id` y las devuelve en JSON.
+    pub async fn export_database(
+        &self,
+        id: Uuid,
+        request: DatabaseExportRequest,
+    ) -> Result<DatabaseDump, String> {
+        let pool = self.pool().await?;
+        let row = db::database_connection(&pool, id)
+            .await
+            .map_err(|err| err.to_string())?;
+        let cipher = db::DatabaseCipher::from_env().map_err(|err| err.to_string())?;
+        let password = db::database_password(&pool, &cipher, id)
+            .await
+            .map_err(|err| err.to_string())?;
+        if password.is_empty() {
+            return Err("la conexión no tiene contraseña".into());
+        }
+        let port = u16::try_from(row.port)
+            .ok()
+            .filter(|port| *port > 0)
+            .ok_or_else(|| "puerto fuera de rango (1-65535)".to_string())?;
+        let connection = leo_pgjson::DbConnection {
+            host: database_host(&row.host).to_string(),
+            port,
+            database: row.database,
+            username: row.username,
+            password,
+            ssl_mode: leo_pgjson::SslMode::parse(&row.ssl_mode).map_err(|err| err.to_string())?,
+        };
+        let options = connection.to_options().map_err(|err| err.to_string())?;
+        let export = leo_pgjson::ExportOptions {
+            schemas: filled(request.schemas),
+            tables: filled(request.tables),
+            limit: request.limit,
+            include_views: request.views,
+        };
+        leo_pgjson::export(options, &export)
+            .await
+            .map_err(|err| err.to_string())
     }
 
     pub async fn test_database(&self, id: Uuid) -> Result<DatabaseTestDto, String> {
@@ -559,6 +602,22 @@ fn validate_database_input(
     Ok(input)
 }
 
+fn database_host(host: &str) -> &str {
+    if host.eq_ignore_ascii_case("host.docker.internal") {
+        "127.0.0.1"
+    } else {
+        host
+    }
+}
+
+fn filled(values: Vec<String>) -> Vec<String> {
+    values
+        .into_iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect()
+}
+
 fn database_write(input: DatabaseInput) -> db::DatabaseWrite {
     db::DatabaseWrite {
         name: input.name,
@@ -581,13 +640,8 @@ async fn test_postgres(row: &db::DatabaseConnectionRow, password: &str) -> Resul
         "verify-full" => PgSslMode::VerifyFull,
         _ => return Err("modo SSL inválido".into()),
     };
-    let test_host = if row.host.eq_ignore_ascii_case("host.docker.internal") {
-        "127.0.0.1"
-    } else {
-        &row.host
-    };
     let options = PgConnectOptions::new()
-        .host(test_host)
+        .host(database_host(&row.host))
         .port(row.port as u16)
         .database(&row.database)
         .username(&row.username)

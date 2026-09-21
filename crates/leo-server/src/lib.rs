@@ -5,12 +5,12 @@
 
 use std::path::PathBuf;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
-use leo_api::{App, DatabaseInput, Op};
+use leo_api::{App, DatabaseExportRequest, DatabaseInput, Op};
 use serde::{Deserialize, Serialize};
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
@@ -50,6 +50,7 @@ pub fn router(app: App, web_root: Option<PathBuf>) -> Router {
             put(update_database).delete(delete_database),
         )
         .route("/databases/{id}/test", post(test_database))
+        .route("/databases/{id}/json", get(export_database))
         .route("/codex/login", post(begin_codex_login))
         .route("/codex/login/{id}/finish", post(finish_codex_login))
         .route("/chats", get(list_chats).post(new_chat))
@@ -117,6 +118,14 @@ async fn test_database(State(app): State<App>, Path(id): Path<Uuid>) -> Response
     send(app.test_database(id).await)
 }
 
+async fn export_database(
+    State(app): State<App>,
+    Path(id): Path<Uuid>,
+    Query(request): Query<DatabaseExportRequest>,
+) -> Response {
+    send(app.export_database(id, request).await)
+}
+
 async fn begin_codex_login(State(app): State<App>, Json(body): Json<CodexLoginIn>) -> Response {
     send(app.begin_codex_login(body.provider_id).await)
 }
@@ -170,6 +179,7 @@ fn status_for(msg: &str) -> StatusCode {
     } else if msg.contains("obligatori")
         || msg.contains("fuera de rango")
         || msg.contains("modo SSL inválido")
+        || msg.contains("conexión inválida")
     {
         StatusCode::BAD_REQUEST
     } else if msg.contains("duplicate key") || msg.contains("database_connections_name_key") {
@@ -273,6 +283,24 @@ mod tests {
         assert!(json["services"].as_array().unwrap().len() >= 2);
         assert_eq!(json["services"][0]["id"], "postgres");
         assert_eq!(json["services"][1]["id"], "toolbox");
+    }
+
+    #[tokio::test]
+    async fn database_json_without_db_is_unavailable() {
+        let id = Uuid::from_u128(1);
+        let resp = test_router()
+            .oneshot(
+                Request::get(format!(
+                    "/api/databases/{id}/json?schema=public&table=messages&limit=0"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let json = body_json(resp).await;
+        assert!(json["error"].as_str().unwrap().contains("postgres"));
     }
 
     #[tokio::test]

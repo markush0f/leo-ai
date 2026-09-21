@@ -2,6 +2,7 @@ use leo_llm::ProviderId;
 use leo_store::{
     ConversationRow, DatabaseConnectionRow, DbOp, EngineRole, MessageRow, ProviderRow, Snapshot,
 };
+use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -99,6 +100,48 @@ pub struct DatabaseInput {
     pub password: Option<String>,
     pub ssl_mode: String,
     pub enabled: bool,
+}
+
+/// Filtros de `GET /api/databases/{id}/json`.
+///
+/// `schema` y `table` aceptan un valor o una lista separada por comas.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct DatabaseExportRequest {
+    #[serde(default, rename = "schema", deserialize_with = "one_or_many")]
+    pub schemas: Vec<String>,
+    #[serde(default, rename = "table", deserialize_with = "one_or_many")]
+    pub tables: Vec<String>,
+    #[serde(default)]
+    pub limit: Option<u64>,
+    #[serde(default)]
+    pub views: bool,
+}
+
+fn one_or_many<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum OneOrMany {
+        Many(Vec<String>),
+        One(String),
+    }
+
+    let values = match OneOrMany::deserialize(deserializer)? {
+        OneOrMany::Many(values) => values,
+        OneOrMany::One(value) => vec![value],
+    };
+    Ok(values
+        .into_iter()
+        .flat_map(|value| {
+            value
+                .split(',')
+                .map(|part| part.trim().to_string())
+                .filter(|part| !part.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .collect())
 }
 
 #[derive(Debug, Clone, Serialize)]

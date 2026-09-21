@@ -7,6 +7,7 @@ description = "Chat y catálogo compartidos por Tauri y leo-server"
 
 [dependencies]
 leo-llm.workspace = true
+leo-pgjson.workspace = true
 leo-store.workspace = true
 leo-tools.workspace = true
 leo-tools-db.workspace = true
