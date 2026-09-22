@@ -1,4 +1,4 @@
-# Leo
+# Ira
 
 Local-first assistant for Linux with terminal, Telegram, and desktop chat interfaces.
 Chat supports Grok, GPT, Ollama, and Claude through a shared provider catalog and
@@ -29,27 +29,27 @@ From the repository root:
 cp .env.example .env
 git submodule update --init third_party/mcp-toolbox
 docker compose up -d postgres toolbox
-cargo run -p leo-tui --bin leo
+cargo run -p ira-tui --bin ira
 ```
 
 Set credentials in `.env` or the provider catalog. Use the TUI's settings to
 select a provider and model. PostgreSQL stores providers, models, engines,
 settings, secrets, and conversation history.
 
-Database URL precedence is `LEO_DATABASE_URL`, then `DATABASE_URL`, then
-`postgres://leo:leo@127.0.0.1:5439/leo?sslmode=disable`.
+Database URL precedence is `IRA_DATABASE_URL`, then `DATABASE_URL`, then
+`postgres://ira:ira@127.0.0.1:5439/ira?sslmode=disable`.
 
 Chat queries databases through a **local** MCP Toolbox container, not a hosted
 server. Compose builds `deploy/toolbox/Dockerfile` from the submodule
 `third_party/mcp-toolbox` (tag `v1.11.0`) and publishes `127.0.0.1:5000`.
 
-Set `MCP_TOOLBOX_URL=http://127.0.0.1:5000`. If `LEO_MASTER_KEY` is unset,
-Leo creates `.leo/master.key` on first use and reuses it. The web
-panel writes encrypted PostgreSQL credentials to Leo's catalog and renders the
-enabled connections into `.leo/toolbox` for Toolbox hot reload. Database users
+Set `MCP_TOOLBOX_URL=http://127.0.0.1:5000`. If `IRA_MASTER_KEY` is unset,
+Ira creates `.ira/master.key` on first use and reuses it. The web
+panel writes encrypted PostgreSQL credentials to Ira's catalog and renders the
+enabled connections into `.ira/toolbox` for Toolbox hot reload. Database users
 must have read-only grants; the session default alone is not an authorization
 boundary. Use `host.docker.internal` for PostgreSQL running on the Docker host.
-Set `LEO_UID` and `LEO_GID` when Leo writes runtime files under a user other
+Set `IRA_UID` and `IRA_GID` when Ira writes runtime files under a user other
 than `1000:1000`.
 
 ## Run desktop chat
@@ -57,17 +57,17 @@ than `1000:1000`.
 Para arrancar Postgres, MCP Toolbox, la API y el frontend web con un solo comando:
 
 ```sh
-./scripts/start-leo.sh
+./scripts/start-ira.sh
 ```
 
 El script espera a que los contenedores estén sanos, instala las dependencias
 del frontend cuando faltan y abre los servicios en `127.0.0.1`. Los contenedores
 permanecen activos al cerrar el frontend.
 
-Leo Realtime también arranca solo:
+Ira Realtime también arranca solo:
 
 ```sh
-./scripts/start-leo-realtime.sh
+./scripts/start-ira-realtime.sh
 ```
 
 Run these commands from `desktop/`:
@@ -79,7 +79,7 @@ npm run desktop
 
 ## Run in the browser
 
-The browser cannot call Ollama directly (CORS). `leo-server` is the HTTP face
+The browser cannot call Ollama directly (CORS). `ira-server` is the HTTP face
 of the same catalog: it talks to PostgreSQL and to Ollama (or Grok, GPT, Claude)
 on the machine where it runs.
 
@@ -89,15 +89,15 @@ From `desktop/`, with PostgreSQL up:
 npm run web
 ```
 
-That starts `leo-server` on `127.0.0.1:8787` and Vite on `5179` (proxying `/api`).
+That starts `ira-server` on `127.0.0.1:8787` and Vite on `5179` (proxying `/api`).
 Open `http://127.0.0.1:5179`. The launcher fails safely when either port is
-occupied (`LEO_DEV_PORT` / `LEO_HTTP_PORT` override them).
+occupied (`IRA_DEV_PORT` / `IRA_HTTP_PORT` override them).
 
 To listen on the LAN (phone, another computer):
 
 ```sh
 npm run build
-LEO_HTTP_BIND=0.0.0.0:8787 cargo run -p leo-server
+IRA_HTTP_BIND=0.0.0.0:8787 cargo run -p ira-server
 ```
 
 Then open `http://<esta-máquina>:8787`. Binding off loopback lets anyone on that
@@ -109,7 +109,7 @@ Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOW_USERS` in Postgres settings, the
 environment, or `.env`, then run:
 
 ```sh
-cargo run -p leo-telegram
+cargo run -p ira-telegram
 ```
 
 The allowlist is required: an empty list allows nobody. Plain text reaches the
@@ -117,7 +117,7 @@ model in private chats; groups accept commands only. `/help` lists commands.
 
 ## Voice (later)
 
-`leo-daemon` and `leo-ctl` remain in the workspace. They are not wired into
+`ira-daemon` and `ira-ctl` remain in the workspace. They are not wired into
 TUI, Telegram, or desktop. Do not run them as part of the current product.
 
 ## Development checks
@@ -125,7 +125,7 @@ TUI, Telegram, or desktop. Do not run them as part of the current product.
 ```sh
 cargo fmt --all -- --check
 cargo doc --workspace --no-deps
-cargo test -p leo-audio -p leo-vad -p leo-stt -p leo-core -p leo-llm -p leo-tools -p leo-tools-db -p leo-api -p leo-server
+cargo test -p ira-audio -p ira-vad -p ira-stt -p ira-core -p ira-llm -p ira-tools -p ira-tools-db -p ira-api -p ira-server
 ```
 
 Run `npm run build` from `desktop/` to type-check and bundle the frontend.

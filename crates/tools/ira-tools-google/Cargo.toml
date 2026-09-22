@@ -1,0 +1,13 @@
+[package]
+name = "ira-tools-google"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tools de Google Calendar"
+
+[dependencies]
+ira-llm.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

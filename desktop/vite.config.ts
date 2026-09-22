@@ -26,7 +26,7 @@ export default defineConfig(() => ({
       : undefined,
     proxy: {
       "/api": {
-        target: process.env.LEO_API_PROXY || "http://127.0.0.1:8787",
+        target: process.env.IRA_API_PROXY || "http://127.0.0.1:8787",
         changeOrigin: true,
       },
     },

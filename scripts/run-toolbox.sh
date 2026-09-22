@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Build and run the MCP Toolbox container against Leo's Postgres.
+# Build and run the MCP Toolbox container against Ira's Postgres.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-export LEO_UID="${LEO_UID:-$(id -u)}"
-export LEO_GID="${LEO_GID:-$(id -g)}"
+export IRA_UID="${IRA_UID:-$(id -u)}"
+export IRA_GID="${IRA_GID:-$(id -g)}"
 src="$root/third_party/mcp-toolbox"
 
 if [[ ! -f "$src/go.mod" ]]; then

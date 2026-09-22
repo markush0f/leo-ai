@@ -1,0 +1,19 @@
+[package]
+name = "ira-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Máquina de sesión: wake, VAD, barge-in, STT/TTS"
+
+[dependencies]
+thiserror.workspace = true
+tracing.workspace = true
+ira-audio.workspace = true
+ira-vad.workspace = true
+ira-wake.workspace = true
+ira-stt.workspace = true
+ira-tts.workspace = true
+
+[dev-dependencies]
+ira-audio.workspace = true
+ira-vad.workspace = true

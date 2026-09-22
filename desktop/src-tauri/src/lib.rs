@@ -1,17 +1,17 @@
-//! Native bridge for the React desktop application (`leo_desktop_lib`).
+//! Native bridge for the React desktop application (`ira_desktop_lib`).
 //!
-//! Tauri commands forward to [`leo_api::App`], the same service `leo-server`
+//! Tauri commands forward to [`ira_api::App`], the same service `ira-server`
 //! exposes over HTTP. Provider secrets stay behind the DTO boundary: the
 //! frontend receives only availability status (`db` / `env` / `falta` / `none`).
 //! `services` / `start_services` run Docker Compose for Postgres and Toolbox.
-//! Voice is deferred: this surface does not control `leo-daemon`.
+//! Voice is deferred: this surface does not control `ira-daemon`.
 //!
 //! # Workspace crates
 //!
-//! - [`leo_api`] — catalog DTOs, local conversations, and chat with the tool
-//!   loop. Setup is [`leo_api::App::boot`].
+//! - [`ira_api`] — catalog DTOs, local conversations, and chat with the tool
+//!   loop. Setup is [`ira_api::App::boot`].
 
-use leo_api::{
+use ira_api::{
     App, ChatOut, CodexLoginDto, ConversationDto, Op, ServicesDto, SnapshotDto, TurnDto,
 };
 use tauri::Manager;

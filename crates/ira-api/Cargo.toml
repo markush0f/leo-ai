@@ -1,0 +1,23 @@
+[package]
+name = "ira-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Chat y catálogo compartidos por Tauri y ira-server"
+
+[dependencies]
+ira-llm.workspace = true
+ira-pgjson.workspace = true
+ira-store.workspace = true
+ira-tools.workspace = true
+ira-tools-db.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+sqlx.workspace = true
+tokio = { workspace = true, features = ["sync", "process", "time", "io-util"] }
+uuid.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }

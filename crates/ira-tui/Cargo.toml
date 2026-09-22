@@ -1,0 +1,22 @@
+[package]
+name = "ira-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TUI mínima para hablar con el LLM"
+
+[[bin]]
+name = "ira"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+crossterm.workspace = true
+futures.workspace = true
+ira-llm.workspace = true
+ira-store.workspace = true
+ira-tools.workspace = true
+ratatui.workspace = true
+sqlx.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time"] }
+uuid.workspace = true

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Leo",
+  "productName": "Ira",
   "version": "0.1.0",
-  "identifier": "ai.leo.desktop",
+  "identifier": "ai.ira.desktop",
   "build": {
     "beforeDevCommand": "npm run web",
     "devUrl": "http://localhost:5179",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Leo",
+        "title": "Ira",
         "width": 1200,
         "height": 800,
         "minWidth": 720,

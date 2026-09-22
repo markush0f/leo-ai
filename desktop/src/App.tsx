@@ -1,7 +1,7 @@
 /**
  * Desktop shell coordinating chat history, catalog edits, host services, and theme.
  * Model history is separate from display bubbles so UI errors are not sent back
- * as assistant replies. Service calls go through `api.ts` (Tauri or leo-server).
+ * as assistant replies. Service calls go through `api.ts` (Tauri or ira-server).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -59,7 +59,7 @@ function turnsToBubbles(turns: Turn[]): Bubble[] {
   const out: Bubble[] = [];
   for (const t of turns) {
     if (t.role === "user") out.push({ id: t.id, kind: "user", text: t.content });
-    else if (t.role === "assistant") out.push({ id: t.id, kind: "leo", text: t.content });
+    else if (t.role === "assistant") out.push({ id: t.id, kind: "ira", text: t.content });
     else if (t.role === "error") out.push({ id: t.id, kind: "error", text: t.content });
   }
   return out;
@@ -83,7 +83,7 @@ export default function App() {
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [voicePhase, setVoicePhase] = useState<VoicePhase>("connect");
   const [voiceUser, setVoiceUser] = useState("");
-  const [voiceLeo, setVoiceLeo] = useState("");
+  const [voiceIra, setVoiceIra] = useState("");
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLTextAreaElement>(null);
@@ -91,7 +91,7 @@ export default function App() {
   const voiceBusy = useRef(false);
   const voiceSpeaking = useRef(false);
   const voiceLevel = useRef(0);
-  const leoVoiceBubble = useRef<string | null>(null);
+  const iraVoiceBubble = useRef<string | null>(null);
   const voiceHangup = useRef(false);
 
   const refresh = useCallback(async () => {
@@ -125,7 +125,7 @@ export default function App() {
           { id: "d1", kind: "user", text: "¿qué tiempo hace en Madrid?" },
           {
             id: "d2",
-            kind: "leo",
+            kind: "ira",
             text: "En Madrid ahora hay **22 °C** y cielo despejado.\n\n- Mañana: 20 °C\n- Tarde: **17 °C**\n\n`get_weather` cubre más ciudades.",
           },
         ]);
@@ -175,12 +175,12 @@ export default function App() {
     voiceBusy.current = false;
     voiceSpeaking.current = false;
     voiceLevel.current = 0;
-    leoVoiceBubble.current = null;
+    iraVoiceBubble.current = null;
     setListening(false);
     setVoiceOpen(false);
     setVoicePhase("connect");
     setVoiceUser("");
-    setVoiceLeo("");
+    setVoiceIra("");
     setVoiceError(null);
   }, []);
 
@@ -228,7 +228,7 @@ export default function App() {
     setBusy(true);
     try {
       const reply = await sendChat(conversationId, text);
-      setBubbles((b) => [...b, { id: uid(), kind: "leo", text: reply }]);
+      setBubbles((b) => [...b, { id: uid(), kind: "ira", text: reply }]);
       setChats(await listChats());
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -248,9 +248,9 @@ export default function App() {
     setVoiceOpen(true);
     setVoicePhase("connect");
     setVoiceUser("");
-    setVoiceLeo("");
+    setVoiceIra("");
     setVoiceError(null);
-    leoVoiceBubble.current = null;
+    iraVoiceBubble.current = null;
     try {
       setListening(true);
       voiceRef.current = await startVoice(conversationId, {
@@ -259,25 +259,25 @@ export default function App() {
           if (!final) return false;
           if (voiceBusy.current) return false;
           voiceBusy.current = true;
-          leoVoiceBubble.current = null;
-          setVoiceLeo("");
+          iraVoiceBubble.current = null;
+          setVoiceIra("");
           setVoicePhase("wait");
           setBubbles((b) => [...b, { id: uid(), kind: "user", text }]);
           setBusy(true);
           return true;
         },
         onReply: (text) => {
-          setVoiceLeo((prev) => mergeReply(prev, text));
+          setVoiceIra((prev) => mergeReply(prev, text));
           setBubbles((b) => {
-            const id = leoVoiceBubble.current;
+            const id = iraVoiceBubble.current;
             if (id) {
               return b.map((bubble) =>
                 bubble.id === id ? { ...bubble, text: mergeReply(bubble.text, text) } : bubble,
               );
             }
             const created = uid();
-            leoVoiceBubble.current = created;
-            return [...b, { id: created, kind: "leo", text }];
+            iraVoiceBubble.current = created;
+            return [...b, { id: created, kind: "ira", text }];
           });
           setBusy(false);
           if (!voiceSpeaking.current) voiceBusy.current = false;
@@ -412,7 +412,7 @@ export default function App() {
         value={input}
         rows={1}
         disabled={(!snap && !boot) || listening}
-        placeholder={listening ? "Te escucho…" : snap ? "Pregúntale a Leo" : "sin catálogo"}
+        placeholder={listening ? "Te escucho…" : snap ? "Pregúntale a Ira" : "sin catálogo"}
         aria-label="mensaje"
         onChange={(e) => {
           setInput(e.target.value);
@@ -471,7 +471,7 @@ export default function App() {
           disabled={!canTalk}
           aria-pressed={listening}
           aria-label={listening ? "dejar de hablar" : "hablar"}
-          title={listening ? "Dejar de hablar" : "Hablar con Leo"}
+          title={listening ? "Dejar de hablar" : "Hablar con Ira"}
           onClick={() => void talk()}
         >
           <IconMic />
@@ -501,7 +501,7 @@ export default function App() {
 
       <aside className="rail" aria-label="navegación">
         <div className="rail-top">
-          <p className="brand">Leo</p>
+          <p className="brand">Ira</p>
           <button type="button" className="btn-ghost rail-close" onClick={() => setRail(false)}>
             <IconClose />
           </button>
@@ -570,7 +570,7 @@ export default function App() {
             <IconMenu />
           </button>
           <p className="top-model">
-            {model ? `${model.name}` : "Leo"}
+            {model ? `${model.name}` : "Ira"}
             {provider ? <span> · {provider.name}</span> : null}
           </p>
           <button
@@ -590,7 +590,7 @@ export default function App() {
               <p>
                 {boot
                   ? boot
-                  : `Leo está listo${model ? ` · ${model.name}` : ""}${
+                  : `Ira está listo${model ? ` · ${model.name}` : ""}${
                       snap?.tools.length ? ` · ${snap.tools.length} tools` : ""
                     }`}
               </p>
@@ -610,17 +610,17 @@ export default function App() {
               {bubbles.map((b) => (
                 <article key={b.id} className={`turn ${b.kind}`}>
                   {b.kind !== "user" && (
-                    <span className="who">{b.kind === "error" ? "error" : "Leo"}</span>
+                    <span className="who">{b.kind === "error" ? "error" : "Ira"}</span>
                   )}
                   <div className={`bubble ${b.kind}`}>
-                    {b.kind === "leo" ? <Markdown text={b.text} /> : <p>{b.text}</p>}
+                    {b.kind === "ira" ? <Markdown text={b.text} /> : <p>{b.text}</p>}
                   </div>
                 </article>
               ))}
               {busy && (
-                <article className="turn leo" aria-live="polite">
-                  <span className="who">Leo</span>
-                  <div className="bubble leo load">
+                <article className="turn ira" aria-live="polite">
+                  <span className="who">Ira</span>
+                  <div className="bubble ira load">
                     <span className="dots" />
                     {thinking ? "razonando" : "pensando"}
                   </div>
@@ -659,7 +659,7 @@ export default function App() {
         <VoiceStage
           phase={voicePhase}
           userText={voiceUser}
-          leoText={voiceLeo}
+          iraText={voiceIra}
           error={voiceError}
           levelRef={voiceLevel}
           onHangup={stopVoice}

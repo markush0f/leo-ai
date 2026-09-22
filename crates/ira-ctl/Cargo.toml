@@ -1,0 +1,11 @@
+[package]
+name = "ira-ctl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cliente de control del daemon Ira"
+
+[dependencies]
+clap.workspace = true
+ira-ipc.workspace = true
+tokio = { workspace = true, features = ["rt"] }

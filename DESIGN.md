@@ -1,5 +1,5 @@
 ---
-name: Leo
+name: Ira
 description: Grok-style chat — rail, empty canvas, composer — in light and dark themes.
 colors:
   bg: "#0c0c0d"
@@ -50,13 +50,13 @@ components:
     padding: "0.5rem 0.85rem"
 ---
 
-# Design System: Leo
+# Design System: Ira
 
 ## Overview
 
-**Creative North Star: "Grok's shell, Leo's voice"**
+**Creative North Star: "Grok's shell, Ira's voice"**
 
-The window follows Grok's chat flow: a left rail, a calm empty canvas with "Hola", a floating composer that docks to the bottom after the first turn. User turns sit in a right-aligned bubble; Leo answers as plain text on the left.
+The window follows Grok's chat flow: a left rail, a calm empty canvas with "Hola", a floating composer that docks to the bottom after the first turn. User turns sit in a right-aligned bubble; Ira answers as plain text on the left.
 
 Light and dark are first-class. Dark is charcoal like GrokNight; light is paper like GrokDay. Buttons are a small vocabulary you can tell apart at a glance.
 
@@ -95,7 +95,7 @@ Neutral surfaces, one accent, semantic action colors.
 
 ### Hierarchy
 - **Hero** (650, 2.4rem): Hola
-- **Brand** (650, 1.25rem): Leo
+- **Brand** (650, 1.25rem): Ira
 - **Body** (450, 16px, max 48rem): messages
 - **Label** (600, 0.9rem): buttons and fields
 

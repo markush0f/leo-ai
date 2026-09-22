@@ -489,7 +489,7 @@ button:disabled {
   font-weight: 500;
 }
 
-.bubble.leo {
+.bubble.ira {
   color: var(--text);
 }
 
@@ -852,7 +852,7 @@ button:disabled {
 }
 
 .voice-you,
-.voice-leo {
+.voice-ira {
   margin: 0 auto 0.35rem;
   max-width: 36ch;
   color: var(--muted);
@@ -860,7 +860,7 @@ button:disabled {
   line-height: 1.45;
 }
 
-.voice-leo {
+.voice-ira {
   color: var(--text);
   font-weight: 450;
 }

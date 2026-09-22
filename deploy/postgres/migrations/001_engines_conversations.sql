@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS secrets (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS voice_system_prompt TEXT NOT NULL DEFAULT 'Eres Leo, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta.';
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS voice_system_prompt TEXT NOT NULL DEFAULT 'Eres Ira, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta.';
 ALTER TABLE settings ADD COLUMN IF NOT EXISTS stt_engine_id UUID REFERENCES engines (id) ON DELETE SET NULL;
 ALTER TABLE settings ADD COLUMN IF NOT EXISTS tts_engine_id UUID REFERENCES engines (id) ON DELETE SET NULL;
 ALTER TABLE settings ADD COLUMN IF NOT EXISTS wake_engine_id UUID REFERENCES engines (id) ON DELETE SET NULL;

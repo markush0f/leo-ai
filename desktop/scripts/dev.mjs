@@ -3,8 +3,8 @@ import net from "node:net";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-const PORT = Number(process.env.LEO_DEV_PORT || 5179);
-const API_PORT = Number(process.env.LEO_HTTP_PORT || 8787);
+const PORT = Number(process.env.IRA_DEV_PORT || 5179);
+const API_PORT = Number(process.env.IRA_HTTP_PORT || 8787);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 function requireFreePort(port) {
@@ -22,8 +22,8 @@ function requireFreePort(port) {
 
 await Promise.all([requireFreePort(PORT), requireFreePort(API_PORT)]);
 
-const apiBind = process.env.LEO_HTTP_BIND || `127.0.0.1:${API_PORT}`;
-const server = spawn("cargo", ["run", "-p", "leo-server", "--", "--bind", apiBind], {
+const apiBind = process.env.IRA_HTTP_BIND || `127.0.0.1:${API_PORT}`;
+const server = spawn("cargo", ["run", "-p", "ira-server", "--", "--bind", apiBind], {
   cwd: ROOT,
   stdio: ["ignore", "inherit", "inherit"],
   shell: false,

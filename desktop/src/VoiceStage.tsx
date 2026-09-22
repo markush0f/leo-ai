@@ -6,7 +6,7 @@ export type VoicePhase = "connect" | "listen" | "wait" | "speak" | "error";
 type Props = {
   phase: VoicePhase;
   userText: string;
-  leoText: string;
+  iraText: string;
   error: string | null;
   levelRef: MutableRefObject<number>;
   onHangup: () => void;
@@ -15,12 +15,12 @@ type Props = {
 const STATUS: Record<VoicePhase, string> = {
   connect: "Conectando…",
   listen: "Te escucho",
-  wait: "Leo piensa",
-  speak: "Leo habla",
+  wait: "Ira piensa",
+  speak: "Ira habla",
   error: "No pude hablar",
 };
 
-export function VoiceStage({ phase, userText, leoText, error, levelRef, onHangup }: Props) {
+export function VoiceStage({ phase, userText, iraText, error, levelRef, onHangup }: Props) {
   const orbRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,9 +52,9 @@ export function VoiceStage({ phase, userText, leoText, error, levelRef, onHangup
           {error ?? STATUS[phase]}
         </p>
         {userText ? <p className="voice-you">{userText}</p> : null}
-        {leoText ? (
-          <p className="voice-leo" aria-live="polite">
-            {leoText}
+        {iraText ? (
+          <p className="voice-ira" aria-live="polite">
+            {iraText}
           </p>
         ) : null}
         <button type="button" className="btn-danger voice-hangup" autoFocus onClick={onHangup}>

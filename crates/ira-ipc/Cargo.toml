@@ -1,0 +1,12 @@
+[package]
+name = "ira-ipc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Protocolo JSON por socket UNIX entre ira-daemon y ira-ctl"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true

@@ -1,0 +1,8 @@
+[package]
+name = "ira-tools-notion"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tools de Notion (pendiente)"
+
+[dependencies]

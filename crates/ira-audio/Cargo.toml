@@ -1,0 +1,10 @@
+[package]
+name = "ira-audio"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Captura y reproducción de audio (Pulse/PipeWire) con barge-in"
+
+[dependencies]
+thiserror.workspace = true
+tracing.workspace = true

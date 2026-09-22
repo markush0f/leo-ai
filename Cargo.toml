@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/leo-*", "crates/tools/*", "desktop/src-tauri"]
+members = ["crates/ira-*", "crates/tools/*", "desktop/src-tauri"]
 
 [workspace.package]
 version = "0.1.0"
@@ -49,25 +49,25 @@ url = "2"
 axum = "0.8"
 tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
 serde_yaml = "0.9"
-leo-api = { path = "crates/leo-api" }
-leo-audio = { path = "crates/leo-audio" }
-leo-llm = { path = "crates/leo-llm" }
-leo-vad = { path = "crates/leo-vad" }
-leo-wake = { path = "crates/leo-wake" }
-leo-stt = { path = "crates/leo-stt" }
-leo-tts = { path = "crates/leo-tts" }
-leo-core = { path = "crates/leo-core" }
-leo-engine = { path = "crates/leo-engine" }
-leo-ipc = { path = "crates/leo-ipc" }
-leo-store = { path = "crates/leo-store" }
-leo-tools = { path = "crates/leo-tools" }
-leo-tools-appflowy = { path = "crates/tools/leo-tools-appflowy" }
-leo-tools-db = { path = "crates/tools/leo-tools-db" }
-leo-tools-files = { path = "crates/tools/leo-tools-files" }
-leo-tools-github = { path = "crates/tools/leo-tools-github" }
-leo-tools-google = { path = "crates/tools/leo-tools-google" }
-leo-tools-home-assistant = { path = "crates/tools/leo-tools-home-assistant" }
-leo-tools-shell = { path = "crates/tools/leo-tools-shell" }
-leo-tools-system = { path = "crates/tools/leo-tools-system" }
-leo-tools-weather = { path = "crates/tools/leo-tools-weather" }
-leo-pgjson = { path = "crates/leo-pgjson" }
+ira-api = { path = "crates/ira-api" }
+ira-audio = { path = "crates/ira-audio" }
+ira-llm = { path = "crates/ira-llm" }
+ira-vad = { path = "crates/ira-vad" }
+ira-wake = { path = "crates/ira-wake" }
+ira-stt = { path = "crates/ira-stt" }
+ira-tts = { path = "crates/ira-tts" }
+ira-core = { path = "crates/ira-core" }
+ira-engine = { path = "crates/ira-engine" }
+ira-ipc = { path = "crates/ira-ipc" }
+ira-store = { path = "crates/ira-store" }
+ira-tools = { path = "crates/ira-tools" }
+ira-tools-appflowy = { path = "crates/tools/ira-tools-appflowy" }
+ira-tools-db = { path = "crates/tools/ira-tools-db" }
+ira-tools-files = { path = "crates/tools/ira-tools-files" }
+ira-tools-github = { path = "crates/tools/ira-tools-github" }
+ira-tools-google = { path = "crates/tools/ira-tools-google" }
+ira-tools-home-assistant = { path = "crates/tools/ira-tools-home-assistant" }
+ira-tools-shell = { path = "crates/tools/ira-tools-shell" }
+ira-tools-system = { path = "crates/tools/ira-tools-system" }
+ira-tools-weather = { path = "crates/tools/ira-tools-weather" }
+ira-pgjson = { path = "crates/ira-pgjson" }

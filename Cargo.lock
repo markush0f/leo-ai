@@ -2482,6 +2482,379 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "791930b43c0d5973160d90a8f3894509f2b273430f5c5c73b668636d0287c5c0"
 
 [[package]]
+name = "ira-agent"
+version = "0.1.0"
+dependencies = [
+ "agent-code-lib",
+]
+
+[[package]]
+name = "ira-api"
+version = "0.1.0"
+dependencies = [
+ "ira-llm",
+ "ira-pgjson",
+ "ira-store",
+ "ira-tools",
+ "ira-tools-db",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "ira-audio"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.20",
+ "tracing",
+]
+
+[[package]]
+name = "ira-core"
+version = "0.1.0"
+dependencies = [
+ "ira-audio",
+ "ira-stt",
+ "ira-tts",
+ "ira-vad",
+ "ira-wake",
+ "thiserror 2.0.20",
+ "tracing",
+]
+
+[[package]]
+name = "ira-ctl"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "ira-ipc",
+ "tokio",
+]
+
+[[package]]
+name = "ira-daemon"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+ "ira-audio",
+ "ira-core",
+ "ira-ipc",
+ "ira-llm",
+ "ira-store",
+ "ira-stt",
+ "ira-tts",
+ "ira-vad",
+ "ira-wake",
+ "serde",
+ "sqlx",
+ "thiserror 2.0.20",
+ "tokio",
+ "toml 0.8.2",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "ira-desktop"
+version = "0.1.0"
+dependencies = [
+ "ira-api",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "uuid",
+]
+
+[[package]]
+name = "ira-engine"
+version = "0.1.0"
+
+[[package]]
+name = "ira-ipc"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
+name = "ira-llm"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "dotenvy",
+ "getrandom 0.3.4",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.20",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "ira-pgjson"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
+name = "ira-server"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "clap",
+ "http-body-util",
+ "ira-api",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "ira-store"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "chacha20poly1305",
+ "getrandom 0.3.4",
+ "ira-llm",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.20",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "ira-stt"
+version = "0.1.0"
+dependencies = [
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "ira-telegram"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "dirs",
+ "ira-llm",
+ "ira-store",
+ "ira-tools",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.20",
+ "tokio",
+ "toml 0.8.2",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "ira-tools"
+version = "0.1.0"
+dependencies = [
+ "ira-llm",
+ "ira-tools-appflowy",
+ "ira-tools-db",
+ "ira-tools-files",
+ "ira-tools-github",
+ "ira-tools-google",
+ "ira-tools-home-assistant",
+ "ira-tools-shell",
+ "ira-tools-system",
+ "ira-tools-weather",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "ira-tools-appflowy"
+version = "0.1.0"
+dependencies = [
+ "ira-llm",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
+name = "ira-tools-db"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "ira-llm",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
+name = "ira-tools-files"
+version = "0.1.0"
+dependencies = [
+ "ira-llm",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
+name = "ira-tools-github"
+version = "0.1.0"
+dependencies = [
+ "ira-llm",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "ira-tools-google"
+version = "0.1.0"
+dependencies = [
+ "ira-llm",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "ira-tools-home-assistant"
+version = "0.1.0"
+dependencies = [
+ "ira-llm",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "ira-tools-notion"
+version = "0.1.0"
+
+[[package]]
+name = "ira-tools-shell"
+version = "0.1.0"
+dependencies = [
+ "ira-llm",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
+name = "ira-tools-spotify"
+version = "0.1.0"
+
+[[package]]
+name = "ira-tools-system"
+version = "0.1.0"
+dependencies = [
+ "ira-llm",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
+name = "ira-tools-weather"
+version = "0.1.0"
+dependencies = [
+ "ira-llm",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "ira-tts"
+version = "0.1.0"
+dependencies = [
+ "ira-audio",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "ira-tui"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "crossterm 0.28.1",
+ "futures",
+ "ira-llm",
+ "ira-store",
+ "ira-tools",
+ "ratatui",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "ira-vad"
+version = "0.1.0"
+dependencies = [
+ "ira-audio",
+ "thiserror 2.0.20",
+ "webrtc-vad",
+]
+
+[[package]]
+name = "ira-wake"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.20",
+ "tracing",
+]
+
+[[package]]
 name = "is-docker"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2703,379 +3076,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 dependencies = [
  "spin",
-]
-
-[[package]]
-name = "leo-agent"
-version = "0.1.0"
-dependencies = [
- "agent-code-lib",
-]
-
-[[package]]
-name = "leo-api"
-version = "0.1.0"
-dependencies = [
- "leo-llm",
- "leo-pgjson",
- "leo-store",
- "leo-tools",
- "leo-tools-db",
- "serde",
- "serde_json",
- "serde_yaml",
- "sqlx",
- "tokio",
- "uuid",
-]
-
-[[package]]
-name = "leo-audio"
-version = "0.1.0"
-dependencies = [
- "thiserror 2.0.20",
- "tracing",
-]
-
-[[package]]
-name = "leo-core"
-version = "0.1.0"
-dependencies = [
- "leo-audio",
- "leo-stt",
- "leo-tts",
- "leo-vad",
- "leo-wake",
- "thiserror 2.0.20",
- "tracing",
-]
-
-[[package]]
-name = "leo-ctl"
-version = "0.1.0"
-dependencies = [
- "clap",
- "leo-ipc",
- "tokio",
-]
-
-[[package]]
-name = "leo-daemon"
-version = "0.1.0"
-dependencies = [
- "dirs",
- "leo-audio",
- "leo-core",
- "leo-ipc",
- "leo-llm",
- "leo-store",
- "leo-stt",
- "leo-tts",
- "leo-vad",
- "leo-wake",
- "serde",
- "sqlx",
- "thiserror 2.0.20",
- "tokio",
- "toml 0.8.2",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
-name = "leo-desktop"
-version = "0.1.0"
-dependencies = [
- "leo-api",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
- "uuid",
-]
-
-[[package]]
-name = "leo-engine"
-version = "0.1.0"
-
-[[package]]
-name = "leo-ipc"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "tokio",
-]
-
-[[package]]
-name = "leo-llm"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "dotenvy",
- "getrandom 0.3.4",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "thiserror 2.0.20",
- "tokio",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "leo-pgjson"
-version = "0.1.0"
-dependencies = [
- "clap",
- "serde",
- "serde_json",
- "sqlx",
- "thiserror 2.0.20",
- "tokio",
-]
-
-[[package]]
-name = "leo-server"
-version = "0.1.0"
-dependencies = [
- "axum",
- "clap",
- "http-body-util",
- "leo-api",
- "serde",
- "serde_json",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
-name = "leo-store"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "chacha20poly1305",
- "getrandom 0.3.4",
- "leo-llm",
- "serde_json",
- "sqlx",
- "thiserror 2.0.20",
- "tokio",
- "uuid",
-]
-
-[[package]]
-name = "leo-stt"
-version = "0.1.0"
-dependencies = [
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "leo-telegram"
-version = "0.1.0"
-dependencies = [
- "clap",
- "dirs",
- "leo-llm",
- "leo-store",
- "leo-tools",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "sqlx",
- "thiserror 2.0.20",
- "tokio",
- "toml 0.8.2",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
-name = "leo-tools"
-version = "0.1.0"
-dependencies = [
- "leo-llm",
- "leo-tools-appflowy",
- "leo-tools-db",
- "leo-tools-files",
- "leo-tools-github",
- "leo-tools-google",
- "leo-tools-home-assistant",
- "leo-tools-shell",
- "leo-tools-system",
- "leo-tools-weather",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "leo-tools-appflowy"
-version = "0.1.0"
-dependencies = [
- "leo-llm",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "tokio",
-]
-
-[[package]]
-name = "leo-tools-db"
-version = "0.1.0"
-dependencies = [
- "axum",
- "leo-llm",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "tokio",
-]
-
-[[package]]
-name = "leo-tools-files"
-version = "0.1.0"
-dependencies = [
- "leo-llm",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "tokio",
-]
-
-[[package]]
-name = "leo-tools-github"
-version = "0.1.0"
-dependencies = [
- "leo-llm",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "leo-tools-google"
-version = "0.1.0"
-dependencies = [
- "leo-llm",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "leo-tools-home-assistant"
-version = "0.1.0"
-dependencies = [
- "leo-llm",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "leo-tools-notion"
-version = "0.1.0"
-
-[[package]]
-name = "leo-tools-shell"
-version = "0.1.0"
-dependencies = [
- "leo-llm",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "tokio",
-]
-
-[[package]]
-name = "leo-tools-spotify"
-version = "0.1.0"
-
-[[package]]
-name = "leo-tools-system"
-version = "0.1.0"
-dependencies = [
- "leo-llm",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "tokio",
-]
-
-[[package]]
-name = "leo-tools-weather"
-version = "0.1.0"
-dependencies = [
- "leo-llm",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "leo-tts"
-version = "0.1.0"
-dependencies = [
- "leo-audio",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "leo-tui"
-version = "0.1.0"
-dependencies = [
- "clap",
- "crossterm 0.28.1",
- "futures",
- "leo-llm",
- "leo-store",
- "leo-tools",
- "ratatui",
- "sqlx",
- "tokio",
- "uuid",
-]
-
-[[package]]
-name = "leo-vad"
-version = "0.1.0"
-dependencies = [
- "leo-audio",
- "thiserror 2.0.20",
- "webrtc-vad",
-]
-
-[[package]]
-name = "leo-wake"
-version = "0.1.0"
-dependencies = [
- "thiserror 2.0.20",
- "tracing",
 ]
 
 [[package]]

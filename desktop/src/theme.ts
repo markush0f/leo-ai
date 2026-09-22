@@ -1,7 +1,7 @@
 /** Theme values supported by CSS and persisted in browser storage. */
 export type Theme = "light" | "dark";
 
-const KEY = "leo-theme";
+const KEY = "ira-theme";
 
 /** Uses a saved preference first, then the operating system's color scheme. */
 export function readTheme(): Theme {

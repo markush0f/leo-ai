@@ -1,0 +1,10 @@
+[package]
+name = "ira-tts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Puerto de síntesis local (Piper/Kokoro) y tonos de fallback"
+
+[dependencies]
+thiserror.workspace = true
+ira-audio.workspace = true

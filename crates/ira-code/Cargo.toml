@@ -1,0 +1,9 @@
+[package]
+name = "ira-agent"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Agent runtime integration for Ira"
+
+[dependencies]
+agent-code-lib.workspace = true

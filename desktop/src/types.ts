@@ -1,6 +1,6 @@
 /**
  * Frontend contracts mirrored by the Rust DTOs in `src-tauri/src/lib.rs`.
- * Keep field names and tagged operation variants synchronized with `leo-api`.
+ * Keep field names and tagged operation variants synchronized with `ira-api`.
  */
 /** Credential availability only; never the actual provider secret. */
 export type KeyStatus = "db" | "env" | "falta" | "none";
@@ -114,7 +114,7 @@ export type ChatTurn = {
 
 export type Bubble = {
   id: string;
-  kind: "user" | "leo" | "error";
+  kind: "user" | "ira" | "error";
   text: string;
 };
 

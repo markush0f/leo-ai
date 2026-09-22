@@ -1,6 +1,6 @@
 # Architecture and crate map
 
-Leo is a Cargo workspace containing `crates/leo-*`, integration crates under
+Ira is a Cargo workspace containing `crates/ira-*`, integration crates under
 `crates/tools/*`, and the Tauri backend in `desktop/src-tauri`.
 
 ## Two execution paths
@@ -8,28 +8,28 @@ Leo is a Cargo workspace containing `crates/leo-*`, integration crates under
 ```text
 Chat
   TUI / Telegram / React → Tauri
-  React (browser) → leo-server
+  React (browser) → ira-server
           │                 │
           ├─────────────────┘
           ▼
-      leo-api → leo-store → PostgreSQL catalog
+      ira-api → ira-store → PostgreSQL catalog
           │
           ▼
-      leo-tools → integration crates
+      ira-tools → integration crates
           │
           ▼
-       leo-llm → provider HTTP API (Ollama, Grok, GPT, Claude)
+       ira-llm → provider HTTP API (Ollama, Grok, GPT, Claude)
 
 Voice
-  leo-ctl / Tauri → leo-ipc → leo-daemon
+  ira-ctl / Tauri → ira-ipc → ira-daemon
                                  │
-                             leo-core
+                             ira-core
                                  │
              capture → VAD → STT → LLM → TTS → playback
 ```
 
 Chat surfaces share the PostgreSQL catalog (providers, models, engines, settings)
-and conversation history. The browser uses `leo-server` so it can reach Ollama
+and conversation history. The browser uses `ira-server` so it can reach Ollama
 without CORS. Voice crates remain in the workspace but are not exposed in TUI,
 Telegram, desktop, or the browser until that work is scheduled.
 
@@ -37,17 +37,17 @@ Telegram, desktop, or the browser until that work is scheduled.
 
 | Crate / directory | Entry point | Responsibility |
 | --- | --- | --- |
-| `leo-tui` | `leo` | Ratatui chat and catalog editor. `app` owns state; `input` and `slash` route input; `settings` and `ui` handle editing and rendering. |
-| `leo-telegram` | `leo-telegram` | Long polling, allowlist enforcement, per-session history, and shared chat tools. Library routing is separate from `tg` HTTP transport. |
+| `ira-tui` | `ira` | Ratatui chat and catalog editor. `app` owns state; `input` and `slash` route input; `settings` and `ui` handle editing and rendering. |
+| `ira-telegram` | `ira-telegram` | Long polling, allowlist enforcement, per-session history, and shared chat tools. Library routing is separate from `tg` HTTP transport. |
 | `desktop/` | `npm run tauri dev` | React shell and native commands for chat and catalog editing. |
-| `leo-api` | library | Shared catalog DTOs and chat used by Tauri and `leo-server`. |
-| `leo-server` | `leo-server` | HTTP `/api` for the browser and other machines. Talks to Ollama from the server process. |
-| `leo-daemon` | `leo-daemon` | Voice process; deferred. Loads catalog and engines, serves Unix IPC. |
-| `leo-ctl` | `leo-ctl` | Voice CLI; deferred. |
+| `ira-api` | library | Shared catalog DTOs and chat used by Tauri and `ira-server`. |
+| `ira-server` | `ira-server` | HTTP `/api` for the browser and other machines. Talks to Ollama from the server process. |
+| `ira-daemon` | `ira-daemon` | Voice process; deferred. Loads catalog and engines, serves Unix IPC. |
+| `ira-ctl` | `ira-ctl` | Voice CLI; deferred. |
 
 ## Shared chat layer
 
-### `leo-store`: catalog persistence
+### `ira-store`: catalog persistence
 
 PostgreSQL stores providers, models, STT/TTS/wake engines, settings (including
 the active model and voice parameters), secrets, and conversations.
@@ -60,12 +60,12 @@ under `deploy/postgres/migrations/`.
 - `DbOp` represents edits; `apply` persists one operation and reloads the catalog.
 - `sync_ollama_providers` discovers models from configured Ollama providers.
   An unavailable provider is skipped; database errors can still propagate.
-- Empty API keys fall back to provider environment variables through `leo-llm`.
+- Empty API keys fall back to provider environment variables through `ira-llm`.
 
 Desktop DTOs expose credential status rather than actual key values. Do not pass
 internal database rows directly across the frontend boundary.
 
-### `leo-llm`: provider transport
+### `ira-llm`: provider transport
 
 `Client` owns provider settings and a reusable HTTP client. `ChatRequest`,
 `ChatResponse`, and tool types form the provider-independent contract.
@@ -80,7 +80,7 @@ internal database rows directly across the frontend boundary.
 transports tool calls but never executes them. `load_dotenv` loads environment
 defaults without overwriting exported variables.
 
-### `leo-tools`: tool orchestration
+### `ira-tools`: tool orchestration
 
 1. `Registry::from_env()` captures the execution context and registers available tools.
 2. `chat` supplies their schemas to the model.
@@ -98,7 +98,7 @@ does not canonicalize paths or provide a filesystem sandbox.
 ### Integration crates
 
 Operation modules generally pair `spec()` (model-facing JSON Schema) with
-`run(...)` (typed async execution). `leo-tools/src/catalog.rs` adapts raw JSON
+`run(...)` (typed async execution). `ira-tools/src/catalog.rs` adapts raw JSON
 arguments, resolves paths, and registers these implementations.
 
 | Crate suffix | Operations | Registration requirements |
@@ -118,7 +118,7 @@ arguments, resolves paths, and registers these implementations.
 
 Not wired into chat surfaces. Crates stay for a later pass.
 
-### `leo-core`: state machine and engine
+### `ira-core`: state machine and engine
 
 ```text
 idle → listening → recording → transcribing → thinking → speaking
@@ -137,21 +137,21 @@ reopen listening. Frame-based limits assume 20 ms blocks.
 
 | Crate | Contract and behavior |
 | --- | --- |
-| `leo-audio` | Pulse capture/playback at 48 kHz; capture emits 16 kHz mono frames. An eight-frame capture queue drops new frames when full. |
-| `leo-vad` | WebRTC VAD at 16 kHz with minimum speech and silence hangover thresholds. Detector stays on its owning thread. |
-| `leo-wake` | `WakeSpotter` extension point; the loader currently returns `NoopWake`. |
-| `leo-stt` | Synchronous `SttEngine`; Grok uploads mono PCM16 WAV, while `NullStt` returns no transcript. |
-| `leo-tts` | Synchronous `TtsEngine` returns mono PCM with a sample rate; `NullTts` generates a tone. |
+| `ira-audio` | Pulse capture/playback at 48 kHz; capture emits 16 kHz mono frames. An eight-frame capture queue drops new frames when full. |
+| `ira-vad` | WebRTC VAD at 16 kHz with minimum speech and silence hangover thresholds. Detector stays on its owning thread. |
+| `ira-wake` | `WakeSpotter` extension point; the loader currently returns `NoopWake`. |
+| `ira-stt` | Synchronous `SttEngine`; Grok uploads mono PCM16 WAV, while `NullStt` returns no transcript. |
+| `ira-tts` | Synchronous `TtsEngine` returns mono PCM with a sample rate; `NullTts` generates a tone. |
 
 `GrokStt` and the daemon's `BlockingLlm` bridge async HTTP with
 `tokio::runtime::Handle::block_on`. Call them from blocking threads while the
 runtime remains active, not from async tasks. Voice LLM requests contain the
 current user input and system prompt rather than persistent chat history.
 
-### `leo-ipc`: daemon control
+### `ira-ipc`: daemon control
 
-The Unix socket lives at `$XDG_RUNTIME_DIR/leo-ai.sock`, falling back to
-`/tmp/leo-ai.sock`. Each exchange contains a newline-terminated JSON request and
+The Unix socket lives at `$XDG_RUNTIME_DIR/ira-ai.sock`, falling back to
+`/tmp/ira-ai.sock`. Each exchange contains a newline-terminated JSON request and
 response. Requests use a `cmd` discriminator:
 
 ```json
@@ -166,28 +166,28 @@ caller must ensure another daemon is not already using it.
 
 - `src/App.tsx`: conversation state, display bubbles, theme, catalog, and host service start.
 - `src/Catalog.tsx`: local form drafts and catalog operations.
-- `src/api.ts`: Tauri invocation, or `fetch` to `leo-server` when not in the webview.
-- `src/types.ts`: frontend DTOs and tagged operations mirrored by `leo-api`.
+- `src/api.ts`: Tauri invocation, or `fetch` to `ira-server` when not in the webview.
+- `src/types.ts`: frontend DTOs and tagged operations mirrored by `ira-api`.
 - `src/theme.ts`: saved theme preference and root CSS selector.
-- `src-tauri/src/lib.rs`: thin Tauri commands over `leo_api::App`.
-- `crates/leo-server`: HTTP `/api` over the same `App`. Default bind `127.0.0.1:8787`.
-  `LEO_HTTP_BIND=0.0.0.0:8787` serves the LAN; that also exposes tools.
+- `src-tauri/src/lib.rs`: thin Tauri commands over `ira_api::App`.
+- `crates/ira-server`: HTTP `/api` over the same `App`. Default bind `127.0.0.1:8787`.
+  `IRA_HTTP_BIND=0.0.0.0:8787` serves the LAN; that also exposes tools.
   `GET/POST /api/services` reports and starts Compose `postgres` + `toolbox`.
 
-Keep frontend field names, operation tags, and `leo-api` DTOs synchronized.
-The browser never calls Ollama; `leo-server` does.
+Keep frontend field names, operation tags, and `ira-api` DTOs synchronized.
+The browser never calls Ollama; `ira-server` does.
 
 ## Extending the code
 
 - **New tool:** implement its schema and typed operation in an integration crate,
-  then register argument conversion in `leo-tools/src/catalog.rs`. Database
-  tools go through `leo-tools-db` and the local MCP Toolbox process (source in
+  then register argument conversion in `ira-tools/src/catalog.rs`. Database
+  tools go through `ira-tools-db` and the local MCP Toolbox process (source in
   `third_party/mcp-toolbox`), not a direct `sqlx` connection from the model.
 - **New LLM provider:** extend provider identity/defaults, client dispatch, and a
   protocol adapter; add offline payload and response tests.
 - **New speech backend:** implement the relevant voice trait and wire it in the
-  daemon, keeping playback in `leo-audio`.
+  daemon, keeping playback in `ira-audio`.
 - **New catalog operation:** update `DbOp`, persistence, and affected UI adapters;
-  desktop and `leo-server` share `leo-api` operation variants and TypeScript types.
+  desktop and `ira-server` share `ira-api` operation variants and TypeScript types.
 
 See [README.md](README.md#development-checks) for build, documentation, and test commands.

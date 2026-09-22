@@ -154,7 +154,7 @@ export function Databases({ onClose }: { onClose: () => void }) {
       <header className="sheet-head">
         <div>
           <h2>Bases de datos</h2>
-          <p>Conexiones PostgreSQL disponibles para Leo.</p>
+          <p>Conexiones PostgreSQL disponibles para Ira.</p>
         </div>
         <button type="button" className="btn-ghost" onClick={onClose}>Cerrar</button>
       </header>
@@ -208,7 +208,7 @@ export function Databases({ onClose }: { onClose: () => void }) {
                     <legend>Identidad</legend>
                     <div className="database-field-row">
                       <label className="field"><span>Nombre de la conexión</span><input required autoFocus placeholder="Producción" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
-                      <label className="field"><span>Base de datos</span><input required placeholder="leo" value={draft.database} onChange={(e) => setDraft({ ...draft, database: e.target.value })} /></label>
+                      <label className="field"><span>Base de datos</span><input required placeholder="ira" value={draft.database} onChange={(e) => setDraft({ ...draft, database: e.target.value })} /></label>
                     </div>
                   </fieldset>
                   <fieldset>
@@ -221,7 +221,7 @@ export function Databases({ onClose }: { onClose: () => void }) {
                   <fieldset>
                     <legend>Acceso y seguridad</legend>
                     <div className="database-field-row">
-                      <label className="field"><span>Usuario</span><input required autoComplete="username" placeholder="leo_readonly" value={draft.username} onChange={(e) => setDraft({ ...draft, username: e.target.value })} /></label>
+                      <label className="field"><span>Usuario</span><input required autoComplete="username" placeholder="ira_readonly" value={draft.username} onChange={(e) => setDraft({ ...draft, username: e.target.value })} /></label>
                       <label className="field"><span>Contraseña</span><input type="password" autoComplete="new-password" value={draft.password ?? ""} placeholder="Contraseña PostgreSQL" onChange={(e) => setDraft({ ...draft, password: e.target.value })} /></label>
                       <label className="field"><span>Modo SSL</span><select value={draft.ssl_mode} onChange={(e) => setDraft({ ...draft, ssl_mode: e.target.value })}><option value="disable">Desactivado</option><option value="prefer">Preferir</option><option value="require">Requerir</option><option value="verify-ca">Verificar CA</option><option value="verify-full">Verificación completa</option></select></label>
                     </div>
@@ -238,8 +238,8 @@ export function Databases({ onClose }: { onClose: () => void }) {
                   <label className="field"><span>Modo SSL</span><select value={draft.ssl_mode} onChange={(e) => setDraft({ ...draft, ssl_mode: e.target.value })}><option value="disable">Desactivado</option><option value="prefer">Preferir</option><option value="require">Requerir</option><option value="verify-ca">Verificar CA</option><option value="verify-full">Verificación completa</option></select></label>
                 </div>
               )}
-              {creating && <p className="database-create-safety"><strong>Usa acceso de solo lectura</strong><span>Limita este usuario a los esquemas y tablas que Leo necesite consultar.</span></p>}
-              <label className="database-enabled"><input type="checkbox" checked={draft.enabled} onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })} /><span>{creating ? <><strong>Activar al crear</strong><small>Leo podrá consultar esta conexión en cuanto esté guardada.</small></> : "Permitir que Leo use esta conexión"}</span></label>
+              {creating && <p className="database-create-safety"><strong>Usa acceso de solo lectura</strong><span>Limita este usuario a los esquemas y tablas que Ira necesite consultar.</span></p>}
+              <label className="database-enabled"><input type="checkbox" checked={draft.enabled} onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })} /><span>{creating ? <><strong>Activar al crear</strong><small>Ira podrá consultar esta conexión en cuanto esté guardada.</small></> : "Permitir que Ira use esta conexión"}</span></label>
               <div className="database-actions">
                 <button type="submit" className="btn-primary" disabled={busy}>{creating ? busy ? "Creando…" : "Crear conexión" : "Guardar cambios"}</button>
                 {creating && <button type="button" className="btn-ghost" disabled={busy} onClick={cancelCreate}>Cancelar</button>}

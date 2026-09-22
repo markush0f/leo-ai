@@ -1,0 +1,18 @@
+[package]
+name = "ira-tools-db"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tools de bases de datos vía MCP Toolbox"
+
+[dependencies]
+ira-llm.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+
+[dev-dependencies]
+axum.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "net"] }

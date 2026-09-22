@@ -1,0 +1,8 @@
+[package]
+name = "ira-tools-spotify"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tools de Spotify (pendiente)"
+
+[dependencies]

@@ -1,32 +1,32 @@
 services:
-  leo-realtime:
+  ira-realtime:
     build:
-      context: ./services/leo-realtime
-    image: leo-ai-realtime:0.1.0
+      context: ./services/ira-realtime
+    image: ira-ai-realtime:0.1.0
     network_mode: host
     environment:
-      LEO_REALTIME_HOST: 127.0.0.1
-      LEO_REALTIME_PORT: "${LEO_REALTIME_PORT:-8765}"
-      LEO_REALTIME_MODE: ${LEO_REALTIME_MODE:-leo}
-      LEO_REALTIME_SAMPLE_RATE: "16000"
-      LEO_REALTIME_CHANNELS: "1"
-      LEO_REALTIME_LEO_URL: ${LEO_REALTIME_LEO_URL:-http://127.0.0.1:8787}
-      LEO_REALTIME_CONVERSATION_ID: ${LEO_REALTIME_CONVERSATION_ID:-}
-      LEO_REALTIME_LEO_TIMEOUT_SECS: ${LEO_REALTIME_LEO_TIMEOUT_SECS:-120}
-      LEO_REALTIME_TTS: ${LEO_REALTIME_TTS:-pocket}
-      LEO_REALTIME_TTS_LANGUAGE: ${LEO_REALTIME_TTS_LANGUAGE:-spanish}
-      LEO_REALTIME_TTS_VOICE: ${LEO_REALTIME_TTS_VOICE:-lola}
-      LEO_REALTIME_TTS_QUANTIZE: ${LEO_REALTIME_TTS_QUANTIZE:-true}
+      IRA_REALTIME_HOST: 127.0.0.1
+      IRA_REALTIME_PORT: "${IRA_REALTIME_PORT:-8765}"
+      IRA_REALTIME_MODE: ${IRA_REALTIME_MODE:-ira}
+      IRA_REALTIME_SAMPLE_RATE: "16000"
+      IRA_REALTIME_CHANNELS: "1"
+      IRA_REALTIME_IRA_URL: ${IRA_REALTIME_IRA_URL:-http://127.0.0.1:8787}
+      IRA_REALTIME_CONVERSATION_ID: ${IRA_REALTIME_CONVERSATION_ID:-}
+      IRA_REALTIME_IRA_TIMEOUT_SECS: ${IRA_REALTIME_IRA_TIMEOUT_SECS:-120}
+      IRA_REALTIME_TTS: ${IRA_REALTIME_TTS:-pocket}
+      IRA_REALTIME_TTS_LANGUAGE: ${IRA_REALTIME_TTS_LANGUAGE:-spanish}
+      IRA_REALTIME_TTS_VOICE: ${IRA_REALTIME_TTS_VOICE:-lola}
+      IRA_REALTIME_TTS_QUANTIZE: ${IRA_REALTIME_TTS_QUANTIZE:-true}
       HF_HOME: /models/huggingface
     volumes:
-      - leo-hf:/models/huggingface
+      - ira-hf:/models/huggingface
     restart: unless-stopped
 
   colibri:
     build:
       context: .
       dockerfile: deploy/colibri/Dockerfile
-    image: leo-ai-colibri:1.11.0
+    image: ira-ai-colibri:1.11.0
     environment:
       COLI_ALLOW_INSECURE_BIND: "1"
       COLI_RAM: "${COLIBRI_RAM:-16}"
@@ -50,41 +50,61 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: leo
-      POSTGRES_PASSWORD: leo
-      POSTGRES_DB: leo
+      POSTGRES_USER: ira
+      POSTGRES_PASSWORD: ira
+      POSTGRES_DB: ira
     ports:
       - "127.0.0.1:5439:5432"
     volumes:
-      - leo-pg:/var/lib/postgresql/data
+      - ira-pg:/var/lib/postgresql/data
       - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U leo -d leo"]
+      test: ["CMD-SHELL", "pg_isready -U ira -d ira || pg_isready -U leo -d leo"]
       interval: 2s
       timeout: 5s
       retries: 20
+
+  postgres-migrate:
+    image: postgres:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        if PGPASSWORD=ira psql -h postgres -U ira -d ira -c 'SELECT 1' >/dev/null 2>&1; then
+          exit 0
+        fi
+        export PGPASSWORD=leo
+        psql -h postgres -U leo -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+        SELECT 'CREATE ROLE ira LOGIN SUPERUSER PASSWORD ''ira'''
+        WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ira') \gexec
+        SELECT 'ALTER DATABASE leo RENAME TO ira'
+        WHERE EXISTS (SELECT FROM pg_database WHERE datname = 'leo') \gexec
+        ALTER DATABASE ira OWNER TO ira;
+        SQL
 
   toolbox:
     build:
       context: ./third_party
       dockerfile: ../deploy/toolbox/Dockerfile
-    image: leo-ai-toolbox:1.11.0
-    user: "${LEO_UID:-1000}:${LEO_GID:-1000}"
+    image: ira-ai-toolbox:1.11.0
+    user: "${IRA_UID:-1000}:${IRA_GID:-1000}"
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-migrate:
+        condition: service_completed_successfully
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DATABASE: leo
-      POSTGRES_USER: leo
-      POSTGRES_PASSWORD: leo
+      POSTGRES_DATABASE: ira
+      POSTGRES_USER: ira
+      POSTGRES_PASSWORD: ira
     ports:
       - "127.0.0.1:5000:5000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./.leo/toolbox:/config:ro
+      - ./.ira/toolbox:/config:ro
     command:
       - --config-folder=/config
       - --poll-interval=2
@@ -100,5 +120,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  leo-pg:
-  leo-hf:
+  ira-pg:
+    name: "${IRA_POSTGRES_VOLUME:-leo-ai_leo-pg}"
+  ira-hf:
+    name: "${IRA_HF_VOLUME:-leo-ai_leo-hf}"

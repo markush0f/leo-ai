@@ -1,8 +1,0 @@
-[package]
-name = "leo-engine"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-description = "Motores y proveedores para ejecutar modelos de IA"
-
-[dependencies]

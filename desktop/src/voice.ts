@@ -1,4 +1,4 @@
-/** Browser mic session against Leo Realtime (Pipecat). */
+/** Browser mic session against Ira Realtime (Pipecat). */
 
 const SAMPLE_RATE = 16000;
 const PACKET_SAMPLES = 320;
@@ -21,7 +21,7 @@ type BrowserSpeechResultEvent = {
 };
 
 export type VoiceHandlers = {
-  /** Return false to drop this utterance (already waiting on Leo). */
+  /** Return false to drop this utterance (already waiting on Ira). */
   onTranscript: (text: string, final: boolean) => boolean;
   onReply: (text: string) => void;
   onLevel: (rms: number) => void;
@@ -35,7 +35,7 @@ export type VoiceSession = {
 };
 
 function realtimeBase(): string {
-  return (import.meta.env.VITE_LEO_REALTIME ?? "http://127.0.0.1:8765").replace(/\/$/, "");
+  return (import.meta.env.VITE_IRA_REALTIME ?? "http://127.0.0.1:8765").replace(/\/$/, "");
 }
 
 export function realtimeSocketUrl(conversationId: string): string {
@@ -78,19 +78,19 @@ function pcm16(samples: number[]): ArrayBuffer {
   return bytes;
 }
 
-async function requireLeoMode(): Promise<void> {
+async function requireIraMode(): Promise<void> {
   let res: Response;
   try {
     res = await fetch(`${realtimeBase()}/`);
   } catch {
-    throw new Error("no se pudo conectar a Leo Realtime en 127.0.0.1:8765");
+    throw new Error("no se pudo conectar a Ira Realtime en 127.0.0.1:8765");
   }
   if (!res.ok) {
-    throw new Error("Leo Realtime no responde");
+    throw new Error("Ira Realtime no responde");
   }
   const body = (await res.json()) as { mode?: string };
-  if (body.mode !== "leo") {
-    throw new Error("Leo Realtime está en eco. Arráncalo con LEO_REALTIME_MODE=leo");
+  if (body.mode !== "ira") {
+    throw new Error("Ira Realtime está en eco. Arráncalo con IRA_REALTIME_MODE=ira");
   }
 }
 
@@ -103,7 +103,7 @@ export async function startVoice(
     throw new Error("este navegador no transcribe voz; prueba Chromium o escribe");
   }
 
-  await requireLeoMode();
+  await requireIraMode();
 
   const context = new AudioContext();
   await context.resume();

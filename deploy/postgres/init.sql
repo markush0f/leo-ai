@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS settings (
     id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
     active_model_id UUID REFERENCES models (id) ON DELETE SET NULL,
     system_prompt TEXT NOT NULL,
-    voice_system_prompt TEXT NOT NULL DEFAULT 'Eres Leo, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta.',
+    voice_system_prompt TEXT NOT NULL DEFAULT 'Eres Ira, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta.',
     stt_engine_id UUID REFERENCES engines (id) ON DELETE SET NULL,
     tts_engine_id UUID REFERENCES engines (id) ON DELETE SET NULL,
     wake_engine_id UUID REFERENCES engines (id) ON DELETE SET NULL,
@@ -138,13 +138,13 @@ INSERT INTO settings (
 ) VALUES (
     1,
     '00000000-0000-4000-8000-000000000101',
-    'Eres Leo, un asistente. Responde en español, claro y directo.',
-    'Eres Leo, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta.',
+    'Eres Ira, un asistente. Responde en español, claro y directo.',
+    'Eres Ira, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta.',
     '00000000-0000-4000-8000-000000000501',
     '00000000-0000-4000-8000-000000000601',
     '00000000-0000-4000-8000-000000000701'
 )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO schema_migrations (version) VALUES (1), (2), (3)
+INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4)
 ON CONFLICT (version) DO NOTHING;

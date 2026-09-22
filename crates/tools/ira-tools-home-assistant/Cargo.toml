@@ -1,0 +1,13 @@
+[package]
+name = "ira-tools-home-assistant"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tools de Home Assistant"
+
+[dependencies]
+ira-llm.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

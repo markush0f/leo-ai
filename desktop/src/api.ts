@@ -1,7 +1,7 @@
 /**
  * Frontend transport boundary. Tauri commands reach native services; the
- * browser talks to `leo-server` over HTTP (`/api`, same catalog and Ollama
- * path). Keep command names and DTOs aligned with `leo-api` when extending.
+ * browser talks to `ira-server` over HTTP (`/api`, same catalog and Ollama
+ * path). Keep command names and DTOs aligned with `ira-api` when extending.
  */
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -20,7 +20,7 @@ import type {
 export const inTauri =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
-const apiBase = (import.meta.env.VITE_LEO_API as string | undefined)?.replace(/\/$/, "") ?? "";
+const apiBase = (import.meta.env.VITE_IRA_API as string | undefined)?.replace(/\/$/, "") ?? "";
 
 function url(path: string): string {
   return `${apiBase}${path}`;
@@ -38,7 +38,7 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
       },
     });
   } catch {
-    throw new Error("no se pudo conectar a leo-server. arráncalo: cargo run -p leo-server");
+    throw new Error("no se pudo conectar a ira-server. arráncalo: cargo run -p ira-server");
   }
   const raw = await res.text();
   let data: unknown = null;
@@ -46,7 +46,7 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     try {
       data = JSON.parse(raw);
     } catch {
-      throw new Error("no se pudo conectar a leo-server. arráncalo: cargo run -p leo-server");
+      throw new Error("no se pudo conectar a ira-server. arráncalo: cargo run -p ira-server");
     }
   }
   if (!res.ok) {
@@ -62,7 +62,7 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
-/** Loads the catalog from Tauri or `leo-server`. */
+/** Loads the catalog from Tauri or `ira-server`. */
 export async function loadSnapshot(): Promise<Snapshot> {
   if (inTauri) return invoke<Snapshot>("snapshot");
   return http<Snapshot>("/api/snapshot");

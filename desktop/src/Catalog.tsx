@@ -115,7 +115,7 @@ export function Catalog({ snap, onOp, onCodexLogin, onClose }: Props) {
 
       {err && <p className="sheet-err" role="alert">{err}</p>}
       <details className="catalog-settings catalog-global">
-        <summary>Instrucciones de Leo <span>Para todos los modelos</span></summary>
+        <summary>Instrucciones de Ira <span>Para todos los modelos</span></summary>
         <div className="catalog-settings-body">
           <label className="field">
             <span>Instrucciones del sistema</span>
@@ -236,7 +236,7 @@ function ProviderEditor({
               {provider.key === "db" ? "conectado" : "sin conectar"}
             </span>
           </div>
-          <p>Inicia sesión con ChatGPT para usar Codex. Leo nunca muestra tus tokens.</p>
+          <p>Inicia sesión con ChatGPT para usar Codex. Ira nunca muestra tus tokens.</p>
           <button
             type="button"
             className="btn-primary"

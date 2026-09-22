@@ -9,7 +9,7 @@ related_targets: []
 
 mode: operate
 audience: Markus on his Linux workstation
-job: talk to Leo and change the shared catalog without the TUI
+job: talk to Ira and change the shared catalog without the TUI
 action: type in the composer; open the catalog sheet from the rail
 direction: iridescent cloud edge (seed f7257722)
 moment: the sky photograph dissolving into an ink column, spectral hairline on the composer
@@ -19,7 +19,7 @@ unresolved: Telegram config stays out of this surface
 
 THESIS: Nueva conexión debe sentirse como una configuración guiada, no como una cuadrícula de administración. Rechaza siete campos indiferenciados con igual peso.
 
-OWN-WORLD: Conserva carbón, papel, violeta y controles sobrios de Leo. Secciones abiertas, reglas finas y una única superficie elevada para el resumen de destino.
+OWN-WORLD: Conserva carbón, papel, violeta y controles sobrios de Ira. Secciones abiertas, reglas finas y una única superficie elevada para el resumen de destino.
 
 STORY: Markus identifica la conexión, define destino y credenciales, confirma seguridad y la crea. Edición y listado existentes permanecen intactos.
 

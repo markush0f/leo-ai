@@ -1,4 +1,4 @@
-# Leo desktop
+# Ira desktop
 
 React and TypeScript frontend hosted by Tauri 2. The native backend shares the
 PostgreSQL catalog, LLM client, and tool registry with terminal and Telegram chat.
@@ -24,14 +24,14 @@ for credentials and service configuration.
 npm run web
 ```
 
-Starts `leo-server` (PostgreSQL catalog + Ollama and other providers) and Vite.
+Starts `ira-server` (PostgreSQL catalog + Ollama and other providers) and Vite.
 The UI calls `/api`; Vite proxies that to `127.0.0.1:8787`. This is live chat,
-not a mock. The launcher uses port `5179` by default (`LEO_DEV_PORT` overrides
-it) and `8787` for the API (`LEO_HTTP_PORT` / `LEO_HTTP_BIND`). It runs
+not a mock. The launcher uses port `5179` by default (`IRA_DEV_PORT` overrides
+it) and `8787` for the API (`IRA_HTTP_PORT` / `IRA_HTTP_BIND`). It runs
 `fuser -k` against those ports before starting.
 
-Point another device at this machine with `LEO_HTTP_BIND=0.0.0.0:8787` after
-`npm run build` so `leo-server` also serves `desktop/dist`.
+Point another device at this machine with `IRA_HTTP_BIND=0.0.0.0:8787` after
+`npm run build` so `ira-server` also serves `desktop/dist`.
 
 ## Code map
 
@@ -39,14 +39,14 @@ Point another device at this machine with `LEO_HTTP_BIND=0.0.0.0:8787` after
 | --- | --- |
 | `src/App.tsx` | Chat history, display bubbles, catalog state, and theme. |
 | `src/Catalog.tsx` | Provider/model forms and catalog mutations. |
-| `src/api.ts` | Tauri commands or `leo-server` HTTP (`/api`). |
+| `src/api.ts` | Tauri commands or `ira-server` HTTP (`/api`). |
 | `src/types.ts` | DTOs and operation tags mirrored by Rust. |
 | `src/theme.ts`, `src/styles.css` | Theme persistence and presentation. |
 | `src-tauri/src/lib.rs` | Command handlers and shared service initialization. |
 | `src-tauri/src/main.rs` | Native process entry point and renderer environment setup. |
 
-Changing a bridge contract requires updating TypeScript types, `leo-api` DTOs,
-and `leo-server` routes together. Catalog responses expose key availability, not
+Changing a bridge contract requires updating TypeScript types, `ira-api` DTOs,
+and `ira-server` routes together. Catalog responses expose key availability, not
 stored key values. Chat history is held in frontend memory and is separate from
 persistent settings.
 

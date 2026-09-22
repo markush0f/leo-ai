@@ -1,16 +1,16 @@
-//! Desktop window binary (`leo-desktop`).
+//! Desktop window binary (`ira-desktop`).
 //!
 //! Thin OS entry: apply the Linux WebKit workaround, then hand off to
-//! [`leo_desktop_lib::run`]. The library crate owns Tauri commands, Postgres,
+//! [`ira_desktop_lib::run`]. The library crate owns Tauri commands, Postgres,
 //! and tools. React in `desktop/src/` is the UI; this process is the native
 //! host. Voice control is deferred.
 //!
-//! # Workspace crates (used from `leo_desktop_lib`)
+//! # Workspace crates (used from `ira_desktop_lib`)
 //!
-//! - [`leo_api`] — shared catalog DTOs, conversations, and chat. Desktop
-//!   commands and the browser (`leo-server`) call the same [`leo_api::App`].
+//! - [`ira_api`] — shared catalog DTOs, conversations, and chat. Desktop
+//!   commands and the browser (`ira-server`) call the same [`ira_api::App`].
 //!
-//! Browser `npm run web` talks to `leo-server` over HTTP so it can use Ollama
+//! Browser `npm run web` talks to `ira-server` over HTTP so it can use Ollama
 //! and the rest of the catalog without the Tauri webview.
 //!
 //! # Linux WebKit
@@ -23,7 +23,7 @@
 
 fn main() {
     linux_webkit_workaround();
-    leo_desktop_lib::run()
+    ira_desktop_lib::run()
 }
 
 /// NVIDIA + Wayland + WebKitGTK dies with

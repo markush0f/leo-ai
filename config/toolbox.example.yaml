@@ -4,22 +4,22 @@
 # --prebuilt=postgres and does not mount this file.
 
 kind: source
-name: leo
+name: ira
 type: postgres
 host: 127.0.0.1
 port: 5439
-database: leo
-user: leo
-password: leo
+database: ira
+user: ira
+password: ira
 ---
 kind: tool
 name: list_conversations
 type: postgres-sql
-source: leo
-description: Lista conversaciones recientes del catálogo de Leo.
+source: ira
+description: Lista conversaciones recientes del catálogo de Ira.
 statement: SELECT id, channel, title, updated_at FROM conversations ORDER BY updated_at DESC LIMIT 20;
 ---
 kind: toolset
-name: leo
+name: ira
 tools:
   - list_conversations

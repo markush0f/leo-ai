@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-09-12T00:00:00.000Z",
-  "title": "Design System: Leo",
+  "title": "Design System: Ira",
   "extensions": {
     "colorMeta": {
       "cloud": { "role": "neutral", "displayName": "Cloud", "canonical": "#ffffff" },
@@ -14,7 +14,7 @@
     },
     "typographyMeta": {
       "display": { "displayName": "Display", "purpose": "Empty state only." },
-      "brand": { "displayName": "Brand", "purpose": "The word Leo." },
+      "brand": { "displayName": "Brand", "purpose": "The word Ira." },
       "body": { "displayName": "Body", "purpose": "Chat messages, 66ch." },
       "label": { "displayName": "Label", "purpose": "All chrome at 0.8rem." }
     },
@@ -48,7 +48,7 @@
   ],
   "narrative": {
     "northStar": "The cloud body and its iridescent edge",
-    "overview": "Leo’s window is a high-key cloud: white field, slate ink, a photograph of a newly formed cloud edge dissolving downward. Color is not a fill. The chat is the cloud body; configuration is the edge.",
+    "overview": "Ira’s window is a high-key cloud: white field, slate ink, a photograph of a newly formed cloud edge dissolving downward. Color is not a fill. The chat is the cloud body; configuration is the edge.",
     "keyCharacteristics": [
       "One type family, thin for speech, medium for chrome",
       "Spectral hairline instead of filled accents",
@@ -63,7 +63,7 @@
     "dos": [
       "Do keep the sky photograph as the first-viewport atmosphere.",
       "Do put color only on hairlines and the active violet mark.",
-      "Do set messages as ink on white, labeled tú / Leo."
+      "Do set messages as ink on white, labeled tú / Ira."
     ],
     "donts": [
       "Don't use chat bubbles, a thread sidebar, or a settings-app split.",

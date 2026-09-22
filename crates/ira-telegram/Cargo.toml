@@ -1,0 +1,27 @@
+[package]
+name = "ira-telegram"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Habla con los modelos de Ira desde Telegram"
+
+[[bin]]
+name = "ira-telegram"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+dirs.workspace = true
+ira-llm.workspace = true
+ira-store.workspace = true
+ira-tools.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
