@@ -132,7 +132,7 @@ pub struct ExportOptions {
     /// Máximo de filas por tabla. `None` lee la tabla completa.
     pub limit: Option<u64>,
     pub include_views: bool,
-    /// Exporta metadatos sin leer filas. Útil para generar proyectos Wren.
+    /// Exporta metadatos sin leer filas para consumidores de esquema.
     pub schema_only: bool,
 }
 
