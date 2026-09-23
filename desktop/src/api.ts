@@ -3,7 +3,7 @@
  * browser talks to `ira-server` over HTTP (`/api`, same catalog and Ollama
  * path). Keep command names and DTOs aligned with `ira-api` when extending.
  */
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type {
   CodexLogin,
@@ -133,6 +133,86 @@ export async function sendChat(conversationId: string, text: string): Promise<st
     body: JSON.stringify({ text }),
   });
   return out.text;
+}
+
+export type ChatStreamEvent =
+  | { type: "delta"; text: string }
+  | { type: "reset" }
+  | { type: "done" }
+  | { type: "error"; error: string };
+
+export async function streamChat(
+  conversationId: string,
+  text: string,
+  onEvent: (event: ChatStreamEvent) => void,
+): Promise<void> {
+  let streamError: string | null = null;
+  const receive = (event: ChatStreamEvent) => {
+    if (event.type === "error") streamError = event.error;
+    onEvent(event);
+  };
+
+  if (inTauri) {
+    const sink = new Channel<ChatStreamEvent>();
+    sink.onmessage = receive;
+    try {
+      await invoke<void>("chat_stream", { conversationId, text, sink });
+    } catch (error) {
+      if (!streamError) throw error;
+    }
+    if (streamError) throw new Error(streamError);
+    return;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(url(`/api/chats/${conversationId}/messages/stream`), {
+      method: "POST",
+      headers: {
+        Accept: "application/x-ndjson",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text }),
+    });
+  } catch {
+    throw new Error("no se pudo conectar a ira-server. arráncalo: cargo run -p ira-server");
+  }
+
+  if (!response.ok) {
+    const raw = await response.text();
+    try {
+      const parsed = JSON.parse(raw) as { error?: string };
+      throw new Error(parsed.error || raw || response.statusText);
+    } catch (error) {
+      if (error instanceof SyntaxError) throw new Error(raw || response.statusText);
+      throw error;
+    }
+  }
+  if (!response.body) throw new Error("ira-server no devolvió un stream");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let done = false;
+  const consume = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    const event = JSON.parse(trimmed) as ChatStreamEvent;
+    if (event.type === "done") done = true;
+    receive(event);
+  };
+
+  while (true) {
+    const chunk = await reader.read();
+    buffer += decoder.decode(chunk.value, { stream: !chunk.done });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    lines.forEach(consume);
+    if (chunk.done) break;
+  }
+  consume(buffer);
+  if (streamError) throw new Error(streamError);
+  if (!done) throw new Error("el stream terminó antes de completar la respuesta");
 }
 
 export async function listDatabases(): Promise<DatabaseConnection[]> {

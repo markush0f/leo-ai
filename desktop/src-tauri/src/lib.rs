@@ -12,14 +12,49 @@
 //!   loop. Setup is [`ira_api::App::boot`].
 
 use ira_api::{
-    App, ChatOut, CodexLoginDto, ConversationDto, Op, ServicesDto, SnapshotDto, TurnDto,
+    App, ChatOut, ChatStreamEvent, ChatStreamSink, CodexLoginDto, ConversationDto, Op, ServicesDto,
+    SnapshotDto, TurnDto,
 };
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::Manager;
+use tauri::ipc::Channel;
 use uuid::Uuid;
 
 #[derive(Clone)]
 struct AppState {
     api: App,
+}
+
+#[derive(Default)]
+struct StreamDelivery {
+    error: Mutex<Option<String>>,
+    terminal_delivered: AtomicBool,
+}
+
+impl StreamDelivery {
+    fn record(&self, terminal: bool, result: Result<(), String>) {
+        match result {
+            Ok(()) if terminal => self.terminal_delivered.store(true, Ordering::Release),
+            Ok(()) => {}
+            Err(error) => {
+                let mut stored = self.error.lock().unwrap();
+                if stored.is_none() {
+                    *stored = Some(error);
+                }
+            }
+        }
+    }
+
+    fn finish(&self) -> Result<(), String> {
+        if let Some(error) = self.error.lock().unwrap().take() {
+            return Err(format!("no se pudo entregar el stream: {error}"));
+        }
+        if !self.terminal_delivered.load(Ordering::Acquire) {
+            return Err("el stream terminó sin entregar un evento terminal".into());
+        }
+        Ok(())
+    }
 }
 
 #[tauri::command]
@@ -80,6 +115,30 @@ async fn chat(
     text: String,
 ) -> Result<ChatOut, String> {
     state.api.chat(conversation_id, text).await
+}
+
+#[tauri::command]
+async fn chat_stream(
+    state: tauri::State<'_, AppState>,
+    conversation_id: Uuid,
+    text: String,
+    sink: Channel<ChatStreamEvent>,
+) -> Result<(), String> {
+    let delivery = Arc::new(StreamDelivery::default());
+    let callback_delivery = delivery.clone();
+    let stream_sink: ChatStreamSink = Arc::new(move |event| {
+        let terminal = matches!(event, ChatStreamEvent::Done | ChatStreamEvent::Error { .. });
+        callback_delivery.record(
+            terminal,
+            sink.send(event).map_err(|error| error.to_string()),
+        );
+    });
+    state
+        .api
+        .chat_stream(conversation_id, text, stream_sink)
+        .await;
+
+    delivery.finish()
 }
 
 #[tauri::command]
@@ -145,6 +204,7 @@ pub fn run() {
             open_chat,
             new_chat,
             chat,
+            chat_stream,
             services,
             start_services,
             list_databases,
@@ -155,4 +215,27 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stream_delivery_requires_successful_terminal_event() {
+        let delivery = StreamDelivery::default();
+        delivery.record(false, Ok(()));
+        assert!(delivery.finish().unwrap_err().contains("evento terminal"));
+
+        delivery.record(true, Ok(()));
+        assert!(delivery.finish().is_ok());
+    }
+
+    #[test]
+    fn stream_delivery_preserves_channel_failure() {
+        let delivery = StreamDelivery::default();
+        delivery.record(false, Err("webview cerrada".into()));
+        delivery.record(true, Ok(()));
+        assert!(delivery.finish().unwrap_err().contains("webview cerrada"));
+    }
 }

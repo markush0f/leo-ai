@@ -13,7 +13,7 @@ import {
   loadSnapshot,
   newChat,
   openChat,
-  sendChat,
+  streamChat,
   startServices,
 } from "./api";
 import { Catalog } from "./Catalog";
@@ -73,6 +73,7 @@ export default function App() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [receiving, setReceiving] = useState(false);
   const [catalog, setCatalog] = useState(false);
   const [databases, setDatabases] = useState(false);
   const [rail, setRail] = useState(false);
@@ -93,6 +94,7 @@ export default function App() {
   const voiceLevel = useRef(0);
   const iraVoiceBubble = useRef<string | null>(null);
   const voiceHangup = useRef(false);
+  const chatRunRef = useRef(0);
 
   const refresh = useCallback(async () => {
     try {
@@ -226,16 +228,48 @@ export default function App() {
     if (boxRef.current) boxRef.current.style.height = "auto";
     setBubbles((b) => [...b, { id: uid(), kind: "user", text }]);
     setBusy(true);
+    setReceiving(false);
+    const run = ++chatRunRef.current;
+    const replyId = uid();
+    let replyVisible = false;
     try {
-      const reply = await sendChat(conversationId, text);
-      setBubbles((b) => [...b, { id: uid(), kind: "ira", text: reply }]);
-      setChats(await listChats());
+      await streamChat(conversationId, text, (event) => {
+        if (chatRunRef.current !== run) return;
+        if (event.type === "delta") {
+          if (!event.text) return;
+          setReceiving(true);
+          if (!replyVisible) {
+            replyVisible = true;
+            setBubbles((current) => [
+              ...current,
+              { id: replyId, kind: "ira", text: event.text },
+            ]);
+          } else {
+            setBubbles((current) => current.map((bubble) =>
+              bubble.id === replyId ? { ...bubble, text: bubble.text + event.text } : bubble,
+            ));
+          }
+        } else if (event.type === "reset") {
+          replyVisible = false;
+          setReceiving(false);
+          setBubbles((current) => current.filter((bubble) => bubble.id !== replyId));
+        }
+      });
+      const nextChats = await listChats();
+      if (chatRunRef.current === run) setChats(nextChats);
     } catch (e) {
+      if (chatRunRef.current !== run) return;
       const msg = e instanceof Error ? e.message : String(e);
+      if (replyVisible) {
+        setBubbles((current) => current.filter((bubble) => bubble.id !== replyId));
+      }
       setBubbles((b) => [...b, { id: uid(), kind: "error", text: msg }]);
     } finally {
-      setBusy(false);
-      boxRef.current?.focus();
+      if (chatRunRef.current === run) {
+        setBusy(false);
+        setReceiving(false);
+        boxRef.current?.focus();
+      }
     }
   };
 
@@ -325,10 +359,15 @@ export default function App() {
   };
 
   const clear = async () => {
+    const run = ++chatRunRef.current;
+    setBusy(false);
+    setReceiving(false);
     stopVoice();
     try {
       const created = await newChat();
-      setChats(await listChats());
+      const nextChats = await listChats();
+      if (chatRunRef.current !== run) return;
+      setChats(nextChats);
       setConversationId(created.id);
       setBubbles([]);
     } catch (e) {
@@ -339,8 +378,12 @@ export default function App() {
   };
 
   const open = async (id: string) => {
+    const run = ++chatRunRef.current;
+    setBusy(false);
+    setReceiving(false);
     stopVoice();
     const turns = await openChat(id);
+    if (chatRunRef.current !== run) return;
     setConversationId(id);
     setBubbles(turnsToBubbles(turns));
     setRail(false);
@@ -617,7 +660,7 @@ export default function App() {
                   </div>
                 </article>
               ))}
-              {busy && (
+              {busy && !receiving && (
                 <article className="turn ira" aria-live="polite">
                   <span className="who">Ira</span>
                   <div className="bubble ira load">
