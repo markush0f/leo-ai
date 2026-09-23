@@ -15,7 +15,7 @@ mod error;
 mod registry;
 mod tool;
 
-pub use chat::{chat, run};
+pub use chat::{StreamEvent, StreamSink, chat, chat_stream, run};
 pub use context::Context;
 pub use error::ToolError;
 pub use registry::Registry;
