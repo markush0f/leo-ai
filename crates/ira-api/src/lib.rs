@@ -10,13 +10,14 @@ mod host;
 mod toolbox;
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::time::Duration;
 
 use ira_llm::ChatRequest;
 use ira_llm::providers::codex::{DeviceLogin, OAuthClient, TokenStore};
 use ira_store::{self as db, CHANNEL_LOCAL, CONTEXT_LIMIT, NewMessage, PostgresCodexTokenStore};
 use ira_tools::Registry;
+use serde::Serialize;
 use sqlx::PgPool;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use tokio::sync::{Mutex, RwLock};
@@ -30,6 +31,19 @@ pub use dto::{
 pub use host::{ServiceDto, ServicesDto};
 pub use ira_pgjson::Dump as DatabaseDump;
 
+/// Event produced while a chat turn is streamed to a transport.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ChatStreamEvent {
+    Delta { text: String },
+    Reset,
+    Done,
+    Error { error: String },
+}
+
+/// Transport callback for [`App::chat_stream`].
+pub type ChatStreamSink = Arc<dyn Fn(ChatStreamEvent) + Send + Sync + 'static>;
+
 #[derive(Clone)]
 pub struct App {
     inner: Arc<Inner>,
@@ -41,6 +55,7 @@ struct Inner {
     tools: Registry,
     toolbox_sync: Mutex<()>,
     codex_logins: Mutex<HashMap<Uuid, PendingCodexLogin>>,
+    conversation_locks: Mutex<HashMap<Uuid, Weak<Mutex<()>>>>,
 }
 
 #[derive(Clone)]
@@ -58,6 +73,7 @@ impl App {
                 tools,
                 toolbox_sync: Mutex::new(()),
                 codex_logins: Mutex::new(HashMap::new()),
+                conversation_locks: Mutex::new(HashMap::new()),
             }),
         }
     }
@@ -165,6 +181,17 @@ impl App {
             .await
             .clone()
             .unwrap_or_else(|| "sin postgres".into()))
+    }
+
+    async fn conversation_lock(&self, id: Uuid) -> Arc<Mutex<()>> {
+        let mut locks = self.inner.conversation_locks.lock().await;
+        locks.retain(|_, lock| lock.strong_count() > 0);
+        if let Some(lock) = locks.get(&id).and_then(Weak::upgrade) {
+            return lock;
+        }
+        let lock = Arc::new(Mutex::new(()));
+        locks.insert(id, Arc::downgrade(&lock));
+        lock
     }
 
     pub async fn snapshot(&self) -> Result<SnapshotDto, String> {
@@ -507,6 +534,8 @@ impl App {
     }
 
     pub async fn chat(&self, conversation_id: Uuid, text: String) -> Result<ChatOut, String> {
+        let conversation_lock = self.conversation_lock(conversation_id).await;
+        let _turn = conversation_lock.lock().await;
         let pool = self.pool().await?;
         if db::uses_ollama(&db::load(&pool).await.map_err(|e| e.to_string())?) {
             let _ = db::sync_ollama_providers(&pool).await;
@@ -566,6 +595,129 @@ impl App {
                     db::append_message(&pool, conversation_id, NewMessage::error(err.to_string()))
                         .await;
                 Err(err.to_string())
+            }
+        }
+    }
+
+    pub async fn chat_stream(&self, conversation_id: Uuid, text: String, sink: ChatStreamSink) {
+        let conversation_lock = self.conversation_lock(conversation_id).await;
+        let _turn = conversation_lock.lock().await;
+        let pool = match self.pool().await {
+            Ok(pool) => pool,
+            Err(error) => {
+                sink(ChatStreamEvent::Error { error });
+                return;
+            }
+        };
+        if db::uses_ollama(&match db::load(&pool).await {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                sink(ChatStreamEvent::Error {
+                    error: error.to_string(),
+                });
+                return;
+            }
+        }) {
+            let _ = db::sync_ollama_providers(&pool).await;
+        }
+        let snap = match db::load(&pool).await {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                sink(ChatStreamEvent::Error {
+                    error: error.to_string(),
+                });
+                return;
+            }
+        };
+        let client = match db::client_with_pool(&snap, &pool) {
+            Ok(client) => client,
+            Err(error) => {
+                let error = match error {
+                    ira_llm::LlmError::MissingKey(var) => {
+                        format!("falta api key ({var}): ábrelo en catálogo")
+                    }
+                    other => other.to_string(),
+                };
+                sink(ChatStreamEvent::Error { error });
+                return;
+            }
+        };
+        if let Err(error) = db::append_message(&pool, conversation_id, NewMessage::user(text)).await
+        {
+            sink(ChatStreamEvent::Error {
+                error: error.to_string(),
+            });
+            return;
+        }
+
+        let result = async {
+            let history = db::context_messages(&pool, conversation_id, CONTEXT_LIMIT)
+                .await
+                .map_err(|error| error.to_string())?;
+            let mut req = ChatRequest::with_history(&snap.system, history);
+            if snap
+                .active_provider()
+                .is_some_and(|provider| provider.kind.eq_ignore_ascii_case("grok"))
+            {
+                req.reasoning_effort = Some(
+                    if snap.settings.thinking {
+                        "high"
+                    } else {
+                        "low"
+                    }
+                    .into(),
+                );
+            }
+            let registry = if snap.settings.tools_enabled {
+                self.inner.tools.clone()
+            } else {
+                Registry::default()
+            };
+            let event_sink = sink.clone();
+            let tool_sink: ira_tools::StreamSink = Arc::new(move |event| match event {
+                ira_tools::StreamEvent::Delta(text) => event_sink(ChatStreamEvent::Delta { text }),
+                ira_tools::StreamEvent::Reset => event_sink(ChatStreamEvent::Reset),
+            });
+            let mut response =
+                ira_tools::chat_stream(&client, req.clone(), &registry, tool_sink.clone()).await;
+            if let Err(error) = &response
+                && !registry.is_empty()
+                && tools_unsupported(error)
+            {
+                sink(ChatStreamEvent::Reset);
+                response =
+                    ira_tools::chat_stream(&client, req, &Registry::default(), tool_sink).await;
+            }
+            response.map_err(|error| error.to_string())
+        }
+        .await;
+
+        match result {
+            Ok(response) => {
+                if let Err(error) = db::append_message(
+                    &pool,
+                    conversation_id,
+                    NewMessage::assistant(response.text, snap.active_model_id),
+                )
+                .await
+                {
+                    let error = error.to_string();
+                    let _ = db::append_message(
+                        &pool,
+                        conversation_id,
+                        NewMessage::error(error.clone()),
+                    )
+                    .await;
+                    sink(ChatStreamEvent::Error { error });
+                    return;
+                }
+                sink(ChatStreamEvent::Done);
+            }
+            Err(error) => {
+                let _ =
+                    db::append_message(&pool, conversation_id, NewMessage::error(error.clone()))
+                        .await;
+                sink(ChatStreamEvent::Error { error });
             }
         }
     }
@@ -778,6 +930,55 @@ mod tests {
         };
         assert!(tools_unsupported(&err));
         assert!(!tools_unsupported(&ira_llm::LlmError::Empty("modelo")));
+    }
+
+    #[test]
+    fn chat_stream_events_use_tagged_snake_case_json() {
+        assert_eq!(
+            serde_json::to_value(ChatStreamEvent::Delta {
+                text: "hola".into()
+            })
+            .unwrap(),
+            serde_json::json!({"type": "delta", "text": "hola"})
+        );
+        assert_eq!(
+            serde_json::to_value(ChatStreamEvent::Reset).unwrap(),
+            serde_json::json!({"type": "reset"})
+        );
+        assert_eq!(
+            serde_json::to_value(ChatStreamEvent::Done).unwrap(),
+            serde_json::json!({"type": "done"})
+        );
+        assert_eq!(
+            serde_json::to_value(ChatStreamEvent::Error {
+                error: "falló".into()
+            })
+            .unwrap(),
+            serde_json::json!({"type": "error", "error": "falló"})
+        );
+    }
+
+    #[tokio::test]
+    async fn conversation_turn_locks_are_scoped_by_id() {
+        let app = App::unavailable("sin postgres");
+        let id = Uuid::from_u128(1);
+        let first = app.conversation_lock(id).await;
+        let same = app.conversation_lock(id).await;
+        let other = app.conversation_lock(Uuid::from_u128(2)).await;
+        assert!(Arc::ptr_eq(&first, &same));
+        assert!(!Arc::ptr_eq(&first, &other));
+
+        let held = first.lock().await;
+        let waiter = tokio::spawn(async move {
+            let _acquired = same.lock().await;
+        });
+        tokio::task::yield_now().await;
+        assert!(!waiter.is_finished());
+        drop(held);
+        tokio::time::timeout(Duration::from_secs(1), waiter)
+            .await
+            .expect("same-conversation waiter remained blocked")
+            .unwrap();
     }
 
     fn database_input() -> DatabaseInput {
