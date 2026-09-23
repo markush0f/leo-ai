@@ -4,6 +4,7 @@
  * as assistant replies. Service calls go through `api.ts` (Tauri or ira-server).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, MotionConfig } from "motion/react";
 import {
   applyOp,
   beginCodexLogin,
@@ -77,6 +78,7 @@ export default function App() {
   const [catalog, setCatalog] = useState(false);
   const [databases, setDatabases] = useState(false);
   const [rail, setRail] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(false);
   const [theme, setTheme] = useState<Theme>("dark");
   const [services, setServices] = useState<Services | null>(null);
   const [starting, setStarting] = useState(false);
@@ -395,6 +397,16 @@ export default function App() {
     applyTheme(next);
   };
 
+  const openRail = () => {
+    if (window.matchMedia("(max-width: 860px)").matches) setRail(true);
+    else setRailCollapsed(false);
+  };
+
+  const closeRail = () => {
+    if (window.matchMedia("(max-width: 860px)").matches) setRail(false);
+    else setRailCollapsed(true);
+  };
+
   const bootServices = async () => {
     setStarting(true);
     try {
@@ -532,20 +544,35 @@ export default function App() {
   );
 
   return (
-    <div className={`app${rail ? " rail-open" : ""}${catalog || databases || voiceOpen ? " sheet-open" : ""}`}>
+    <MotionConfig reducedMotion="user" transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}>
+    <div className={`app${rail ? " rail-open" : ""}${railCollapsed ? " rail-collapsed" : ""}${catalog || databases || voiceOpen ? " sheet-open" : ""}`}>
+      <AnimatePresence>
       {rail && (
-        <button
+        <motion.button
           type="button"
           className="scrim"
           aria-label="cerrar menú"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           onClick={() => setRail(false)}
         />
       )}
+      </AnimatePresence>
 
       <aside className="rail" aria-label="navegación">
         <div className="rail-top">
-          <p className="brand">Ira</p>
-          <button type="button" className="btn-ghost rail-close" onClick={() => setRail(false)}>
+          <p className="brand">
+            <img src="/ira-logo.png" alt="" />
+            Ira
+          </p>
+          <button
+            type="button"
+            className="btn-ghost rail-close"
+            aria-label="ocultar barra lateral"
+            title="Ocultar barra lateral"
+            onClick={closeRail}
+          >
             <IconClose />
           </button>
         </div>
@@ -607,8 +634,9 @@ export default function App() {
           <button
             type="button"
             className="btn-ghost menu-btn"
-            aria-label="menú"
-            onClick={() => setRail(true)}
+            aria-label="mostrar barra lateral"
+            title="Mostrar barra lateral"
+            onClick={openRail}
           >
             <IconMenu />
           </button>
@@ -627,8 +655,9 @@ export default function App() {
         </header>
 
         <div className={chatting ? "main chatting" : "main welcome"}>
-          {!chatting && (
+          {!chatting ? (
             <div className="hero">
+              <img className="hero-logo" src="/ira-logo.png" alt="" />
               <h1>Hola</h1>
               <p>
                 {boot
@@ -645,30 +674,44 @@ export default function App() {
                 />
               )}
             </div>
-          )}
-
-          {chatting && (
+          ) : (
             <div className="log" ref={listRef}>
               {boot && <p className="bubble error">{boot}</p>}
+              <AnimatePresence initial={false}>
               {bubbles.map((b) => (
-                <article key={b.id} className={`turn ${b.kind}`}>
+                <motion.article
+                  key={b.id}
+                  className={`turn ${b.kind}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.14 }}
+                >
                   {b.kind !== "user" && (
                     <span className="who">{b.kind === "error" ? "error" : "Ira"}</span>
                   )}
                   <div className={`bubble ${b.kind}`}>
                     {b.kind === "ira" ? <Markdown text={b.text} /> : <p>{b.text}</p>}
                   </div>
-                </article>
+                </motion.article>
               ))}
+              </AnimatePresence>
+              <AnimatePresence>
               {busy && !receiving && (
-                <article className="turn ira" aria-live="polite">
+                <motion.article
+                  className="turn ira"
+                  aria-live="polite"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
                   <span className="who">Ira</span>
                   <div className="bubble ira load">
                     <span className="dots" />
                     {thinking ? "razonando" : "pensando"}
                   </div>
-                </article>
+                </motion.article>
               )}
+              </AnimatePresence>
             </div>
           )}
 
@@ -676,28 +719,40 @@ export default function App() {
         </div>
       </div>
 
+      <AnimatePresence>
       {catalog && snap && (
-        <>
-          <button
+          <motion.button
             type="button"
             className="scrim settings"
             aria-label="cerrar catálogo"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             onClick={() => setCatalog(false)}
           />
+      )}
+      </AnimatePresence>
+      <AnimatePresence>
+      {catalog && snap && (
           <Catalog
             snap={snap}
             onOp={onOp}
             onCodexLogin={onCodexLogin}
             onClose={() => setCatalog(false)}
           />
-        </>
       )}
+      </AnimatePresence>
+      <AnimatePresence>
       {databases && (
-        <>
-          <button type="button" className="scrim settings" aria-label="cerrar bases de datos" onClick={() => setDatabases(false)} />
-          <Databases onClose={() => setDatabases(false)} />
-        </>
+          <motion.button type="button" className="scrim settings" aria-label="cerrar bases de datos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDatabases(false)} />
       )}
+      </AnimatePresence>
+      <AnimatePresence>
+      {databases && (
+          <Databases onClose={() => setDatabases(false)} />
+      )}
+      </AnimatePresence>
+      <AnimatePresence>
       {voiceOpen && (
         <VoiceStage
           phase={voicePhase}
@@ -708,6 +763,8 @@ export default function App() {
           onHangup={stopVoice}
         />
       )}
+      </AnimatePresence>
     </div>
+    </MotionConfig>
   );
 }

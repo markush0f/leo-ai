@@ -4,6 +4,7 @@
  * exposing stored secrets.
  */
 import { useState } from "react";
+import { motion } from "motion/react";
 import { openExternal } from "./api";
 import type { CodexLogin, Model, Op, Provider, Snapshot } from "./types";
 
@@ -55,7 +56,14 @@ export function Catalog({ snap, onOp, onCodexLogin, onClose }: Props) {
   const activeModel = snap.models.find((m) => m.id === snap.active_model_id);
 
   return (
-    <aside className="sheet catalog" aria-label="Catálogo">
+    <motion.aside
+      className="sheet catalog"
+      aria-label="Catálogo"
+      initial={{ opacity: 0, x: 12 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 8 }}
+      transition={{ duration: 0.18 }}
+    >
       <header className="sheet-head">
         <div>
           <h2>Catálogo</h2>
@@ -128,7 +136,7 @@ export function Catalog({ snap, onOp, onCodexLogin, onClose }: Props) {
           {snap.tools.length > 0 && <div className="catalog-tools"><h4>Herramientas disponibles</h4><ul>{snap.tools.map((tool) => <li key={tool}>{tool}</li>)}</ul></div>}
         </div>
       </details>
-    </aside>
+    </motion.aside>
   );
 }
 

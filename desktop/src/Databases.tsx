@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { motion } from "motion/react";
 import {
   createDatabase,
   deleteDatabase,
@@ -150,7 +151,15 @@ export function Databases({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <aside className="sheet catalog databases" aria-label="Bases de datos" aria-busy={busy || loading}>
+    <motion.aside
+      className="sheet catalog databases"
+      aria-label="Bases de datos"
+      aria-busy={busy || loading}
+      initial={{ opacity: 0, x: 12 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 8 }}
+      transition={{ duration: 0.18 }}
+    >
       <header className="sheet-head">
         <div>
           <h2>Bases de datos</h2>
@@ -252,6 +261,6 @@ export function Databases({ onClose }: { onClose: () => void }) {
         </div>
       </div>
       {error && <p className="sheet-err" role="alert">{error}</p>}
-    </aside>
+    </motion.aside>
   );
 }
