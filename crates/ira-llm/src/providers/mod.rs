@@ -7,6 +7,7 @@ pub mod xai;
 
 use std::sync::Arc;
 
+use crate::TextSink;
 use crate::error::LlmError;
 use crate::protocols::openai_compatible;
 use crate::types::{ChatRequest, ChatResponse, ProviderId};
@@ -163,6 +164,27 @@ impl Client {
         }
     }
 
+    /// Streams provider text fragments to `sink` while accumulating the complete response.
+    pub async fn chat_stream(
+        &self,
+        req: ChatRequest,
+        sink: TextSink,
+    ) -> Result<ChatResponse, LlmError> {
+        let model = req.model.as_deref().unwrap_or(self.default_model.as_str());
+        match self.provider {
+            ProviderId::Grok | ProviderId::Gpt => self.chat_openai_stream(model, &req, sink).await,
+            ProviderId::Ollama => self.chat_ollama_stream(model, &req, sink).await,
+            ProviderId::Claude => self.chat_claude_stream(model, &req, sink).await,
+            ProviderId::Codex => {
+                self.codex
+                    .as_ref()
+                    .ok_or(LlmError::MissingCredentials("codex"))?
+                    .complete_stream(req, sink)
+                    .await
+            }
+        }
+    }
+
     async fn chat_openai(&self, model: &str, req: &ChatRequest) -> Result<ChatResponse, LlmError> {
         let url = format!("{}/chat/completions", self.base_url);
         let mut builder = self
@@ -181,6 +203,31 @@ impl Client {
         openai_compatible::parse_response(self.provider, model, &body)
     }
 
+    async fn chat_openai_stream(
+        &self,
+        model: &str,
+        req: &ChatRequest,
+        sink: TextSink,
+    ) -> Result<ChatResponse, LlmError> {
+        let url = format!("{}/chat/completions", self.base_url);
+        let mut body = openai_compatible::build_body(model, req)?;
+        body["stream"] = true.into();
+        let mut builder = self.http.post(&url).json(&body);
+        if let Some(key) = &self.api_key {
+            builder = builder.bearer_auth(key);
+        }
+        let mut response = builder.send().await?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(http_error(status.as_u16(), response.text().await?));
+        }
+        let mut parser = openai_compatible::StreamParser::default();
+        while let Some(chunk) = response.chunk().await? {
+            parser.push(&chunk, &sink)?;
+        }
+        parser.finish(self.provider, model, &sink)
+    }
+
     async fn chat_ollama(&self, model: &str, req: &ChatRequest) -> Result<ChatResponse, LlmError> {
         let url = format!("{}/api/chat", ollama::origin(&self.base_url));
         let response = self
@@ -195,6 +242,30 @@ impl Client {
             return Err(http_error(status.as_u16(), body));
         }
         ollama::parse_response(model, &body)
+    }
+
+    async fn chat_ollama_stream(
+        &self,
+        model: &str,
+        req: &ChatRequest,
+        sink: TextSink,
+    ) -> Result<ChatResponse, LlmError> {
+        let url = format!("{}/api/chat", ollama::origin(&self.base_url));
+        let mut response = self
+            .http
+            .post(&url)
+            .json(&ollama::build_stream_body(model, req)?)
+            .send()
+            .await?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(http_error(status.as_u16(), response.text().await?));
+        }
+        let mut parser = ollama::StreamParser::default();
+        while let Some(chunk) = response.chunk().await? {
+            parser.push(&chunk, &sink)?;
+        }
+        parser.finish(model, &sink)
     }
 
     /// Lists models exposed by providers that support discovery.
@@ -232,6 +303,33 @@ impl Client {
             return Err(http_error(status.as_u16(), body));
         }
         claude::parse_response(model, &body)
+    }
+
+    async fn chat_claude_stream(
+        &self,
+        model: &str,
+        req: &ChatRequest,
+        sink: TextSink,
+    ) -> Result<ChatResponse, LlmError> {
+        let url = format!("{}/messages", self.base_url);
+        let mut builder = self
+            .http
+            .post(&url)
+            .header("anthropic-version", "2023-06-01")
+            .json(&claude::build_stream_body(model, req)?);
+        if let Some(key) = &self.api_key {
+            builder = builder.header("x-api-key", key);
+        }
+        let mut response = builder.send().await?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(http_error(status.as_u16(), response.text().await?));
+        }
+        let mut parser = claude::StreamParser::default();
+        while let Some(chunk) = response.chunk().await? {
+            parser.push(&chunk, &sink)?;
+        }
+        parser.finish(model, &sink)
     }
 }
 

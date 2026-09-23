@@ -18,6 +18,8 @@ pub enum LlmError {
     Http { status: u16, body: String },
     #[error("respuesta vacía de {0}")]
     Empty(&'static str),
+    #[error("stream incompleto de {0}")]
+    IncompleteStream(&'static str),
     #[error("red: {0}")]
     Network(#[from] reqwest::Error),
     #[error("url: {0}")]

@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::provider::{Provider, ProviderFuture};
-use crate::{ChatRequest, ChatResponse, LlmError, ProviderId, Role, ToolCall};
+use crate::{ChatRequest, ChatResponse, LlmError, ProviderId, Role, TextSink, ToolCall, stream};
 
 use super::{AuthManager, CodexConfig, MemoryTokenStore, OAuthCredentials, TokenStore};
 
@@ -67,6 +67,38 @@ impl Codex {
             });
         }
         parse_response(model, &body)
+    }
+
+    /// Streams Codex output text while retaining tool calls and provider state.
+    pub async fn complete_stream(
+        &self,
+        request: ChatRequest,
+        sink: TextSink,
+    ) -> Result<ChatResponse, LlmError> {
+        let mut credentials = self.auth.authorization().await?;
+        let model = request
+            .model
+            .as_deref()
+            .unwrap_or(&self.config.default_model);
+        let body = request_body(model, &request);
+        let mut response = self.send(&credentials, &body).await?;
+        if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+            credentials = self.auth.refresh_after(&credentials.access_token).await?;
+            response = self.send(&credentials, &body).await?;
+        }
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await?;
+            return Err(LlmError::Http {
+                status: status.as_u16(),
+                body: crate::extract_error_message(&body).unwrap_or(body),
+            });
+        }
+        let mut parser = CodexStream::new(model);
+        while let Some(chunk) = response.chunk().await? {
+            parser.push(&chunk, &sink)?;
+        }
+        parser.finish(&sink)
     }
 
     pub async fn list_models(&self) -> Result<Vec<String>, LlmError> {
@@ -312,6 +344,126 @@ fn parse_response(fallback_model: &str, body: &str) -> Result<ChatResponse, LlmE
     })
 }
 
+struct CodexStream {
+    sse: stream::Sse,
+    text: String,
+    tool_calls: Vec<ToolCall>,
+    provider_items: Vec<Value>,
+    model: String,
+    complete: bool,
+}
+
+impl CodexStream {
+    fn new(model: &str) -> Self {
+        Self {
+            sse: stream::Sse::default(),
+            text: String::new(),
+            tool_calls: Vec::new(),
+            provider_items: Vec::new(),
+            model: model.to_string(),
+            complete: false,
+        }
+    }
+
+    fn push(&mut self, chunk: &[u8], sink: &TextSink) -> Result<(), LlmError> {
+        for data in self.sse.push(chunk) {
+            self.event(&data, sink)?;
+        }
+        Ok(())
+    }
+
+    fn finish(mut self, sink: &TextSink) -> Result<ChatResponse, LlmError> {
+        for data in self.sse.finish() {
+            self.event(&data, sink)?;
+        }
+        if !self.complete {
+            return Err(LlmError::IncompleteStream("codex"));
+        }
+        if self.text.is_empty() && self.tool_calls.is_empty() {
+            return Err(LlmError::Empty("codex"));
+        }
+        Ok(ChatResponse {
+            provider: ProviderId::Codex,
+            model: self.model,
+            text: self.text,
+            tool_calls: self.tool_calls,
+            provider_items: self.provider_items,
+        })
+    }
+
+    fn event(&mut self, data: &[u8], sink: &TextSink) -> Result<(), LlmError> {
+        if data == b"[DONE]" || data.is_empty() {
+            return Ok(());
+        }
+        let event = stream::json(data)?;
+        match event.get("type").and_then(Value::as_str) {
+            Some("response.output_text.delta") => {
+                let delta = event
+                    .get("delta")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                if !delta.is_empty() {
+                    self.text.push_str(delta);
+                    sink(delta.to_string());
+                }
+            }
+            Some("response.output_item.done") => {
+                if let Some(item) = event.get("item") {
+                    if let Some(call) = parse_tool_call(item) {
+                        self.tool_calls.push(call);
+                    } else if item.get("type").and_then(Value::as_str) == Some("reasoning") {
+                        self.provider_items.push(item.clone());
+                    }
+                }
+            }
+            Some("response.completed") => {
+                self.complete = true;
+                if let Some(response) = event.get("response") {
+                    if let Some(model) = response.get("model").and_then(Value::as_str) {
+                        self.model = model.to_string();
+                    }
+                    let mut completed_text = String::new();
+                    let mut completed_calls = Vec::new();
+                    let mut completed_items = Vec::new();
+                    parse_response_value(
+                        response,
+                        &mut completed_text,
+                        &mut completed_calls,
+                        &mut completed_items,
+                        &mut self.model,
+                    );
+                    if self.text.is_empty() && !completed_text.is_empty() {
+                        sink(completed_text.clone());
+                        self.text = completed_text;
+                    }
+                    for call in completed_calls {
+                        if !self.tool_calls.iter().any(|known| known.id == call.id) {
+                            self.tool_calls.push(call);
+                        }
+                    }
+                    for item in completed_items {
+                        if !self.provider_items.contains(&item) {
+                            self.provider_items.push(item);
+                        }
+                    }
+                }
+            }
+            Some("error" | "response.failed") => {
+                return Err(LlmError::Authentication(
+                    event
+                        .pointer("/error/message")
+                        .or_else(|| event.pointer("/response/error/message"))
+                        .and_then(Value::as_str)
+                        .unwrap_or("Codex devolvió un error")
+                        .to_string(),
+                ));
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
 fn parse_response_value(
     response: &Value,
     text: &mut String,
@@ -423,5 +575,52 @@ mod tests {
         let request = request_body("gpt-5.4", &follow_up);
         assert_eq!(request["input"][0]["encrypted_content"], "opaque");
         assert_eq!(request["input"][1]["call_id"], "call_1");
+    }
+
+    #[test]
+    fn streams_fragmented_codex_sse_with_provider_items() {
+        use std::sync::Mutex;
+
+        let output = Arc::new(Mutex::new(Vec::new()));
+        let copy = output.clone();
+        let sink: TextSink = Arc::new(move |text| copy.lock().unwrap().push(text));
+        let body = concat!(
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"Hola\"}\n\n",
+            "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"reasoning\",\"encrypted_content\":\"opaque\"}}\n\n",
+            "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"function_call\",\"call_id\":\"c1\",\"name\":\"echo\",\"arguments\":\"{}\"}}\n\n",
+            "data: {\"type\":\"response.completed\",\"response\":{\"model\":\"gpt-x\",\"output\":[{\"type\":\"reasoning\",\"encrypted_content\":\"opaque\"},{\"type\":\"function_call\",\"call_id\":\"c1\",\"name\":\"echo\",\"arguments\":\"{}\"}]}}\n\n"
+        );
+        let mut parser = CodexStream::new("fallback");
+        for chunk in body.as_bytes().chunks(5) {
+            parser.push(chunk, &sink).unwrap();
+        }
+        let response = parser.finish(&sink).unwrap();
+        assert_eq!(response.text, "Hola");
+        assert_eq!(response.model, "gpt-x");
+        assert_eq!(response.tool_calls.len(), 1);
+        assert_eq!(response.tool_calls[0].id, "c1");
+        assert_eq!(response.provider_items.len(), 1);
+        assert_eq!(response.provider_items[0]["encrypted_content"], "opaque");
+        assert_eq!(*output.lock().unwrap(), ["Hola"]);
+    }
+
+    #[test]
+    fn rejects_eof_without_response_completed() {
+        use std::sync::Mutex;
+
+        let output = Arc::new(Mutex::new(Vec::new()));
+        let copy = output.clone();
+        let sink: TextSink = Arc::new(move |text| copy.lock().unwrap().push(text));
+        let mut parser = CodexStream::new("gpt");
+        parser
+            .push(
+                b"data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n",
+                &sink,
+            )
+            .unwrap();
+        assert!(matches!(
+            parser.finish(&sink),
+            Err(LlmError::IncompleteStream("codex"))
+        ));
     }
 }

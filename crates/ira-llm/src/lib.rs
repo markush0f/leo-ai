@@ -8,6 +8,7 @@ mod error;
 pub mod protocols;
 pub mod provider;
 pub mod providers;
+mod stream;
 pub mod types;
 
 pub use error::LlmError;
@@ -16,6 +17,9 @@ pub use providers::codex::{Codex, OAuthCredentials, TokenStore};
 pub use providers::ollama::parse_tags as parse_ollama_tags;
 pub use providers::{Client, extract_error_message};
 pub use types::{ChatMessage, ChatRequest, ChatResponse, ProviderId, Role, ToolCall, ToolSpec};
+
+/// Callback invoked for each text fragment received from a provider stream.
+pub type TextSink = std::sync::Arc<dyn Fn(String) + Send + Sync + 'static>;
 
 /// Loads the first `.env` found while walking up from the working directory.
 /// Checks at most 16 directories, preserves exported variables, and ignores load errors.
