@@ -4,13 +4,16 @@
 //! and provider HTTP, then returns the same DTOs as the Tauri bridge.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
+use axum::body::Body;
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
-use ira_api::{App, DatabaseExportRequest, DatabaseInput, Op};
+use futures::stream;
+use ira_api::{App, ChatStreamEvent, DatabaseExportRequest, DatabaseInput, Op};
 use serde::{Deserialize, Serialize};
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
@@ -38,6 +41,17 @@ struct CodexLoginIn {
     provider_id: Uuid,
 }
 
+struct ChatStreamState {
+    receiver: tokio::sync::mpsc::Receiver<ChatStreamEvent>,
+    relay: tokio::task::AbortHandle,
+}
+
+impl Drop for ChatStreamState {
+    fn drop(&mut self) {
+        self.relay.abort();
+    }
+}
+
 pub fn router(app: App, web_root: Option<PathBuf>) -> Router {
     let api = Router::new()
         .route("/health", get(health))
@@ -56,6 +70,7 @@ pub fn router(app: App, web_root: Option<PathBuf>) -> Router {
         .route("/codex/login/{id}/finish", post(finish_codex_login))
         .route("/chats", get(list_chats).post(new_chat))
         .route("/chats/{id}", get(open_chat))
+        .route("/chats/{id}/messages/stream", post(chat_stream))
         .route("/chats/{id}/messages", post(chat));
 
     let mut router = Router::new()
@@ -165,6 +180,55 @@ async fn chat(State(app): State<App>, Path(id): Path<Uuid>, Json(body): Json<Cha
         return fail(StatusCode::BAD_REQUEST, "mensaje vacío");
     }
     send(app.chat(id, text.to_string()).await)
+}
+
+async fn chat_stream(
+    State(app): State<App>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ChatIn>,
+) -> Response {
+    let text = body.text.trim();
+    if text.is_empty() {
+        return fail(StatusCode::BAD_REQUEST, "mensaje vacío");
+    }
+
+    let (ingress_tx, mut ingress_rx) = tokio::sync::mpsc::unbounded_channel::<ChatStreamEvent>();
+    let (body_tx, body_rx) = tokio::sync::mpsc::channel::<ChatStreamEvent>(32);
+    let relay = tokio::spawn(async move {
+        while let Some(event) = ingress_rx.recv().await {
+            if body_tx.send(event).await.is_err() {
+                break;
+            }
+        }
+    });
+    let sink = Arc::new(move |event| {
+        let _ = ingress_tx.send(event);
+    });
+    let text = text.to_string();
+    tokio::spawn(async move {
+        app.chat_stream(id, text, sink).await;
+    });
+
+    let state = ChatStreamState {
+        receiver: body_rx,
+        relay: relay.abort_handle(),
+    };
+    let body = Body::from_stream(stream::unfold(state, |mut state| async move {
+        let event = state.receiver.recv().await?;
+        let mut line = serde_json::to_vec(&event).expect("stream event serialization");
+        line.push(b'\n');
+        Some((Ok::<_, std::convert::Infallible>(line), state))
+    }));
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "application/x-ndjson"),
+            (header::CACHE_CONTROL, "no-cache"),
+            (header::HeaderName::from_static("x-accel-buffering"), "no"),
+        ],
+        body,
+    )
+        .into_response()
 }
 
 fn send<T: Serialize>(result: Result<T, String>) -> Response {
@@ -345,5 +409,60 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn empty_streaming_chat_is_rejected_before_stream() {
+        let id = Uuid::from_u128(1);
+        let resp = test_router()
+            .oneshot(
+                Request::post(format!("/api/chats/{id}/messages/stream"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"text":"   "}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        assert_ne!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/x-ndjson"
+        );
+    }
+
+    #[tokio::test]
+    async fn streaming_chat_returns_ndjson_immediately() {
+        let id = Uuid::from_u128(1);
+        let resp = test_router()
+            .oneshot(
+                Request::post(format!("/api/chats/{id}/messages/stream"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"text":"hola"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/x-ndjson"
+        );
+        assert_eq!(resp.headers().get("x-accel-buffering").unwrap(), "no");
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let event: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(event["type"], "error");
+    }
+
+    #[tokio::test]
+    async fn dropping_stream_state_aborts_relay() {
+        let (_tx, receiver) = tokio::sync::mpsc::channel(1);
+        let relay = tokio::spawn(std::future::pending::<()>());
+        let state = ChatStreamState {
+            receiver,
+            relay: relay.abort_handle(),
+        };
+
+        drop(state);
+        assert!(relay.await.unwrap_err().is_cancelled());
     }
 }
