@@ -111,7 +111,7 @@ arguments, resolves paths, and registers these implementations.
 | `github` | Issues and pull requests | `GITHUB_TOKEN` or `GH_TOKEN`. |
 | `google` | Calendars and events | `GOOGLE_ACCESS_TOKEN` or `GOOGLE_API_KEY`. |
 | `home-assistant` | Entity states and service calls | Server URL and token. |
-| `db` | SQL and schema discovery through a local MCP Toolbox (`db_list_tools`, `db_invoke`, `db_execute_sql`, …) | Container built from `third_party/mcp-toolbox` (`deploy/toolbox/Dockerfile`). `docker compose up -d postgres toolbox` and `MCP_TOOLBOX_URL=http://127.0.0.1:5000`. |
+| `db` | SQL and schema discovery through a local MCP Toolbox (`db_list_tools`, `db_invoke`, `db_execute_sql`, …) | Official container managed by Compose. `docker compose up -d postgres toolbox` and `MCP_TOOLBOX_URL=http://127.0.0.1:5000`. |
 | `notion`, `spotify` | None | Placeholder crates, not registered. |
 
 ## Voice layer (deferred)
@@ -181,8 +181,8 @@ The browser never calls Ollama; `ira-server` does.
 
 - **New tool:** implement its schema and typed operation in an integration crate,
   then register argument conversion in `ira-tools/src/catalog.rs`. Database
-  tools go through `ira-tools-db` and the local MCP Toolbox process (source in
-  `third_party/mcp-toolbox`), not a direct `sqlx` connection from the model.
+  tools go through `ira-tools-db` and the local MCP Toolbox container, not a
+  direct `sqlx` connection from the model.
 - **New LLM provider:** extend provider identity/defaults, client dispatch, and a
   protocol adapter; add offline payload and response tests.
 - **New speech backend:** implement the relevant voice trait and wire it in the

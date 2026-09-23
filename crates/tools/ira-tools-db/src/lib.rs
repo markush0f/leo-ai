@@ -1,5 +1,5 @@
 //! Database tools backed by a **local** [MCP Toolbox](https://github.com/googleapis/mcp-toolbox)
-//! checkout (`third_party/mcp-toolbox`).
+//! container managed by Docker Compose.
 //!
 //! `ira-tools` registers these operations when `MCP_TOOLBOX_URL` or
 //! `TOOLBOX_URL` points at the Compose service (publishes `127.0.0.1:5000`).

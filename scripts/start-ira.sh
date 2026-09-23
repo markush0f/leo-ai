@@ -21,12 +21,6 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ ! -f "$root/third_party/mcp-toolbox/go.mod" ]]; then
-  printf 'falta third_party/mcp-toolbox; ejecuta:\n' >&2
-  printf '  git submodule update --init third_party/mcp-toolbox\n' >&2
-  exit 1
-fi
-
 printf 'Arrancando Postgres, MCP Toolbox y Ira Realtime...\n'
 docker compose --project-directory "$root" up -d --build postgres toolbox ira-realtime
 

@@ -85,10 +85,7 @@ services:
         SQL
 
   toolbox:
-    build:
-      context: ./third_party
-      dockerfile: ../deploy/toolbox/Dockerfile
-    image: ira-ai-toolbox:1.11.0
+    image: ${MCP_TOOLBOX_IMAGE:-us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:1.11.0}
     user: "${IRA_UID:-1000}:${IRA_GID:-1000}"
     depends_on:
       postgres-migrate:
@@ -112,7 +109,7 @@ services:
       - --allowed-hosts=127.0.0.1
       - --allowed-hosts=localhost
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5000/healthz"]
+      test: ["CMD", "/toolbox", "--version"]
       interval: 5s
       timeout: 3s
       retries: 12

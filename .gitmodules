@@ -1,3 +1,0 @@
-[submodule "third_party/mcp-toolbox"]
-	path = third_party/mcp-toolbox
-	url = https://github.com/googleapis/mcp-toolbox.git

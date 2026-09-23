@@ -15,8 +15,7 @@ tool registry. Voice is in the workspace but not part of the product yet.
 - A recent Rust toolchain with Rust 2024 support and Cargo.
 - PostgreSQL 16; the included Compose service exposes it on port `5439`.
 - Database tools use a local [MCP Toolbox](https://github.com/googleapis/mcp-toolbox)
-  container built from `third_party/mcp-toolbox` (`deploy/toolbox/Dockerfile`).
-  Initialize the submodule with `git submodule update --init third_party/mcp-toolbox`.
+  container managed by Docker Compose.
 - For desktop: Node.js compatible with Vite 8, npm, and Tauri 2's Linux native
   dependencies, including WebKitGTK 4.1 and GTK 3 development packages.
 - A provider API key, or a running Ollama server with a downloaded model.
@@ -27,7 +26,6 @@ From the repository root:
 
 ```sh
 cp .env.example .env
-git submodule update --init third_party/mcp-toolbox
 docker compose up -d postgres toolbox
 cargo run -p ira-tui --bin ira
 ```
@@ -40,8 +38,8 @@ Database URL precedence is `IRA_DATABASE_URL`, then `DATABASE_URL`, then
 `postgres://ira:ira@127.0.0.1:5439/ira?sslmode=disable`.
 
 Chat queries databases through a **local** MCP Toolbox container, not a hosted
-server. Compose builds `deploy/toolbox/Dockerfile` from the submodule
-`third_party/mcp-toolbox` (tag `v1.11.0`) and publishes `127.0.0.1:5000`.
+server. Compose pulls the official image pinned to `1.11.0` and publishes
+`127.0.0.1:5000`. Override it with `MCP_TOOLBOX_IMAGE` when needed.
 
 Set `MCP_TOOLBOX_URL=http://127.0.0.1:5000`. If `IRA_MASTER_KEY` is unset,
 Ira creates `.ira/master.key` on first use and reuses it. The web

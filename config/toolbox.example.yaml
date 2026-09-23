@@ -1,13 +1,12 @@
 # MCP Toolbox config for custom SQL tools on this machine.
-# Copy to tools.yaml and pass --config when running the local binary.
-# The Compose toolbox service builds deploy/toolbox/Dockerfile with
-# --prebuilt=postgres and does not mount this file.
+# Copy into .ira/toolbox when testing custom tools through Compose.
+# Ira normally generates the files in that directory from its catalog.
 
 kind: source
 name: ira
 type: postgres
-host: 127.0.0.1
-port: 5439
+host: postgres
+port: 5432
 database: ira
 user: ira
 password: ira
