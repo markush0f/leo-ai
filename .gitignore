@@ -15,3 +15,5 @@ desktop/src-tauri/target
 # Vite optimize cache
 .vite/
 desktop/.vite/
+desktop/test-results/
+desktop/playwright-report/
