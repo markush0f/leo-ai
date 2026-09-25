@@ -7,6 +7,9 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import { openExternal } from "./api";
 import type { CodexLogin, Model, Op, Provider, Snapshot } from "./types";
+import { Input, Select, TextArea } from "./components/Field";
+import { useSheetFocus } from "./components/useSheetFocus";
+import { IconClose, IconDelete, IconSearch } from "./icons";
 
 const KINDS = ["grok", "gpt", "ollama", "claude", "codex"] as const;
 
@@ -32,6 +35,7 @@ type Props = {
 };
 
 export function Catalog({ snap, onOp, onCodexLogin, onClose }: Props) {
+  const sheetRef = useSheetFocus();
   const active = snap.providers.find((p) =>
     snap.models.some((m) => m.id === snap.active_model_id && m.provider_id === p.id),
   );
@@ -57,20 +61,21 @@ export function Catalog({ snap, onOp, onCodexLogin, onClose }: Props) {
 
   return (
     <motion.aside
+      ref={sheetRef} role="dialog" aria-modal="true" tabIndex={-1}
       className="sheet catalog"
       aria-label="Catálogo"
-      initial={{ opacity: 0, x: 12 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 8 }}
-      transition={{ duration: 0.18 }}
+      initial={{ x: "100%" }}
+      animate={{ x: 0 }}
+      exit={{ x: "100%" }}
+      transition={{ type: "spring", stiffness: 360, damping: 38 }}
     >
       <header className="sheet-head">
         <div>
-          <h2>Catálogo</h2>
+          <h2>Modelos y configuración</h2>
           <p>Elige el modelo con el que quieres conversar.</p>
         </div>
-        <button type="button" className="btn-ghost" onClick={onClose}>
-          Cerrar
+        <button type="button" className="btn-ghost icon-button" aria-label="Cerrar catálogo" title="Cerrar" onClick={onClose}>
+          <IconClose />
         </button>
       </header>
 
@@ -125,14 +130,10 @@ export function Catalog({ snap, onOp, onCodexLogin, onClose }: Props) {
       <details className="catalog-settings catalog-global">
         <summary>Instrucciones de Ira <span>Para todos los modelos</span></summary>
         <div className="catalog-settings-body">
-          <label className="field">
-            <span>Instrucciones del sistema</span>
-            <textarea value={system} rows={4} onChange={(e) => setSystem(e.target.value)}
+            <TextArea label="Instrucciones del sistema" hint="Se guardan al salir del campo." value={system} rows={4} onChange={(e) => setSystem(e.target.value)}
               onBlur={() => {
                 if (system !== snap.system) void run({ op: "set_system", text: system });
               }} />
-          </label>
-          <p className="field-help">Se guardan al salir del campo.</p>
           {snap.tools.length > 0 && <div className="catalog-tools"><h4>Herramientas disponibles</h4><ul>{snap.tools.map((tool) => <li key={tool}>{tool}</li>)}</ul></div>}
         </div>
       </details>
@@ -179,7 +180,7 @@ function ProviderEditor({
       </header>
       <section className="catalog-model-section" aria-label="Modelos disponibles">
         <div className="catalog-section-head"><h4>Modelos</h4><span>{models.length} disponibles</span></div>
-        {models.length > 0 && <label className="field catalog-search"><span>Buscar modelo</span><input type="search" placeholder="Buscar por nombre…" value={query} onChange={(e) => setQuery(e.target.value)} /></label>}
+        {models.length > 0 && <Input label="Buscar modelo" icon={<IconSearch />} type="search" placeholder="Buscar por nombre…" value={query} onChange={(e) => setQuery(e.target.value)} />}
         <ul className="catalog-models">
           {filteredModels.map((m) => (
             <li key={m.id} className={m.id === activeModelId ? "active" : undefined}>
@@ -196,7 +197,7 @@ function ProviderEditor({
                     <span className="catalog-model-action">{m.id === activeModelId ? "En uso" : "Usar"}</span>
                   </button>
                   <button type="button" className="catalog-remove" disabled={busy} aria-label={`Borrar modelo ${m.name}`} title={`Borrar ${m.name}`} onClick={() => setPendingDelete(m.id)}>
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5" /></svg>
+                    <IconDelete />
                   </button>
                 </>
               )}
@@ -215,9 +216,7 @@ function ProviderEditor({
           Activar proveedor
         </button>
       </div>
-      <label className="field">
-        <span>Nombre del proveedor</span>
-        <input
+        <Input label="Nombre del proveedor" disabled={busy}
           value={name}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => {
@@ -226,15 +225,10 @@ function ProviderEditor({
             }
           }}
         />
-      </label>
-
-      <label className="field">
-        <span>Tipo de conexión</span>
-        <select value={provider.kind} disabled={busy} onChange={(e) => void onOp({ op: "set_kind", id: provider.id, kind: e.target.value })}>
+        <Select label="Tipo de conexión" value={provider.kind} disabled={busy} onChange={(e) => void onOp({ op: "set_kind", id: provider.id, kind: e.target.value })}>
           {!KINDS.some((kind) => kind === provider.kind) && <option value={provider.kind}>{provider.kind}</option>}
           {KINDS.map((kind) => <option key={kind} value={kind}>{KIND_LABEL[kind]}</option>)}
-        </select>
-      </label>
+        </Select>
 
       {isCodex ? (
         <section className="codex-auth" aria-live="polite">
@@ -276,9 +270,7 @@ function ProviderEditor({
           {authErr && <p className="sheet-err">{authErr}</p>}
         </section>
       ) : (
-        <label className="field">
-          <span>Clave API · {KEY_LABEL[provider.key]}</span>
-          <input
+          <Input label={`Clave API · ${KEY_LABEL[provider.key]}`} disabled={busy}
             type="password"
             autoComplete="off"
             value={key}
@@ -292,12 +284,9 @@ function ProviderEditor({
               }
             }}
           />
-        </label>
       )}
 
-      <label className="field">
-        <span>URL base</span>
-        <input
+        <Input label="URL base" disabled={busy}
           value={url}
           placeholder="URL predeterminada del proveedor"
           onChange={(e) => setUrl(e.target.value)}
@@ -307,7 +296,6 @@ function ProviderEditor({
             }
           }}
         />
-      </label>
 
       {canDelete &&
         (pendingDelete === "provider" ? (
