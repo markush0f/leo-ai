@@ -1,6 +1,7 @@
 import { useEffect, useRef, type MutableRefObject } from "react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { IconClose } from "./icons";
+import { useSheetFocus } from "./components/useSheetFocus";
 
 export type VoicePhase = "connect" | "listen" | "wait" | "speak" | "error";
 
@@ -23,8 +24,11 @@ const STATUS: Record<VoicePhase, string> = {
 
 export function VoiceStage({ phase, userText, iraText, error, levelRef, onHangup }: Props) {
   const orbRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useSheetFocus();
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
+    if (reducedMotion) return;
     let frame = 0;
     const tick = () => {
       orbRef.current?.style.setProperty("--voice-level", String(levelRef.current));
@@ -32,26 +36,26 @@ export function VoiceStage({ phase, userText, iraText, error, levelRef, onHangup
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [levelRef]);
+  }, [levelRef, reducedMotion]);
 
   return (
     <>
       <motion.button type="button" className="scrim voice" aria-label="colgar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onHangup} />
-      <motion.div
+      <motion.section ref={sheetRef} tabIndex={-1}
         className="voice-card"
         role="dialog"
         aria-modal="true"
         aria-labelledby="voice-status"
-        initial={{ opacity: 0, scale: 0.985 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.99 }}
-        transition={{ duration: 0.18 }}
+        initial={{ y: 24, scale: 0.94 }}
+        animate={{ y: 0, scale: 1 }}
+        exit={{ y: 16, scale: 0.94, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 350, damping: 30 }}
       >
         <button type="button" className="btn-ghost voice-close" aria-label="colgar" onClick={onHangup}>
           <IconClose />
         </button>
         <div className="voice-halo" data-phase={phase}>
-          <div ref={orbRef} className="voice-orb" data-phase={phase} />
+          <div ref={orbRef} className="voice-orb" data-phase={phase}><img src="/ira-cabeza-recortada.png" alt="" /></div>
         </div>
         <p id="voice-status" className="voice-status" aria-live="polite">
           {error ?? STATUS[phase]}
@@ -65,7 +69,7 @@ export function VoiceStage({ phase, userText, iraText, error, levelRef, onHangup
         <button type="button" className="btn-danger voice-hangup" autoFocus onClick={onHangup}>
           Colgar
         </button>
-      </motion.div>
+      </motion.section>
     </>
   );
 }
