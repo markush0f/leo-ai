@@ -1,112 +1,35 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  Mic01Icon, ArrowUp02Icon, Add01Icon, Sun03Icon, Moon02Icon,
+  Settings02Icon, Menu01Icon, PowerServiceIcon, Cancel01Icon,
+  Database02Icon, SidebarLeft01Icon, BubbleChatIcon, Brain01Icon,
+  Wrench01Icon, ArrowDown02Icon, ViewIcon, ViewOffSlashIcon,
+  Search01Icon, Delete02Icon, Link01Icon, Tick02Icon,
+} from "@hugeicons/core-free-icons";
+
 type Props = { className?: string };
+const makeIcon = (icon: typeof Mic01Icon) => function Icon(props: Props) {
+  return <HugeiconsIcon icon={icon} size={20} strokeWidth={1.7} aria-hidden="true" {...props} />;
+};
 
-export function IconMic({ className }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" strokeWidth="1.8" />
-      <path
-        d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v3.5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-export function IconSend({ className }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 19V5M12 5l-6 6M12 5l6 6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-export function IconPlus({ className }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-export function IconSun({ className }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="4.2" stroke="currentColor" strokeWidth="1.8" />
-      <path
-        d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8L6 18M18 6l1.8-1.8"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-export function IconMoon({ className }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M17.5 15.2A7 7 0 1 1 11 4.6 5.5 5.5 0 0 0 17.5 15.2z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-export function IconSliders({ className }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M4 8h16M4 16h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <circle cx="8" cy="8" r="2.2" fill="currentColor" />
-      <circle cx="16" cy="16" r="2.2" fill="currentColor" />
-    </svg>
-  );
-}
-
-export function IconMenu({ className }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M5 7h14M5 12h14M5 17h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-export function IconPower({ className }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 3v8M7.2 6.4a7 7 0 1 0 9.6 0"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-export function IconClose({ className }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-export function IconDatabase({ className }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <ellipse cx="12" cy="5.5" rx="7" ry="3" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M5 5.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6M5 11.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" stroke="currentColor" strokeWidth="1.8" />
-    </svg>
-  );
-}
+export const IconMic = makeIcon(Mic01Icon);
+export const IconSend = makeIcon(ArrowUp02Icon);
+export const IconPlus = makeIcon(Add01Icon);
+export const IconSun = makeIcon(Sun03Icon);
+export const IconMoon = makeIcon(Moon02Icon);
+export const IconSliders = makeIcon(Settings02Icon);
+export const IconMenu = makeIcon(Menu01Icon);
+export const IconPower = makeIcon(PowerServiceIcon);
+export const IconClose = makeIcon(Cancel01Icon);
+export const IconDatabase = makeIcon(Database02Icon);
+export const IconSidebar = makeIcon(SidebarLeft01Icon);
+export const IconChat = makeIcon(BubbleChatIcon);
+export const IconBrain = makeIcon(Brain01Icon);
+export const IconTools = makeIcon(Wrench01Icon);
+export const IconDown = makeIcon(ArrowDown02Icon);
+export const IconEye = makeIcon(ViewIcon);
+export const IconEyeOff = makeIcon(ViewOffSlashIcon);
+export const IconSearch = makeIcon(Search01Icon);
+export const IconDelete = makeIcon(Delete02Icon);
+export const IconLink = makeIcon(Link01Icon);
+export const IconCheck = makeIcon(Tick02Icon);
