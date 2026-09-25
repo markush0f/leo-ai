@@ -3,8 +3,8 @@
  * Model history is separate from display bubbles so UI errors are not sent back
  * as assistant replies. Service calls go through `api.ts` (Tauri or ira-server).
  */
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, MotionConfig } from "motion/react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { AnimatePresence, motion, MotionConfig, useReducedMotion } from "motion/react";
 import {
   applyOp,
   beginCodexLogin,
@@ -19,16 +19,20 @@ import {
 } from "./api";
 import { Catalog } from "./Catalog";
 import { Databases } from "./Databases";
-import { Markdown } from "./Markdown";
+import { Message } from "./components/Message";
+import { Composer } from "./components/Composer";
+import { Activity } from "./components/Activity";
+import { useSidebar } from "./components/useSidebar";
+import { useSheetFocus } from "./components/useSheetFocus";
 import { ServiceBoard } from "./Services";
 import {
-  IconClose,
+  IconSidebar,
+  IconChat,
+  IconDown,
   IconDatabase,
   IconMenu,
-  IconMic,
   IconMoon,
   IconPlus,
-  IconSend,
   IconSliders,
   IconSun,
 } from "./icons";
@@ -78,7 +82,15 @@ export default function App() {
   const [catalog, setCatalog] = useState(false);
   const [databases, setDatabases] = useState(false);
   const [rail, setRail] = useState(false);
-  const [railCollapsed, setRailCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 860px)").matches);
+  const railRef = useSheetFocus(rail && isMobile, '[data-mobile-menu="true"]');
+  const [announcement, setAnnouncement] = useState("");
+  const [demo, setDemo] = useState(() => new URLSearchParams(window.location.search).has("demo"));
+  const sidebar = useSidebar();
+  const { collapsed: railCollapsed, setCollapsed: setRailCollapsed } = sidebar;
+  const reducedMotion = useReducedMotion();
+  const followReply = useRef(true);
+  const [showLatest, setShowLatest] = useState(false);
   const [theme, setTheme] = useState<Theme>("dark");
   const [services, setServices] = useState<Services | null>(null);
   const [starting, setStarting] = useState(false);
@@ -97,6 +109,16 @@ export default function App() {
   const iraVoiceBubble = useRef<string | null>(null);
   const voiceHangup = useRef(false);
   const chatRunRef = useRef(0);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 860px)");
+    const update = () => {
+      setIsMobile(media.matches);
+      if (!media.matches) setRail(false);
+    };
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -157,7 +179,7 @@ export default function App() {
 
   useEffect(() => {
     const el = listRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && followReply.current) el.scrollTop = el.scrollHeight;
   }, [bubbles, busy]);
 
   useEffect(() => {
@@ -216,16 +238,12 @@ export default function App() {
     setSnap(await finishCodexLogin(login.id));
   };
 
-  const resizeBox = () => {
-    const el = boxRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  };
-
   const send = async () => {
     const text = input.trim();
     if (!text || busy || listening || !snap || !conversationId) return;
+    followReply.current = true;
+    setShowLatest(false);
+    setAnnouncement("");
     setInput("");
     if (boxRef.current) boxRef.current.style.height = "auto";
     setBubbles((b) => [...b, { id: uid(), kind: "user", text }]);
@@ -234,29 +252,43 @@ export default function App() {
     const run = ++chatRunRef.current;
     const replyId = uid();
     let replyVisible = false;
+    let pendingText = "";
+    let fullReply = "";
+    let frame: number | null = null;
+    const flush = () => {
+      frame = null;
+      const text = pendingText;
+      pendingText = "";
+      if (!text || chatRunRef.current !== run) return;
+      setReceiving(true);
+      if (!replyVisible) {
+        replyVisible = true;
+        setBubbles((current) => [...current, { id: replyId, kind: "ira", text }]);
+      } else {
+        setBubbles((current) => current.map((bubble) => bubble.id === replyId ? { ...bubble, text: bubble.text + text } : bubble));
+      }
+    };
     try {
       await streamChat(conversationId, text, (event) => {
         if (chatRunRef.current !== run) return;
         if (event.type === "delta") {
           if (!event.text) return;
-          setReceiving(true);
-          if (!replyVisible) {
-            replyVisible = true;
-            setBubbles((current) => [
-              ...current,
-              { id: replyId, kind: "ira", text: event.text },
-            ]);
-          } else {
-            setBubbles((current) => current.map((bubble) =>
-              bubble.id === replyId ? { ...bubble, text: bubble.text + event.text } : bubble,
-            ));
-          }
+          pendingText += event.text;
+          fullReply += event.text;
+          if (frame === null) frame = requestAnimationFrame(flush);
         } else if (event.type === "reset") {
+          if (frame !== null) cancelAnimationFrame(frame);
+          frame = null;
+          pendingText = "";
+          fullReply = "";
           replyVisible = false;
           setReceiving(false);
           setBubbles((current) => current.filter((bubble) => bubble.id !== replyId));
         }
       });
+      if (frame !== null) cancelAnimationFrame(frame);
+      flush();
+      if (chatRunRef.current === run) setAnnouncement(fullReply ? `Ira: ${fullReply}` : "Ira ha terminado la respuesta.");
       const nextChats = await listChats();
       if (chatRunRef.current === run) setChats(nextChats);
     } catch (e) {
@@ -267,6 +299,7 @@ export default function App() {
       }
       setBubbles((b) => [...b, { id: uid(), kind: "error", text: msg }]);
     } finally {
+      if (frame !== null) cancelAnimationFrame(frame);
       if (chatRunRef.current === run) {
         setBusy(false);
         setReceiving(false);
@@ -361,6 +394,10 @@ export default function App() {
   };
 
   const clear = async () => {
+    setDemo(false);
+    setAnnouncement("");
+    followReply.current = true;
+    setShowLatest(false);
     const run = ++chatRunRef.current;
     setBusy(false);
     setReceiving(false);
@@ -380,15 +417,23 @@ export default function App() {
   };
 
   const open = async (id: string) => {
+    setDemo(false);
+    setAnnouncement("");
     const run = ++chatRunRef.current;
     setBusy(false);
     setReceiving(false);
     stopVoice();
-    const turns = await openChat(id);
-    if (chatRunRef.current !== run) return;
-    setConversationId(id);
-    setBubbles(turnsToBubbles(turns));
-    setRail(false);
+    try {
+      const turns = await openChat(id);
+      if (chatRunRef.current !== run) return;
+      followReply.current = true;
+      setShowLatest(false);
+      setConversationId(id);
+      setBubbles(turnsToBubbles(turns));
+      setRail(false);
+    } catch (error) {
+      if (chatRunRef.current === run) setBoot(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const toggleTheme = () => {
@@ -404,7 +449,7 @@ export default function App() {
 
   const closeRail = () => {
     if (window.matchMedia("(max-width: 860px)").matches) setRail(false);
-    else setRailCollapsed(true);
+    else setRailCollapsed(!railCollapsed);
   };
 
   const bootServices = async () => {
@@ -449,103 +494,23 @@ export default function App() {
   const useTools = snap?.tools_enabled ?? true;
   const model = snap?.models.find((m) => m.id === snap.active_model_id);
   const provider = snap?.providers.find((p) => p.id === model?.provider_id);
-  const providerModels = snap?.models.filter((m) => m.provider_id === provider?.id) ?? [];
   const chatting = bubbles.length > 0 || busy || listening;
-  const canSend = Boolean(snap) && !busy && !listening && input.trim().length > 0;
+  const canSend = Boolean(snap) && Boolean(conversationId) && !busy && !listening && input.trim().length > 0;
   const canTalk = Boolean(snap) && Boolean(conversationId) && (listening || !busy);
 
-  const composer = (
-    <form
-      className="composer"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void send();
-      }}
-    >
-      <textarea
-        ref={boxRef}
-        value={input}
-        rows={1}
-        disabled={(!snap && !boot) || listening}
-        placeholder={listening ? "Te escucho…" : snap ? "Pregúntale a Ira" : "sin catálogo"}
-        aria-label="mensaje"
-        onChange={(e) => {
-          setInput(e.target.value);
-          resizeBox();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            void send();
-          }
-        }}
-      />
-      <div className="composer-bar">
-        <select
-          className="model-select"
-          aria-label="modelo"
-          disabled={!snap}
-          value={snap?.active_model_id ?? ""}
-          onChange={(e) => {
-            const id = e.target.value;
-            if (id) void onOp({ op: "activate_model", id });
-          }}
-        >
-          {providerModels.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className={`mode-chip${thinking ? " on" : ""}`}
-          aria-pressed={thinking}
-          title="Grok no puede apagar el razonamiento; apagado = esfuerzo bajo, encendido = alto"
-          onClick={() => {
-            void onOp({ op: "set_thinking", value: !thinking });
-          }}
-        >
-          Pensar
-        </button>
-        <button
-          type="button"
-          className={`mode-chip${useTools ? " on" : ""}`}
-          aria-pressed={useTools}
-          title="Herramientas (archivos, shell, clima…)"
-          onClick={() => {
-            void onOp({ op: "set_tools_enabled", value: !useTools });
-          }}
-        >
-          Tools
-        </button>
-        <span className="composer-grow" />
-        <button
-          type="button"
-          className={`btn-mic${listening ? " on" : ""}`}
-          disabled={!canTalk}
-          aria-pressed={listening}
-          aria-label={listening ? "dejar de hablar" : "hablar"}
-          title={listening ? "Dejar de hablar" : "Hablar con Ira"}
-          onClick={() => void talk()}
-        >
-          <IconMic />
-        </button>
-        <button
-          type="submit"
-          className="btn-send"
-          disabled={!canSend}
-          aria-label="enviar"
-        >
-          <IconSend />
-        </button>
-      </div>
-    </form>
-  );
+  const changeMode = (op: Op) => {
+    void onOp(op).catch((error) => setBoot(error instanceof Error ? error.message : String(error)));
+  };
+  const composer = <Composer input={input} onInput={setInput} boxRef={boxRef} snap={snap}
+    busy={busy} listening={listening} canTalk={canTalk} canSend={canSend}
+    onSend={() => void send()} onTalk={() => void talk()}
+    onModel={(id) => { if (id) changeMode({ op: "activate_model", id }); }}
+    onThinking={() => changeMode({ op: "set_thinking", value: !thinking })}
+    onTools={() => changeMode({ op: "set_tools_enabled", value: !useTools })} />;
 
   return (
-    <MotionConfig reducedMotion="user" transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}>
-    <div className={`app${rail ? " rail-open" : ""}${railCollapsed ? " rail-collapsed" : ""}${catalog || databases || voiceOpen ? " sheet-open" : ""}`}>
+    <MotionConfig reducedMotion="user" transition={{ type: "spring", stiffness: 380, damping: 36 }}>
+    <div style={{ "--rail-width": `${sidebar.width}px` } as CSSProperties} className={`app${rail ? " rail-open" : ""}${railCollapsed ? " rail-collapsed" : ""}${sidebar.dragging ? " rail-resizing" : ""}${catalog || databases || voiceOpen ? " sheet-open" : ""}`}>
       <AnimatePresence>
       {rail && (
         <motion.button
@@ -560,37 +525,45 @@ export default function App() {
       )}
       </AnimatePresence>
 
-      <aside className="rail" aria-label="navegación">
+      <aside ref={railRef} className="rail" aria-label="navegación" role={isMobile && rail ? "dialog" : undefined} aria-modal={isMobile && rail ? true : undefined} inert={catalog || databases || voiceOpen}>
         <div className="rail-top">
           <p className="brand">
-            <img src="/ira-logo.png" alt="" />
-            Ira
+             <img src="/ira-cabeza-recortada.png" alt="" />
+            <span className="rail-label">Ira<span className="brand-caption">Tu espacio de inteligencia</span></span>
           </p>
           <button
             type="button"
             className="btn-ghost rail-close"
-            aria-label="ocultar barra lateral"
-            title="Ocultar barra lateral"
+            data-desktop-menu="true"
+            aria-label={isMobile ? "Cerrar menú" : railCollapsed ? "Ampliar barra lateral" : "Compactar barra lateral"}
+            aria-expanded={isMobile ? rail : !railCollapsed}
+            title={isMobile ? "Cerrar menú" : railCollapsed ? "Ampliar barra lateral" : "Compactar barra lateral"}
             onClick={closeRail}
           >
-            <IconClose />
+            <IconSidebar />
           </button>
         </div>
 
-        <button type="button" className="btn-primary new-chat" onClick={() => void clear()}>
+        <button type="button" className="btn-primary new-chat" title="Nueva conversación" aria-label="Nueva conversación" onClick={() => void clear()}>
           <IconPlus />
-          Nuevo chat
+          <span className="rail-label">Nueva conversación</span>
         </button>
 
         <nav className="rail-chats" aria-label="conversaciones">
+          <p className="rail-section-label rail-label">Conversaciones</p>
+          {chats.length === 0 && <p className="rail-empty rail-label">Tu próxima idea empieza aquí.</p>}
           {chats.map((c) => (
             <button
               key={c.id}
               type="button"
               className={`chat-item${c.id === conversationId ? " on" : ""}`}
+              title={c.title?.trim() || "Nuevo chat"}
+              aria-label={c.title?.trim() || "Nuevo chat"}
+              aria-current={c.id === conversationId ? "page" : undefined}
               onClick={() => void open(c.id)}
             >
-              {c.title?.trim() || "Nuevo chat"}
+              {c.id === conversationId && <motion.span className="nav-selection" layoutId="chat-selection" transition={{ type: "spring", stiffness: 420, damping: 38 }} />}
+              <IconChat /><span className="rail-label">{c.title?.trim() || "Nuevo chat"}</span>
             </button>
           ))}
         </nav>
@@ -599,18 +572,22 @@ export default function App() {
           <button
             type="button"
             className={`nav-item${catalog ? " on" : ""}`}
+            data-sheet-trigger={catalog ? "true" : undefined}
+            title="Modelos y configuración" aria-label="Modelos y configuración"
             onClick={() => { setCatalog(true); setDatabases(false); setRail(false); }}
           >
             <IconSliders />
-            Catálogo
+            <span className="rail-label">Modelos y configuración</span>
           </button>
           <button
             type="button"
             className={`nav-item${databases ? " on" : ""}`}
+            data-sheet-trigger={databases ? "true" : undefined}
+            title="Bases de datos" aria-label="Bases de datos"
             onClick={() => { setDatabases(true); setCatalog(false); setRail(false); }}
           >
             <IconDatabase />
-            Bases de datos
+            <span className="rail-label">Bases de datos</span>
           </button>
         </nav>
 
@@ -622,18 +599,20 @@ export default function App() {
         />
 
         <div className="rail-foot">
-          <button type="button" className="btn-ghost theme-btn" onClick={toggleTheme}>
+          <button type="button" className="btn-ghost theme-btn" onClick={toggleTheme} title={theme === "dark" ? "Modo claro" : "Modo oscuro"} aria-label={theme === "dark" ? "Modo claro" : "Modo oscuro"}>
             {theme === "dark" ? <IconSun /> : <IconMoon />}
-            {theme === "dark" ? "Modo claro" : "Modo oscuro"}
+            <span className="rail-label">{theme === "dark" ? "Modo claro" : "Modo oscuro"}</span>
           </button>
         </div>
+        {!railCollapsed && <div className="rail-resize" {...sidebar.resizeProps} />}
       </aside>
 
-      <div className="stage">
+      <div className="stage" inert={catalog || databases || voiceOpen || rail}>
         <header className="topbar">
           <button
             type="button"
             className="btn-ghost menu-btn"
+            data-mobile-menu="true"
             aria-label="mostrar barra lateral"
             title="Mostrar barra lateral"
             onClick={openRail}
@@ -657,14 +636,12 @@ export default function App() {
         <div className={chatting ? "main chatting" : "main welcome"}>
           {!chatting ? (
             <div className="hero">
-              <img className="hero-logo" src="/ira-logo.png" alt="" />
-              <h1>Hola</h1>
+               <img className="hero-logo" src="/ira-cabeza-recortada.png" alt="" />
+              <h1>Una idea. Infinitas posibilidades.</h1>
               <p>
                 {boot
                   ? boot
-                  : `Ira está listo${model ? ` · ${model.name}` : ""}${
-                      snap?.tools.length ? ` · ${snap.tools.length} tools` : ""
-                    }`}
+                  : "Piensa, pregunta, conecta. Hagámoslo juntos."}
               </p>
               {(boot || (services && !services.ok)) && (
                 <ServiceBoard
@@ -675,39 +652,29 @@ export default function App() {
               )}
             </div>
           ) : (
-            <div className="log" ref={listRef}>
-              {boot && <p className="bubble error">{boot}</p>}
+            <div className="log" ref={listRef} aria-label="Conversación" onScroll={(event) => {
+              const el = event.currentTarget;
+              followReply.current = el.scrollHeight - el.scrollTop - el.clientHeight < 96;
+              setShowLatest(!followReply.current);
+            }}>
+              {demo && <p className="demo-notice" role="status">Conversación de ejemplo · datos simulados</p>}
+              {boot && <p className="bubble error" role="alert">{boot}</p>}
               <AnimatePresence initial={false}>
-              {bubbles.map((b) => (
-                <motion.article
-                  key={b.id}
-                  className={`turn ${b.kind}`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.14 }}
-                >
-                  {b.kind !== "user" && (
-                    <span className="who">{b.kind === "error" ? "error" : "Ira"}</span>
-                  )}
-                  <div className={`bubble ${b.kind}`}>
-                    {b.kind === "ira" ? <Markdown text={b.text} /> : <p>{b.text}</p>}
-                  </div>
-                </motion.article>
-              ))}
+              {bubbles.map((b, index) => <Message key={b.id} bubble={b} streaming={busy && receiving && b.kind === "ira" && index === bubbles.length - 1} />)}
               </AnimatePresence>
               <AnimatePresence>
               {busy && !receiving && (
                 <motion.article
                   className="turn ira"
                   aria-live="polite"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
+                  initial={reducedMotion ? false : { y: 8 }}
+                  animate={{ y: 0 }}
+                  exit={{ opacity: 0, transition: { duration: 0.08 } }}
                 >
-                  <span className="who">Ira</span>
+                   <span className="who"><img src="/ira-cabeza-recortada.png" alt="" /></span>
                   <div className="bubble ira load">
-                    <span className="dots" />
-                    {thinking ? "razonando" : "pensando"}
+                    <Activity />
+                    {thinking ? "Razonando tu respuesta" : "Preparando tu respuesta"}
                   </div>
                 </motion.article>
               )}
@@ -715,10 +682,19 @@ export default function App() {
             </div>
           )}
 
-          <div className="dock">{composer}</div>
+          <motion.div className="dock" layout={reducedMotion ? false : "position"}>
+            {showLatest && chatting && <button type="button" className="latest-button" onClick={() => {
+              followReply.current = true;
+              setShowLatest(false);
+              listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "instant" });
+            }}><IconDown />Ir al último mensaje</button>}
+            {composer}
+            <p className="composer-hint">{chatting ? "Ira puede equivocarse. Comprueba la información importante." : "Enter para enviar · Shift + Enter para una nueva línea"}</p>
+          </motion.div>
         </div>
       </div>
 
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</div>
       <AnimatePresence>
       {catalog && snap && (
           <motion.button

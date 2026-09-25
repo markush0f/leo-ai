@@ -22,7 +22,7 @@ export function ServiceBoard({ data, starting, compact, onStart }: Props) {
       <p className="svc-label">Servicios</p>
       <ul className="svc-list">
         {items.map((s) => (
-          <li key={s.id}>
+          <li key={s.id} title={`${s.name}: ${s.detail}`}>
             <span className={s.healthy ? "dot on" : "dot"} aria-hidden />
             <span className="svc-name">{s.name}</span>
             <span className="svc-detail">{s.detail}</span>
@@ -34,10 +34,12 @@ export function ServiceBoard({ data, starting, compact, onStart }: Props) {
         type="button"
         className="btn-primary svc-start"
         disabled={starting || ready}
+        aria-label={starting ? "Arrancando servicios" : ready ? "Servicios en marcha" : "Arrancar servicios"}
+        title={starting ? "Arrancando…" : ready ? "Servicios en marcha" : "Arrancar servicios"}
         onClick={onStart}
       >
         <IconPower />
-        {starting ? "Arrancando…" : ready ? "En marcha" : "Arrancar servicios"}
+        <span>{starting ? "Arrancando…" : ready ? "En marcha" : "Arrancar servicios"}</span>
       </button>
     </section>
   );
