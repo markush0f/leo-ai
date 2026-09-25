@@ -7,7 +7,11 @@ import {
   testDatabase,
   updateDatabase,
 } from "./api";
-import { IconDatabase } from "./icons";
+import { IconDatabase, IconClose, IconPlus, IconLink, IconCheck } from "./icons";
+import { Input, Select } from "./components/Field";
+import { Activity } from "./components/Activity";
+import { useSheetFocus } from "./components/useSheetFocus";
+import { parseDatabaseUrl } from "./database-url";
 import type { DatabaseConnection, DatabaseInput, DatabaseTest } from "./types";
 
 const EMPTY: DatabaseInput = {
@@ -35,12 +39,13 @@ function draftFrom(connection: DatabaseConnection): DatabaseInput {
 
 function connectionState(connection: DatabaseConnection): string {
   if (!connection.enabled) return "Desactivada";
-  if (connection.last_test_ok === true) return "Activa";
-  if (connection.last_test_ok === false) return "Error";
-  return "Pendiente";
+  if (connection.last_test_ok === true) return "Última prueba correcta";
+  if (connection.last_test_ok === false) return "Revisar conexión";
+  return "Sin comprobar";
 }
 
 export function Databases({ onClose }: { onClose: () => void }) {
+  const sheetRef = useSheetFocus();
   const [items, setItems] = useState<DatabaseConnection[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -50,6 +55,10 @@ export function Databases({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DatabaseTest | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [connectionUrl, setConnectionUrl] = useState("");
+  const [urlError, setUrlError] = useState<string>();
+  const [imported, setImported] = useState(false);
+  const [phase, setPhase] = useState<"saving" | "testing" | null>(null);
 
   const selected = items.find((item) => item.id === selectedId) ?? null;
 
@@ -60,13 +69,15 @@ export function Databases({ onClose }: { onClose: () => void }) {
         if (connections[0]) {
           setSelectedId(connections[0].id);
           setDraft(draftFrom(connections[0]));
-        }
+        } else setCreating(true);
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
   }, []);
 
   const choose = (connection: DatabaseConnection) => {
+    if (busy) return;
+    setConnectionUrl(""); setUrlError(undefined); setImported(false);
     setSelectedId(connection.id);
     setCreating(false);
     setDraft(draftFrom(connection));
@@ -76,6 +87,8 @@ export function Databases({ onClose }: { onClose: () => void }) {
   };
 
   const beginCreate = () => {
+    if (busy) return;
+    setConnectionUrl(""); setUrlError(undefined); setImported(false);
     setSelectedId(null);
     setCreating(true);
     setDraft({ ...EMPTY });
@@ -94,9 +107,11 @@ export function Databases({ onClose }: { onClose: () => void }) {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (busy) return;
     setBusy(true);
     setError(null);
     setResult(null);
+    setPhase("saving");
     const input = { ...draft };
     if (!input.password) delete input.password;
     try {
@@ -109,10 +124,23 @@ export function Databases({ onClose }: { onClose: () => void }) {
       setSelectedId(saved.id);
       setCreating(false);
       setDraft(draftFrom(saved));
+      setConnectionUrl("");
+      setPhase("testing");
+      try {
+        const tested = await testDatabase(saved.id);
+        setResult(tested);
+        setItems((current) => current.map((item) => item.id === saved.id ? {
+          ...item, last_test_ok: tested.ok, last_test_error: tested.ok ? null : tested.detail,
+          last_tested_at: new Date().toISOString(),
+        } : item));
+      } catch {
+        setError("Conexión guardada, pero no se pudo comprobar. Revisa los datos y vuelve a guardar y comprobar.");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
+      setPhase(null);
     }
   };
 
@@ -134,38 +162,31 @@ export function Databases({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const test = async () => {
-    if (!selectedId) return;
-    setBusy(true);
-    setError(null);
-    setResult(null);
+  const importUrl = () => {
     try {
-      const tested = await testDatabase(selectedId);
-      setResult(tested);
-      setItems(await listDatabases());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+      const parsed = parseDatabaseUrl(connectionUrl);
+      setDraft((current) => ({ ...parsed, name: current.name || parsed.name, enabled: current.enabled }));
+      setConnectionUrl(""); setUrlError(undefined); setImported(true); setResult(null);
+    } catch (error) { setUrlError(error instanceof Error ? error.message : "Revisa la URL."); }
   };
 
   return (
     <motion.aside
+      ref={sheetRef} role="dialog" aria-modal="true" tabIndex={-1}
       className="sheet catalog databases"
       aria-label="Bases de datos"
       aria-busy={busy || loading}
-      initial={{ opacity: 0, x: 12 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 8 }}
-      transition={{ duration: 0.18 }}
+      initial={{ x: "100%" }}
+      animate={{ x: 0 }}
+      exit={{ x: "100%" }}
+      transition={{ type: "spring", stiffness: 360, damping: 38 }}
     >
       <header className="sheet-head">
         <div>
           <h2>Bases de datos</h2>
           <p>Conexiones PostgreSQL disponibles para Ira.</p>
         </div>
-        <button type="button" className="btn-ghost" onClick={onClose}>Cerrar</button>
+        <button type="button" className="btn-ghost icon-button" aria-label="Cerrar bases de datos" title="Cerrar" onClick={onClose}><IconClose /></button>
       </header>
 
       <div className={`database-notice${creating ? " database-notice-create" : ""}`}>
@@ -173,28 +194,30 @@ export function Databases({ onClose }: { onClose: () => void }) {
         <span>Concede acceso únicamente a los esquemas y tablas necesarios.</span>
       </div>
 
-      <div className="catalog-layout">
+      <div className={`catalog-layout${creating && items.length === 0 ? " empty-connections" : ""}`}>
         <nav className="catalog-nav" aria-label="Conexiones PostgreSQL">
           <div className="database-nav-head">
             <h3>Conexiones</h3>
-            <button type="button" className="btn-secondary sm" onClick={beginCreate}>Nueva</button>
+            <button type="button" className="btn-secondary sm" disabled={busy || loading} onClick={beginCreate}><IconPlus />Nueva</button>
           </div>
           <ul className="catalog-providers">
             {items.map((item) => (
               <li key={item.id}>
-                <button type="button" className={!creating && selectedId === item.id ? "catalog-provider selected" : "catalog-provider"} onClick={() => choose(item)}>
+                <button type="button" disabled={busy} aria-pressed={!creating && selectedId === item.id} className={!creating && selectedId === item.id ? "catalog-provider selected" : "catalog-provider"} onClick={() => choose(item)}>
                   <span className="catalog-provider-name">{item.name}</span>
                   <span className="catalog-provider-meta">{item.host}:{item.port} · {connectionState(item)}</span>
                 </button>
               </li>
             ))}
           </ul>
-          {!loading && items.length === 0 && !creating && <p className="catalog-empty">No hay conexiones.</p>}
+          {loading && <p className="catalog-empty" role="status">Cargando conexiones…</p>}
+          {!loading && items.length === 0 && <p className="catalog-empty">Tu primera conexión aparecerá aquí.</p>}
         </nav>
 
         <div className="catalog-detail">
           {(creating || selected) ? (
-            <form className={`database-form${creating ? " database-create" : ""}`} onSubmit={(event) => void submit(event)}>
+            <form className={`database-form${creating ? " database-create" : ""}`} onSubmit={(event) => void submit(event)} onChange={() => setResult(null)}
+              onInvalid={(event) => { const advanced = (event.target as HTMLElement).closest("details"); if (advanced) advanced.open = true; }}>
               {creating ? (
                 <header className="database-create-head">
                   <span className="database-create-icon"><IconDatabase /></span>
@@ -207,52 +230,52 @@ export function Databases({ onClose }: { onClose: () => void }) {
               ) : (
                 <header className="catalog-detail-head">
                   <h3>{selected?.name}</h3>
-                  <p>{selected?.password_set ? "Contraseña guardada" : "Sin contraseña guardada"}</p>
+                    <p>{selected ? connectionState(selected) : ""} · {selected?.password_set ? "Contraseña guardada" : "Sin contraseña guardada"}</p>
                 </header>
               )}
               {selected?.enabled && selected.last_test_ok !== true && selected.last_test_error && <p className="database-result bad" role="alert">{selected.last_test_error}</p>}
-              {creating ? (
-                <div className="database-create-fields">
-                  <fieldset>
-                    <legend>Identidad</legend>
-                    <div className="database-field-row">
-                      <label className="field"><span>Nombre de la conexión</span><input required autoFocus placeholder="Producción" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
-                      <label className="field"><span>Base de datos</span><input required placeholder="ira" value={draft.database} onChange={(e) => setDraft({ ...draft, database: e.target.value })} /></label>
-                    </div>
-                  </fieldset>
-                  <fieldset>
-                    <legend>Servidor</legend>
-                    <div className="database-field-row database-server-row">
-                      <label className="field"><span>Host</span><input required placeholder="db.example.com" value={draft.host} onChange={(e) => setDraft({ ...draft, host: e.target.value })} /><small>Para una base local desde Docker, usa host.docker.internal.</small></label>
-                      <label className="field"><span>Puerto</span><input required type="number" min="1" max="65535" value={draft.port} onChange={(e) => setDraft({ ...draft, port: Number(e.target.value) })} /></label>
-                    </div>
-                  </fieldset>
-                  <fieldset>
-                    <legend>Acceso y seguridad</legend>
-                    <div className="database-field-row">
-                      <label className="field"><span>Usuario</span><input required autoComplete="username" placeholder="ira_readonly" value={draft.username} onChange={(e) => setDraft({ ...draft, username: e.target.value })} /></label>
-                      <label className="field"><span>Contraseña</span><input type="password" autoComplete="new-password" value={draft.password ?? ""} placeholder="Contraseña PostgreSQL" onChange={(e) => setDraft({ ...draft, password: e.target.value })} /></label>
-                      <label className="field"><span>Modo SSL</span><select value={draft.ssl_mode} onChange={(e) => setDraft({ ...draft, ssl_mode: e.target.value })}><option value="disable">Desactivado</option><option value="prefer">Preferir</option><option value="require">Requerir</option><option value="verify-ca">Verificar CA</option><option value="verify-full">Verificación completa</option></select></label>
-                    </div>
-                  </fieldset>
-                </div>
-              ) : (
-                <div className="database-fields">
-                  <label className="field"><span>Nombre</span><input required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
-                  <label className="field"><span>Host</span><input required placeholder="db.example.com" value={draft.host} onChange={(e) => setDraft({ ...draft, host: e.target.value })} /><small>Usa host.docker.internal para una base instalada en este host.</small></label>
-                  <label className="field"><span>Puerto</span><input required type="number" min="1" max="65535" value={draft.port} onChange={(e) => setDraft({ ...draft, port: Number(e.target.value) })} /></label>
-                  <label className="field"><span>Base de datos</span><input required value={draft.database} onChange={(e) => setDraft({ ...draft, database: e.target.value })} /></label>
-                  <label className="field"><span>Usuario</span><input required autoComplete="username" value={draft.username} onChange={(e) => setDraft({ ...draft, username: e.target.value })} /></label>
-                  <label className="field"><span>Contraseña</span><input type="password" autoComplete="new-password" value={draft.password ?? ""} placeholder={selected?.password_set ? "Dejar en blanco para conservar" : "Contraseña PostgreSQL"} onChange={(e) => setDraft({ ...draft, password: e.target.value })} /></label>
-                  <label className="field"><span>Modo SSL</span><select value={draft.ssl_mode} onChange={(e) => setDraft({ ...draft, ssl_mode: e.target.value })}><option value="disable">Desactivado</option><option value="prefer">Preferir</option><option value="require">Requerir</option><option value="verify-ca">Verificar CA</option><option value="verify-full">Verificación completa</option></select></label>
-                </div>
-              )}
+              <fieldset className="database-edit-fields" disabled={busy}>
+                {creating && <section className="connection-import" aria-label="Importar conexión">
+                  <Input label="¿Tienes una URL de conexión?" type="password" icon={<IconLink />} autoComplete="off"
+                    placeholder="postgresql://usuario:contraseña@host/base" value={connectionUrl}
+                    error={urlError} hint="Pégala para completar los campos. También puedes rellenarlos abajo."
+                    onChange={(event) => { setConnectionUrl(event.target.value); setUrlError(undefined); setImported(false); }}
+                    onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); importUrl(); } }} />
+                  <button type="button" className="btn-secondary" disabled={!connectionUrl.trim()} onClick={importUrl}><IconLink />Completar desde URL</button>
+                  {imported && <p className="import-success" role="status"><IconCheck />Datos completados. Puedes revisarlos abajo.</p>}
+                </section>}
+                <section className="connection-section">
+                  <h4>Destino</h4>
+                  <Input label="Nombre de la conexión" required placeholder="Mi base de datos" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+                  <div className="database-field-row">
+                    <Input label="Servidor" required placeholder="db.example.com" value={draft.host} onChange={(event) => setDraft({ ...draft, host: event.target.value })} />
+                    <Input label="Base de datos" required placeholder="ira" value={draft.database} onChange={(event) => setDraft({ ...draft, database: event.target.value })} />
+                  </div>
+                  <p className="connection-help">Desde Docker, usa host.docker.internal para acceder a una base instalada en tu equipo.</p>
+                </section>
+                <section className="connection-section">
+                  <h4>Credenciales</h4>
+                  <div className="database-field-row">
+                    <Input label="Usuario" required autoComplete="username" placeholder="ira_readonly" value={draft.username} onChange={(event) => setDraft({ ...draft, username: event.target.value })} />
+                    <Input label="Contraseña" type="password" autoComplete="new-password" value={draft.password ?? ""} placeholder={selected?.password_set ? "Conservar la guardada" : "Contraseña PostgreSQL"} onChange={(event) => setDraft({ ...draft, password: event.target.value })} />
+                  </div>
+                </section>
+                <details className="connection-advanced">
+                  <summary>Opciones avanzadas <span>Puerto {draft.port} · SSL {draft.ssl_mode}</span></summary>
+                  <div className="database-field-row">
+                    <Input label="Puerto" required type="number" min="1" max="65535" value={draft.port || ""} onChange={(event) => setDraft({ ...draft, port: Number(event.target.value) })} />
+                    <Select label="Modo SSL" value={draft.ssl_mode} onChange={(event) => setDraft({ ...draft, ssl_mode: event.target.value })}>
+                      <option value="disable">Desactivado</option><option value="prefer">Preferir</option><option value="require">Requerir</option><option value="verify-ca">Verificar CA</option><option value="verify-full">Verificación completa</option>
+                    </Select>
+                  </div>
+                </details>
+              </fieldset>
               {creating && <p className="database-create-safety"><strong>Usa acceso de solo lectura</strong><span>Limita este usuario a los esquemas y tablas que Ira necesite consultar.</span></p>}
-              <label className="database-enabled"><input type="checkbox" checked={draft.enabled} onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })} /><span>{creating ? <><strong>Activar al crear</strong><small>Ira podrá consultar esta conexión en cuanto esté guardada.</small></> : "Permitir que Ira use esta conexión"}</span></label>
+              <label className="database-enabled"><input type="checkbox" disabled={busy} checked={draft.enabled} onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })} /><span><strong>Disponible para Ira</strong><small>Permitir que las herramientas consulten esta conexión.</small></span></label>
               <div className="database-actions">
-                <button type="submit" className="btn-primary" disabled={busy}>{creating ? busy ? "Creando…" : "Crear conexión" : "Guardar cambios"}</button>
+                <button type="submit" className="btn-primary" disabled={busy}>{busy ? <Activity /> : <IconCheck />}{phase === "saving" ? "Guardando…" : phase === "testing" ? "Comprobando…" : "Guardar y comprobar"}</button>
                 {creating && <button type="button" className="btn-ghost" disabled={busy} onClick={cancelCreate}>Cancelar</button>}
-                {!creating && <button type="button" className="btn-secondary" disabled={busy} onClick={() => void test()}>Probar conexión</button>}
+                <span className="save-status" role="status">{phase === "testing" ? "Guardada. Probando acceso a PostgreSQL." : ""}</span>
               </div>
               {result && <p className={result.ok ? "database-result ok" : "database-result bad"} role="status"><strong>{result.ok ? "Conexión correcta" : "Falló la conexión"}</strong><span>{result.detail}</span>{result.ok && !result.read_only && <span>Atención: este usuario no parece ser de solo lectura.</span>}</p>}
               {!creating && (confirmDelete ? <div className="confirm"><span>¿Eliminar {selected?.name}?</span><button type="button" className="btn-danger sm" disabled={busy} onClick={() => void remove()}>Eliminar</button><button type="button" className="btn-secondary sm" onClick={() => setConfirmDelete(false)}>Cancelar</button></div> : <button type="button" className="btn-danger database-delete" disabled={busy} onClick={() => setConfirmDelete(true)}>Eliminar conexión</button>)}
