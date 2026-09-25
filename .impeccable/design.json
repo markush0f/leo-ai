@@ -1,74 +1,139 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-12T00:00:00.000Z",
+  "generatedAt": "2026-09-23T00:00:00.000Z",
   "title": "Design System: Ira",
   "extensions": {
     "colorMeta": {
-      "cloud": { "role": "neutral", "displayName": "Cloud", "canonical": "#ffffff" },
-      "mist": { "role": "neutral", "displayName": "Mist", "canonical": "#f2f4f7" },
-      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#3a424c" },
-      "slate": { "role": "neutral", "displayName": "Slate", "canonical": "#5a6470" },
-      "mint": { "role": "secondary", "displayName": "Mint fringe", "canonical": "#9fe8d4" },
-      "rose": { "role": "secondary", "displayName": "Rose fringe", "canonical": "#ffb7d4" },
-      "violet": { "role": "primary", "displayName": "Violet fringe", "canonical": "#b9a8ff" }
+      "bg": { "role": "neutral", "displayName": "Berenjena de fondo", "tonalRamp": ["#16121f", "#21192f", "#231d30", "#30263e", "#443650", "#b7abc8", "#f4effa", "#f7f4fc"] },
+      "sidebar": { "role": "neutral", "displayName": "Berenjena lateral", "tonalRamp": ["#16121f", "#21192f", "#231d30", "#30263e", "#443650", "#b7abc8", "#f4effa", "#f7f4fc"] },
+      "surface": { "role": "neutral", "displayName": "Superficie oscura", "tonalRamp": ["#16121f", "#21192f", "#231d30", "#30263e", "#443650", "#b7abc8", "#f4effa", "#f7f4fc"] },
+      "elevated": { "role": "neutral", "displayName": "Plano elevado", "tonalRamp": ["#16121f", "#21192f", "#231d30", "#30263e", "#443650", "#b7abc8", "#f4effa", "#f7f4fc"] },
+      "border": { "role": "neutral", "displayName": "Borde berenjena", "tonalRamp": ["#16121f", "#21192f", "#231d30", "#30263e", "#443650", "#b7abc8", "#f4effa", "#f7f4fc"] },
+      "text": { "role": "neutral", "displayName": "Texto lavanda", "tonalRamp": ["#16121f", "#21192f", "#231d30", "#30263e", "#443650", "#b7abc8", "#f4effa", "#f7f4fc"] },
+      "muted": { "role": "neutral", "displayName": "Texto secundario oscuro", "tonalRamp": ["#16121f", "#21192f", "#231d30", "#30263e", "#443650", "#b7abc8", "#f4effa", "#f7f4fc"] },
+      "accent": { "role": "primary", "displayName": "Lila de foco", "tonalRamp": ["oklch(15% 0.12 300)", "oklch(26% 0.12 300)", "oklch(38% 0.12 300)", "oklch(49% 0.12 300)", "oklch(61% 0.12 300)", "oklch(72% 0.12 300)", "oklch(84% 0.12 300)", "oklch(95% 0.12 300)"] },
+      "primary": { "role": "primary", "displayName": "Violeta de acción oscuro", "tonalRamp": ["oklch(15% 0.12 300)", "oklch(26% 0.12 300)", "oklch(38% 0.12 300)", "oklch(49% 0.12 300)", "oklch(61% 0.12 300)", "oklch(72% 0.12 300)", "oklch(84% 0.12 300)", "oklch(95% 0.12 300)"] },
+      "primary-fg": { "role": "neutral", "displayName": "Texto sobre acción oscura", "tonalRamp": ["#16121f", "#21192f", "#231d30", "#30263e", "#443650", "#b7abc8", "#f4effa", "#f7f4fc"] },
+      "danger": { "role": "semantic", "displayName": "Error oscuro", "tonalRamp": ["oklch(15% 0.1 20)", "oklch(26% 0.1 20)", "oklch(38% 0.1 20)", "oklch(49% 0.1 20)", "oklch(61% 0.1 20)", "oklch(72% 0.1 20)", "oklch(84% 0.1 20)", "oklch(95% 0.1 20)"] },
+      "listen": { "role": "semantic", "displayName": "Escucha y éxito oscuro", "tonalRamp": ["oklch(15% 0.08 165)", "oklch(26% 0.08 165)", "oklch(38% 0.08 165)", "oklch(49% 0.08 165)", "oklch(61% 0.08 165)", "oklch(72% 0.08 165)", "oklch(84% 0.08 165)", "oklch(95% 0.08 165)"] },
+      "user-bubble": { "role": "primary", "displayName": "Voz del usuario oscura", "tonalRamp": ["oklch(15% 0.12 300)", "oklch(26% 0.12 300)", "oklch(38% 0.12 300)", "oklch(49% 0.12 300)", "oklch(61% 0.12 300)", "oklch(72% 0.12 300)", "oklch(84% 0.12 300)", "oklch(95% 0.12 300)"] },
+      "light-bg": { "role": "neutral", "displayName": "Fondo lavanda claro", "tonalRamp": ["#291b3d", "#71617e", "#d8cce6", "#eee7f7", "#f1ebf8", "#f4effa", "#f7f4fc", "#ffffff"] },
+      "light-sidebar": { "role": "neutral", "displayName": "Lavanda lateral", "tonalRamp": ["#291b3d", "#71617e", "#d8cce6", "#eee7f7", "#f1ebf8", "#f4effa", "#f7f4fc", "#ffffff"] },
+      "light-surface": { "role": "neutral", "displayName": "Superficie clara", "tonalRamp": ["#291b3d", "#71617e", "#d8cce6", "#eee7f7", "#f1ebf8", "#f4effa", "#f7f4fc", "#ffffff"] },
+      "light-elevated": { "role": "neutral", "displayName": "Plano elevado claro", "tonalRamp": ["#291b3d", "#71617e", "#d8cce6", "#eee7f7", "#f1ebf8", "#f4effa", "#f7f4fc", "#ffffff"] },
+      "light-border": { "role": "neutral", "displayName": "Borde lavanda", "tonalRamp": ["#291b3d", "#71617e", "#d8cce6", "#eee7f7", "#f1ebf8", "#f4effa", "#f7f4fc", "#ffffff"] },
+      "light-text": { "role": "neutral", "displayName": "Texto berenjena", "tonalRamp": ["#291b3d", "#71617e", "#d8cce6", "#eee7f7", "#f1ebf8", "#f4effa", "#f7f4fc", "#ffffff"] },
+      "light-muted": { "role": "neutral", "displayName": "Texto secundario claro", "tonalRamp": ["#291b3d", "#71617e", "#d8cce6", "#eee7f7", "#f1ebf8", "#f4effa", "#f7f4fc", "#ffffff"] },
+      "light-accent": { "role": "primary", "displayName": "Violeta de foco claro", "tonalRamp": ["oklch(15% 0.12 300)", "oklch(26% 0.12 300)", "oklch(38% 0.12 300)", "oklch(49% 0.12 300)", "oklch(61% 0.12 300)", "oklch(72% 0.12 300)", "oklch(84% 0.12 300)", "oklch(95% 0.12 300)"] },
+      "light-primary": { "role": "primary", "displayName": "Violeta de acción claro", "tonalRamp": ["oklch(15% 0.12 300)", "oklch(26% 0.12 300)", "oklch(38% 0.12 300)", "oklch(49% 0.12 300)", "oklch(61% 0.12 300)", "oklch(72% 0.12 300)", "oklch(84% 0.12 300)", "oklch(95% 0.12 300)"] },
+      "light-primary-fg": { "role": "neutral", "displayName": "Texto sobre acción clara", "tonalRamp": ["#291b3d", "#71617e", "#d8cce6", "#eee7f7", "#f1ebf8", "#f4effa", "#f7f4fc", "#ffffff"] },
+      "light-danger": { "role": "semantic", "displayName": "Error claro", "tonalRamp": ["oklch(15% 0.1 20)", "oklch(26% 0.1 20)", "oklch(38% 0.1 20)", "oklch(49% 0.1 20)", "oklch(61% 0.1 20)", "oklch(72% 0.1 20)", "oklch(84% 0.1 20)", "oklch(95% 0.1 20)"] },
+      "light-listen": { "role": "semantic", "displayName": "Escucha y éxito claro", "tonalRamp": ["oklch(15% 0.08 165)", "oklch(26% 0.08 165)", "oklch(38% 0.08 165)", "oklch(49% 0.08 165)", "oklch(61% 0.08 165)", "oklch(72% 0.08 165)", "oklch(84% 0.08 165)", "oklch(95% 0.08 165)"] },
+      "light-user-bubble": { "role": "primary", "displayName": "Voz del usuario clara", "tonalRamp": ["oklch(15% 0.12 300)", "oklch(26% 0.12 300)", "oklch(38% 0.12 300)", "oklch(49% 0.12 300)", "oklch(61% 0.12 300)", "oklch(72% 0.12 300)", "oklch(84% 0.12 300)", "oklch(95% 0.12 300)"] }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "Empty state only." },
-      "brand": { "displayName": "Brand", "purpose": "The word Ira." },
-      "body": { "displayName": "Body", "purpose": "Chat messages, 66ch." },
-      "label": { "displayName": "Label", "purpose": "All chrome at 0.8rem." }
+      "display": { "displayName": "Bienvenida", "purpose": "Título fluido de bienvenida; hasta 860px usa clamp(1.9rem, 5vw, 2.6rem)." },
+      "title": { "displayName": "Panel", "purpose": "Cabecera de Catálogo y Bases de datos; 1.4rem hasta 600px." },
+      "body": { "displayName": "Interfaz", "purpose": "Familia heredada por títulos y controles." },
+      "reply": { "displayName": "Respuesta", "purpose": "Lectura abierta de Ira." },
+      "button": { "displayName": "Acción", "purpose": "Botones; dentro de Catálogo line-height 1.25 y mínimo 2.75rem." },
+      "label": { "displayName": "Etiqueta", "purpose": "Label persistente de Field." },
+      "field": { "displayName": "Entrada", "purpose": "Contenido de Input, Select y TextArea." },
+      "code": { "displayName": "Código", "purpose": "Bloques Markdown con desplazamiento horizontal." }
     },
-    "shadows": [],
-    "motion": [
-      {
-        "name": "fringe-drift",
-        "value": "1.8s linear infinite background-position",
-        "purpose": "Spectral hairline travels while thinking or speaking."
-      }
+    "shadows": [
+      { "name": "sheet", "value": "-18px 0 70px rgba(9, 4, 18, 0.22)", "purpose": "Panel lateral en ambos temas." },
+      { "name": "shadow-dark", "value": "0 16px 48px rgba(7, 3, 15, 0.3)", "purpose": "--shadow de tarjeta de voz oscura; compositor sin sombra." },
+      { "name": "shadow-light", "value": "0 16px 48px rgba(62, 29, 101, 0.1)", "purpose": "--shadow de tarjeta de voz clara." }
     ],
-    "breakpoints": [{ "name": "compact", "value": "720px" }]
+    "motion": [
+      { "name": "spring-default", "value": "type: spring; stiffness: 380; damping: 36", "purpose": "MotionConfig reducedMotion=user; dock usa layout de posición." },
+      { "name": "spring-sheet", "value": "type: spring; stiffness: 360; damping: 38", "purpose": "Entrada y salida de Catálogo/Bases de datos." },
+      { "name": "spring-message", "value": "type: spring; stiffness: 420; damping: 34", "purpose": "Entrada única de Message; no animar deltas." },
+      { "name": "spring-selection", "value": "type: spring; stiffness: 420; damping: 38", "purpose": "Selección compartida de conversación." },
+      { "name": "sidebar-collapse", "value": "width 300ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Excepción acotada: contraer/expandir; transition:none durante arrastre por puntero y con movimiento reducido." },
+      { "name": "mobile-drawer", "value": "transform 0.2s ease", "purpose": "Drawer hasta 860px; sin transición con movimiento reducido." },
+      { "name": "field-focus", "value": "transform 250ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Línea inferior de Field; contorno de teclado permanece visible." },
+      { "name": "composer-focus", "value": "transform 280ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Línea inferior del compositor." },
+      { "name": "activity", "value": "1200ms cubic-bezier(0.65, 0, 0.35, 1) infinite; receiving: 650ms", "purpose": "Cuatro barras para actividad real; estáticas con movimiento reducido." },
+      { "name": "reduced-motion", "value": "animation: none; transition: none; scroll-behavior: auto", "purpose": "CSS global bajo prefers-reduced-motion; Message omite entrada y dock omite layout." }
+    ],
+    "breakpoints": [
+      { "name": "composer-labels", "value": "1080px" },
+      { "name": "mobile-drawer", "value": "860px" },
+      { "name": "stacked-panels", "value": "600px" },
+      { "name": "short-window-max-height", "value": "680px" }
+    ]
   },
   "components": [
     {
-      "name": "Fringe button",
-      "kind": "button",
-      "refersTo": "button-fringe",
-      "description": "Pill with iridescent hairline.",
-      "html": "<button class=\"ds-btn-fringe\">escuchar</button>",
-      "css": ".ds-btn-fringe { appearance: none; background: #fff; border: 1px solid transparent; background-image: linear-gradient(#fff,#fff), linear-gradient(90deg,#9fe8d4,#ffb7d4,#b9a8ff,#9fe8d4); background-origin: padding-box, border-box; background-clip: padding-box, border-box; border-radius: 999px; padding: 0.28rem 0.85rem; font: 500 0.8rem 'Source Sans 3', sans-serif; color: #3a424c; } .ds-btn-fringe:hover { background-image: linear-gradient(#f2f4f7,#f2f4f7), linear-gradient(90deg,#9fe8d4,#ffb7d4,#b9a8ff,#9fe8d4); } .ds-btn-fringe:focus-visible { outline: 1px solid #b9a8ff; outline-offset: 3px; }"
+      "name": "Acción primaria", "kind": "button", "refersTo": "button-primary",
+      "description": "Relleno violeta; aclarado al pasar y contorno de teclado.",
+      "html": "<button class=\"ds-primary\">Guardar y comprobar</button>",
+      "css": ".ds-primary { background:var(--primary,#b99af5); color:var(--primary-fg,#211239); border:0; border-radius:10px; padding:0.5rem 0.85rem; font:600 0.9rem/1 'Source Sans 3 Variable','Source Sans 3',system-ui,sans-serif; cursor:pointer; transition:background .15s ease,color .15s ease,opacity .15s ease; } .ds-primary:hover:not(:disabled) { filter:brightness(1.08); } .ds-primary:focus-visible { outline:2px solid var(--accent,#c1a5ff); outline-offset:2px; } .ds-primary:active:not(:disabled) { translate:0 1px; } .ds-primary:disabled { opacity:.38; cursor:not-allowed; } @media(prefers-reduced-motion:reduce) { .ds-primary { transition:none; } }"
     },
     {
-      "name": "Field",
-      "kind": "input",
-      "refersTo": "input-field",
-      "description": "Cloud field, slate hairline.",
-      "html": "<label class=\"ds-field\"><span>api key</span><input /></label>",
-      "css": ".ds-field { display: grid; gap: 0.28rem; font: 500 0.8rem 'Source Sans 3', sans-serif; color: #5a6470; } .ds-field input { border: 1px solid color-mix(in srgb, #5a6470 22%, white); border-radius: 10px; background: #fff; padding: 0.45rem 0.65rem; color: #3a424c; } .ds-field input:focus-visible { outline: 1px solid #b9a8ff; outline-offset: 3px; }"
+      "name": "Acción secundaria", "kind": "button", "refersTo": "button-secondary",
+      "description": "Plano elevado con borde para acciones auxiliares.",
+      "html": "<button class=\"ds-secondary\">Completar desde URL</button>",
+      "css": ".ds-secondary { background:var(--elevated,#30263e); color:var(--text,#f4effa); border:1px solid var(--border,#443650); border-radius:10px; padding:0.5rem 0.85rem; font:600 0.9rem/1 'Source Sans 3 Variable','Source Sans 3',system-ui,sans-serif; cursor:pointer; transition:background .15s ease,border-color .15s ease; } .ds-secondary:hover:not(:disabled) { background:var(--surface,#231d30); border-color:var(--muted,#b7abc8); } .ds-secondary:focus-visible { outline:2px solid var(--accent,#c1a5ff); outline-offset:2px; } .ds-secondary:active:not(:disabled) { translate:0 1px; } .ds-secondary:disabled { opacity:.38; cursor:not-allowed; } @media(prefers-reduced-motion:reduce) { .ds-secondary { transition:none; } }"
+    },
+    {
+      "name": "Acción peligrosa", "kind": "button", "refersTo": "button-danger",
+      "description": "Borde y texto de peligro; relleno en hover.",
+      "html": "<button class=\"ds-danger\">Eliminar conexión</button>",
+      "css": ".ds-danger { background:transparent; color:var(--danger,#ff9b9b); border:1px solid var(--danger,#ff9b9b); border-radius:10px; padding:0.5rem 0.85rem; font:600 0.9rem/1 'Source Sans 3 Variable','Source Sans 3',system-ui,sans-serif; cursor:pointer; transition:background .15s ease,color .15s ease; } .ds-danger:hover:not(:disabled) { background:var(--danger,#ff9b9b); color:#fff; } .ds-danger:focus-visible { outline:2px solid var(--accent,#c1a5ff); outline-offset:2px; } .ds-danger:active:not(:disabled) { translate:0 1px; } .ds-danger:disabled { opacity:.38; cursor:not-allowed; } @media(prefers-reduced-motion:reduce) { .ds-danger { transition:none; } }"
+    },
+    {
+      "name": "Acción discreta", "kind": "button", "refersTo": "button-ghost",
+      "description": "Acción sin borde; aparece plano elevado en hover.",
+      "html": "<button class=\"ds-ghost\">Cancelar</button>",
+      "css": ".ds-ghost { background:transparent; color:var(--muted,#b7abc8); border:0; border-radius:10px; padding:0.5rem 0.85rem; font:600 0.9rem/1 'Source Sans 3 Variable','Source Sans 3',system-ui,sans-serif; cursor:pointer; transition:background .15s ease,color .15s ease; } .ds-ghost:hover:not(:disabled) { background:var(--elevated,#30263e); color:var(--text,#f4effa); } .ds-ghost:focus-visible { outline:2px solid var(--accent,#c1a5ff); outline-offset:2px; } .ds-ghost:active:not(:disabled) { translate:0 1px; } .ds-ghost:disabled { opacity:.38; cursor:not-allowed; } @media(prefers-reduced-motion:reduce) { .ds-ghost { transition:none; } }"
+    },
+    {
+      "name": "Campo compartido", "kind": "input", "refersTo": "input-field",
+      "description": "Label persistente, ayuda asociada y línea de foco; mínimo 46px.",
+      "html": "<div class=\"ds-field\"><label for=\"ds-host\">Servidor</label><div class=\"ds-control\"><input id=\"ds-host\" aria-describedby=\"ds-host-help\" placeholder=\"db.example.com\"><span class=\"ds-track\"></span></div><small id=\"ds-host-help\">Destino de PostgreSQL.</small></div>",
+      "css": ".ds-field { display:grid; gap:.45rem; min-width:0; color:var(--text,#f4effa); font-family:'Source Sans 3 Variable','Source Sans 3',system-ui,sans-serif; } .ds-field label { font-size:.84rem; font-weight:600; } .ds-control { position:relative; border:1px solid var(--border,#443650); border-radius:11px; background:var(--bg,#16121f); transition:border-color 160ms ease,background 160ms ease; } .ds-control input { box-sizing:border-box; display:block; width:100%; min-height:46px; padding:.7rem .85rem; border:0; border-radius:inherit; background:transparent; color:inherit; font:450 .94rem/1.5 'Source Sans 3 Variable','Source Sans 3',system-ui,sans-serif; } .ds-control input::placeholder { color:var(--muted,#b7abc8); opacity:1; } .ds-control:focus-within { border-color:var(--accent,#c1a5ff); background:var(--surface,#231d30); } .ds-control input:focus { outline:none; } .ds-control:has(:focus-visible) { outline:2px solid var(--accent,#c1a5ff); outline-offset:3px; } .ds-track { position:absolute; left:12px; right:12px; bottom:-1px; height:2px; background:var(--accent,#c1a5ff); transform:scaleX(0); transition:transform 250ms cubic-bezier(.16,1,.3,1); } .ds-control:focus-within .ds-track { transform:scaleX(1); } .ds-control:has(:disabled) { opacity:.6; } .ds-control:has([aria-invalid=true]) { border-color:var(--danger,#ff9b9b); } .ds-field small { color:var(--muted,#b7abc8); font-size:.78rem; line-height:1.45; } @media(prefers-reduced-motion:reduce) { .ds-control,.ds-track { transition:none; } }"
+    },
+    {
+      "name": "Navegación lateral", "kind": "nav", "refersTo": "navigation",
+      "description": "Acceso de 44px con plano de hover o selección.",
+      "html": "<nav aria-label=\"Configuración\"><button class=\"ds-nav\">Bases de datos</button></nav>",
+      "css": ".ds-nav { display:flex; align-items:center; gap:.6rem; width:100%; min-height:44px; padding:.55rem .7rem; border:0; border-radius:10px; background:transparent; color:var(--text,#f4effa); text-align:left; font:550 1rem/1.5 'Source Sans 3 Variable','Source Sans 3',system-ui,sans-serif; cursor:pointer; } .ds-nav:hover,.ds-nav[aria-current] { background:var(--elevated,#30263e); } .ds-nav:focus-visible { outline:2px solid var(--accent,#c1a5ff); outline-offset:2px; } .ds-nav:active { translate:0 1px; }"
+    },
+    {
+      "name": "Modo de conversación", "kind": "chip", "refersTo": "mode-chip",
+      "description": "Chip de modo; muestra estado activo sin forma de pill.",
+      "html": "<button class=\"ds-chip\" aria-pressed=\"true\">Pensar</button>",
+      "css": ".ds-chip { display:inline-flex; align-items:center; justify-content:center; gap:.35rem; min-height:34px; padding:.4rem .55rem; border:0; border-radius:8px; background:transparent; color:var(--muted,#b7abc8); font:600 .82rem/1.5 'Source Sans 3 Variable','Source Sans 3',system-ui,sans-serif; cursor:pointer; } .ds-chip:hover { color:var(--text,#f4effa); } .ds-chip[aria-pressed=true] { background:color-mix(in srgb,var(--accent,#c1a5ff) 12%,var(--surface,#231d30)); color:var(--accent,#c1a5ff); } .ds-chip:focus-visible { outline:2px solid var(--accent,#c1a5ff); outline-offset:2px; } .ds-chip:active { translate:0 1px; }"
+    },
+    {
+      "name": "Compositor", "kind": "card", "refersTo": "composer",
+      "description": "Muestra de contenedor editable sin sombra; lógica de envío en Composer.tsx.",
+      "html": "<div class=\"ds-composer\"><textarea aria-label=\"Mensaje para Ira\" placeholder=\"¿Qué hacemos hoy?\" rows=\"2\"></textarea></div>",
+      "css": ".ds-composer { position:relative; display:flex; flex-direction:column; gap:.85rem; padding:1rem 1rem .8rem; border:1px solid var(--border,#443650); border-radius:16px; background:var(--surface,#231d30); color:var(--text,#f4effa); transition:border-color 180ms ease; } .ds-composer textarea { width:100%; min-height:2.6rem; max-height:176px; resize:none; border:0; background:transparent; color:inherit; padding:.15rem .25rem; font:450 1.06rem/1.5 'Source Sans 3 Variable','Source Sans 3',system-ui,sans-serif; } .ds-composer textarea::placeholder { color:var(--muted,#b7abc8); } .ds-composer textarea:focus { outline:none; } .ds-composer:focus-within { border-color:var(--accent,#c1a5ff); } .ds-composer::after { content:''; position:absolute; bottom:-1px; left:20%; right:20%; height:2px; background:var(--accent,#c1a5ff); transform:scaleX(0); transition:transform 280ms cubic-bezier(.16,1,.3,1); } .ds-composer:focus-within::after { transform:scaleX(1); } @media(prefers-reduced-motion:reduce) { .ds-composer,.ds-composer::after { transition:none; } }"
     }
   ],
   "narrative": {
-    "northStar": "The cloud body and its iridescent edge",
-    "overview": "Ira’s window is a high-key cloud: white field, slate ink, a photograph of a newly formed cloud edge dissolving downward. Color is not a fill. The chat is the cloud body; configuration is the edge.",
+    "northStar": "Conversación violeta, expresiva y precisa",
+    "overview": "Berenjena oscura y lavanda clara prolongan la identidad del logo existente. Controles esculpidos, superficies abiertas y respuestas sin tarjeta mantienen el contenido por delante de la interfaz. Dirección fijada por el usuario y construida desde código; sin assets generados. Se conserva `/ira-logo.png` sin cambios.\n\nEl movimiento señala navegación, envío y actividad real. Durante la lectura, los mensajes permanecen en reposo y el desplazamiento respeta a quien vuelve atrás.",
     "keyCharacteristics": [
-      "One type family, thin for speech, medium for chrome",
-      "Spectral hairline instead of filled accents",
-      "Photograph as atmosphere, not illustration chrome",
-      "Operate density in the catalog sheet; emptiness in the chat"
+      "Dos temas semánticos con acento violeta.",
+      "Sidebar ajustable y compactable; campos compartidos con etiquetas persistentes.",
+      "Burbuja violeta para Tú; avatar y texto abierto para Ira.",
+      "Movimiento breve, streaming agrupado y reducción de movimiento respetada."
     ],
-    "rules": [
-      { "name": "The Fringe Rule", "body": "Color lives on the 1px edge.", "section": "colors" },
-      { "name": "The One Size Chrome Rule", "body": "Catalog headings, buttons, and field labels share 0.8rem.", "section": "typography" },
-      { "name": "The No-Shadow Rule", "body": "The only edge is the iridescent hairline.", "section": "elevation" }
-    ],
+    "rules": [{ "name": "The Semantic Color Rule", "body": "Mantener roles equivalentes entre temas; reservar coral a la marca y comunicar estados también con texto.", "section": "colors" }],
     "dos": [
-      "Do keep the sky photograph as the first-viewport atmosphere.",
-      "Do put color only on hairlines and the active violet mark.",
-      "Do set messages as ink on white, labeled tú / Ira."
+      "**Do** conservar logo existente, Hugeicons y etiquetas accesibles.",
+      "**Do** reutilizar Field y roles de color en ambos temas.",
+      "**Do** distinguir guardar de comprobar y mantener lectura quieta durante streaming."
     ],
     "donts": [
-      "Don't use chat bubbles, a thread sidebar, or a settings-app split.",
-      "Don't fill buttons or panels with mint, rose, or violet.",
-      "Don't introduce a second type family or a display serif."
+      "**Don't** recuperar la estética Grok monocroma ni las antiguas franjas iridiscentes.",
+      "**Don't** persistir URL o credenciales crudas en almacenamiento frontend.",
+      "**Don't** convertir movimiento continuo o sombras en decoración de cada mensaje."
     ]
   }
 }
