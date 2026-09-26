@@ -71,7 +71,9 @@ pub fn router(app: App, web_root: Option<PathBuf>) -> Router {
         .route("/chats", get(list_chats).post(new_chat))
         .route("/chats/{id}", get(open_chat))
         .route("/chats/{id}/messages/stream", post(chat_stream))
-        .route("/chats/{id}/messages", post(chat));
+        .route("/chats/{id}/messages", post(chat))
+        .route("/channels/whatsapp/{jid}", post(ensure_whatsapp))
+        .route("/channels/whatsapp/{jid}/reset", post(reset_whatsapp));
 
     let mut router = Router::new()
         .nest("/api", api)
@@ -170,6 +172,14 @@ async fn new_chat(State(app): State<App>) -> Response {
     send(app.new_chat().await)
 }
 
+async fn ensure_whatsapp(State(app): State<App>, Path(jid): Path<String>) -> Response {
+    send(app.ensure_whatsapp(&jid).await)
+}
+
+async fn reset_whatsapp(State(app): State<App>, Path(jid): Path<String>) -> Response {
+    send(app.reset_whatsapp(&jid).await)
+}
+
 async fn open_chat(State(app): State<App>, Path(id): Path<Uuid>) -> Response {
     send(app.open_chat(id).await)
 }
@@ -257,6 +267,7 @@ fn status_for(msg: &str) -> StatusCode {
         || msg.contains("fuera de rango")
         || msg.contains("modo SSL inválido")
         || msg.contains("conexión inválida")
+        || msg.contains("jid de whatsapp inválido")
     {
         StatusCode::BAD_REQUEST
     } else if msg.contains("duplicate key") || msg.contains("database_connections_name_key") {
@@ -394,6 +405,32 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
         let json = body_json(resp).await;
         assert!(json["error"].as_str().unwrap().contains("postgres"));
+    }
+
+    #[tokio::test]
+    async fn whatsapp_ensure_without_db_is_unavailable() {
+        let resp = test_router()
+            .oneshot(
+                Request::post("/api/channels/whatsapp/34600000000%40s.whatsapp.net")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn whatsapp_jid_with_slash_is_rejected() {
+        let resp = test_router()
+            .oneshot(
+                Request::post("/api/channels/whatsapp/34600000000%40s.whatsapp.net%2Fextra")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]

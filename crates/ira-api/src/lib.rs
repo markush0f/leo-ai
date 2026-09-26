@@ -533,6 +533,24 @@ impl App {
         Ok(dto::conversation_dto(row))
     }
 
+    pub async fn ensure_whatsapp(&self, jid: &str) -> Result<ConversationDto, String> {
+        let jid = whatsapp_jid(jid)?;
+        let pool = self.pool().await?;
+        let row = db::ensure_whatsapp(&pool, &jid)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(dto::conversation_dto(row))
+    }
+
+    pub async fn reset_whatsapp(&self, jid: &str) -> Result<ConversationDto, String> {
+        let jid = whatsapp_jid(jid)?;
+        let pool = self.pool().await?;
+        let row = db::new_whatsapp(&pool, &jid)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(dto::conversation_dto(row))
+    }
+
     pub async fn chat(&self, conversation_id: Uuid, text: String) -> Result<ChatOut, String> {
         let conversation_lock = self.conversation_lock(conversation_id).await;
         let _turn = conversation_lock.lock().await;
@@ -857,6 +875,19 @@ fn tools_unsupported(err: &ira_llm::LlmError) -> bool {
     text.contains("does not support tools") || text.contains("does not support tool")
 }
 
+fn whatsapp_jid(raw: &str) -> Result<String, String> {
+    let jid = raw.trim();
+    let ok = !jid.is_empty()
+        && jid.len() <= 128
+        && !jid.contains(['/', '\\', ' ', '\n', '\r'])
+        && (jid.ends_with("@s.whatsapp.net") || jid.ends_with("@lid"));
+    if ok {
+        Ok(jid.to_string())
+    } else {
+        Err("jid de whatsapp inválido".into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -908,6 +939,17 @@ mod tests {
             Op::SetKind { kind, .. } => assert_eq!(kind, "ollama"),
             other => panic!("{other:?}"),
         }
+    }
+
+    #[test]
+    fn whatsapp_jid_accepts_phone_and_lid() {
+        assert_eq!(
+            whatsapp_jid("34600000000@s.whatsapp.net").unwrap(),
+            "34600000000@s.whatsapp.net"
+        );
+        assert!(whatsapp_jid("123@lid").is_ok());
+        assert!(whatsapp_jid("34600000000@s.whatsapp.net/extra").is_err());
+        assert!(whatsapp_jid("not-a-jid").is_err());
     }
 
     #[test]
