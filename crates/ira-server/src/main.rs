@@ -76,9 +76,12 @@ async fn main() {
             std::process::exit(1);
         });
     tracing::info!(%addr, web = ?web_root, "ira-server");
-    axum::serve(listener, ira_server::router(app, web_root))
-        .await
-        .expect("server");
+    axum::serve(
+        listener,
+        ira_server::router(app, web_root).into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .expect("server");
 }
 
 fn discover_web_root() -> Option<PathBuf> {

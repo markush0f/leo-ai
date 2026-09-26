@@ -11,6 +11,7 @@ ira-pgjson.workspace = true
 ira-store.workspace = true
 ira-tools.workspace = true
 ira-tools-db.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true

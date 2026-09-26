@@ -8,6 +8,7 @@
 mod dto;
 mod host;
 mod toolbox;
+mod whatsapp;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Weak};
@@ -30,6 +31,7 @@ pub use dto::{
 };
 pub use host::{ServiceDto, ServicesDto};
 pub use ira_pgjson::Dump as DatabaseDump;
+pub use whatsapp::WhatsAppDto;
 
 /// Event produced while a chat turn is streamed to a transport.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -97,6 +99,22 @@ impl App {
 
     pub async fn db_ok(&self) -> bool {
         self.inner.pool.read().await.is_some()
+    }
+
+    pub async fn whatsapp_status(&self) -> WhatsAppDto {
+        whatsapp::status().await
+    }
+
+    pub async fn whatsapp_pair(&self) -> WhatsAppDto {
+        whatsapp::pair().await
+    }
+
+    pub async fn whatsapp_allow(&self, phones: String) -> WhatsAppDto {
+        whatsapp::set_allow(&phones).await
+    }
+
+    pub async fn whatsapp_start(&self) -> WhatsAppDto {
+        whatsapp::start().await
     }
 
     /// Starts Postgres and MCP Toolbox via Docker Compose, then reconnects.
