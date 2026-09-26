@@ -120,23 +120,24 @@ impl App {
     /// Starts Postgres and MCP Toolbox via Docker Compose, then reconnects.
     pub async fn start_services(&self) -> ServicesDto {
         if let Err(error) = toolbox::reset().await {
-            let mut out = host::status().await;
+            let mut out = self.host_status().await;
             out.ok = false;
             out.error = Some(error);
             return out;
         }
-        let mut out = host::start().await;
+        let catalog = self.service_catalog().await;
+        let mut out = host::start(&catalog).await;
         if out.error.is_some() {
             return out;
         }
         for _ in 0..25 {
             if self.try_connect().await.is_ok() {
-                return host::status().await;
+                return self.host_status().await;
             }
             tokio::time::sleep(std::time::Duration::from_millis(400)).await;
         }
         let err = self.try_connect().await.err();
-        out = host::status().await;
+        out = self.host_status().await;
         if let Some(err) = err {
             out.ok = false;
             out.error = Some(err);
@@ -145,7 +146,77 @@ impl App {
     }
 
     pub async fn services(&self) -> ServicesDto {
-        host::status().await
+        self.host_status().await
+    }
+
+    /// Starts or stops one Compose service. Starting Postgres also reconnects.
+    pub async fn set_service(&self, id: &str, action: &str) -> ServicesDto {
+        let catalog = self.service_catalog().await;
+        let out = match action {
+            "start" => host::start_one(id, &catalog).await,
+            "stop" => host::stop_one(id, &catalog).await,
+            _ => {
+                let mut out = host::status(&catalog).await;
+                out.ok = false;
+                out.error = Some("acción inválida".into());
+                return out;
+            }
+        };
+        if action == "start" && id == "postgres" && out.error.is_none() {
+            for _ in 0..25 {
+                if self.try_connect().await.is_ok() {
+                    return self.host_status().await;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+            }
+            let err = self.try_connect().await.err();
+            let mut out = self.host_status().await;
+            if let Some(err) = err {
+                out.ok = false;
+                out.error = Some(err);
+            }
+            return out;
+        }
+        out
+    }
+
+    async fn service_catalog(&self) -> Vec<host::CatalogEntry> {
+        let pool = self.inner.pool.read().await.clone();
+        if let Some(pool) = &pool
+            && let Ok(found) = host::discover_catalog().await
+            && !found.is_empty()
+        {
+            let rows: Vec<db::HostServiceRow> = found
+                .iter()
+                .enumerate()
+                .map(|(index, entry)| db::HostServiceRow {
+                    id: entry.id.clone(),
+                    name: entry.name.clone(),
+                    required: entry.required,
+                    position: index as i32,
+                })
+                .collect();
+            let _ = db::sync_host_services(pool, &rows).await;
+            return found;
+        }
+        if let Some(pool) = pool
+            && let Ok(rows) = db::list_host_services(&pool).await
+            && !rows.is_empty()
+        {
+            return rows
+                .into_iter()
+                .map(|row| host::CatalogEntry {
+                    id: row.id,
+                    name: row.name,
+                    required: row.required,
+                })
+                .collect();
+        }
+        host::builtin_catalog()
+    }
+
+    async fn host_status(&self) -> ServicesDto {
+        host::status(&self.service_catalog().await).await
     }
 
     async fn try_connect(&self) -> Result<(), String> {

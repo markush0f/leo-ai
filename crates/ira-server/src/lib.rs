@@ -63,6 +63,7 @@ pub fn router(app: App, web_root: Option<PathBuf>) -> Router {
     let api = Router::new()
         .route("/health", get(health))
         .route("/services", get(services).post(start_services))
+        .route("/services/{id}", post(set_service))
         .route("/snapshot", get(snapshot))
         .route("/apply", post(apply))
         .route("/databases", get(list_databases).post(create_database))
@@ -113,6 +114,19 @@ async fn services(State(app): State<App>) -> Response {
 
 async fn start_services(State(app): State<App>) -> Response {
     send(Ok(app.start_services().await))
+}
+
+async fn set_service(
+    State(app): State<App>,
+    Path(id): Path<String>,
+    Json(body): Json<ServiceAction>,
+) -> Response {
+    send(Ok(app.set_service(&id, &body.action).await))
+}
+
+#[derive(Deserialize)]
+struct ServiceAction {
+    action: String,
 }
 
 async fn snapshot(State(app): State<App>) -> Response {
