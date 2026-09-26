@@ -236,7 +236,6 @@ button {
 }
 
 .svc-detail {
-  margin-left: auto;
   color: var(--muted);
   font-size: 0.75rem;
   font-weight: 500;
@@ -254,6 +253,13 @@ button {
 
 .svc-start {
   width: 100%;
+}
+
+.svc-toggle {
+  margin-left: auto;
+  min-height: 28px;
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
 }
 
 .svc.compact .svc-detail {
@@ -1526,6 +1532,7 @@ svg { flex-shrink: 0; }
 .rail .svc { padding: 0.85rem 0.7rem; background: transparent; border: 0; border-top: 1px solid var(--border); border-radius: 0; }
 .svc-start { min-height: 36px; background: var(--elevated); color: var(--text); }
 .svc-start:disabled { opacity: 1; color: var(--muted); }
+.svc-toggle { background: var(--elevated); }
 .svc-label { font-size: 0.78rem; color: var(--muted); }
 .rail-resize { position: absolute; inset: 0 -4px 0 auto; width: 9px; z-index: 5; cursor: col-resize; touch-action: none; }
 .rail-resize::after { content: ""; position: absolute; top: 42%; bottom: 42%; left: 4px; width: 2px; border-radius: 2px; background: transparent; transition: background 150ms; }
@@ -1646,7 +1653,7 @@ svg { flex-shrink: 0; }
   .rail-top { position: relative; height: 54px; flex-shrink: 0; padding: 0; transition: height 420ms cubic-bezier(0.22, 1, 0.36, 1); }
   .rail-top .brand { position: absolute; left: 4px; top: 50%; transform: translateY(-50%); transition: left 420ms cubic-bezier(0.22, 1, 0.36, 1), top 420ms cubic-bezier(0.22, 1, 0.36, 1), transform 420ms cubic-bezier(0.22, 1, 0.36, 1); }
   .rail-top .rail-close { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); transition: right 420ms cubic-bezier(0.22, 1, 0.36, 1), top 420ms cubic-bezier(0.22, 1, 0.36, 1), transform 420ms cubic-bezier(0.22, 1, 0.36, 1); }
-  .rail-collapsed .rail-label, .rail-collapsed .svc-label, .rail-collapsed .svc-list, .rail-collapsed .svc-err, .rail-collapsed .svc-start span { display: none; }
+  .rail-collapsed .rail-label, .rail-collapsed .svc-label, .rail-collapsed .svc-list, .rail-collapsed .svc-err, .rail-collapsed .svc-start span, .rail-collapsed .svc-toggle { display: none; }
   .rail-collapsed .rail-top { height: 106px; }
   .rail-collapsed .rail-top .brand { left: 50%; top: 26px; transform: translate(-50%, -50%); }
   .rail-collapsed .rail-top .rail-close { right: 50%; top: 79px; transform: translate(50%, -50%); }

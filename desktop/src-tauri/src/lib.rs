@@ -3,7 +3,7 @@
 //! Tauri commands forward to [`ira_api::App`], the same service `ira-server`
 //! exposes over HTTP. Provider secrets stay behind the DTO boundary: the
 //! frontend receives only availability status (`db` / `env` / `falta` / `none`).
-//! `services` / `start_services` run Docker Compose for Postgres and Toolbox.
+//! `services` / `start_services` / `set_service` run Docker Compose.
 //! Voice is deferred: this surface does not control `ira-daemon`.
 //!
 //! # Workspace crates
@@ -106,6 +106,15 @@ async fn services(state: tauri::State<'_, AppState>) -> Result<ServicesDto, Stri
 #[tauri::command]
 async fn start_services(state: tauri::State<'_, AppState>) -> Result<ServicesDto, String> {
     Ok(state.api.start_services().await)
+}
+
+#[tauri::command]
+async fn set_service(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    action: String,
+) -> Result<ServicesDto, String> {
+    Ok(state.api.set_service(&id, &action).await)
 }
 
 #[tauri::command]
@@ -230,6 +239,7 @@ pub fn run() {
             chat_stream,
             services,
             start_services,
+            set_service,
             whatsapp_status,
             whatsapp_start,
             whatsapp_pair,

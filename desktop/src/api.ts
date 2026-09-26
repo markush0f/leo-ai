@@ -121,6 +121,14 @@ export async function startServices(): Promise<Services> {
   return http<Services>("/api/services", { method: "POST" });
 }
 
+export async function setService(id: string, action: "start" | "stop"): Promise<Services> {
+  if (inTauri) return invoke<Services>("set_service", { id, action });
+  return http<Services>(`/api/services/${encodeURIComponent(id)}`, {
+    method: "POST",
+    body: JSON.stringify({ action }),
+  });
+}
+
 export async function loadWhatsApp(): Promise<WhatsAppStatus> {
   if (inTauri) return invoke<WhatsAppStatus>("whatsapp_status");
   return http<WhatsAppStatus>("/api/whatsapp");

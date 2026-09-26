@@ -11,11 +11,12 @@ import {
   finishCodexLogin,
   listChats,
   loadServices,
+  setService,
   loadSnapshot,
   newChat,
   openChat,
   streamChat,
-  startServices,
+
 } from "./api";
 import { Catalog } from "./Catalog";
 import { Databases } from "./Databases";
@@ -96,7 +97,7 @@ export default function App() {
   const [showLatest, setShowLatest] = useState(false);
   const [theme, setTheme] = useState<Theme>("dark");
   const [services, setServices] = useState<Services | null>(null);
-  const [starting, setStarting] = useState(false);
+  const [svcBusy, setSvcBusy] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [voicePhase, setVoicePhase] = useState<VoicePhase>("connect");
@@ -187,14 +188,13 @@ export default function App() {
   }, [bubbles, busy]);
 
   useEffect(() => {
-    if (services?.ok && !starting) return;
     const id = window.setInterval(() => {
       void loadServices()
         .then(setServices)
         .catch(() => undefined);
     }, 4000);
     return () => window.clearInterval(id);
-  }, [services?.ok, starting]);
+  }, []);
 
   const stopVoice = useCallback(() => {
     const session = voiceRef.current;
@@ -457,29 +457,31 @@ export default function App() {
     else setRailCollapsed(!railCollapsed);
   };
 
-  const bootServices = async () => {
-    setStarting(true);
+  const toggleService = async (id: string, running: boolean) => {
+    setSvcBusy(id);
     try {
-      const next = await startServices();
+      const next = await setService(id, running ? "stop" : "start");
       setServices(next);
       if (next.error) setBoot(next.error);
-      await refresh();
-      if (!conversationId) {
-        try {
-          const listed = await listChats();
-          if (listed.length === 0) {
-            const created = await newChat();
-            setChats([created]);
-            setConversationId(created.id);
-          } else {
-            setChats(listed);
-            const active = listed[0].id;
-            const turns = await openChat(active);
-            setConversationId(active);
-            setBubbles(turnsToBubbles(turns));
+      if (id === "postgres" && !running) {
+        await refresh();
+        if (!conversationId) {
+          try {
+            const listed = await listChats();
+            if (listed.length === 0) {
+              const created = await newChat();
+              setChats([created]);
+              setConversationId(created.id);
+            } else {
+              setChats(listed);
+              const active = listed[0].id;
+              const turns = await openChat(active);
+              setConversationId(active);
+              setBubbles(turnsToBubbles(turns));
+            }
+          } catch (e) {
+            setBoot(e instanceof Error ? e.message : String(e));
           }
-        } catch (e) {
-          setBoot(e instanceof Error ? e.message : String(e));
         }
       }
     } catch (e) {
@@ -491,7 +493,7 @@ export default function App() {
         error: msg,
       }));
     } finally {
-      setStarting(false);
+      setSvcBusy(null);
     }
   };
 
@@ -608,9 +610,9 @@ export default function App() {
 
         <ServiceBoard
           data={services}
-          starting={starting}
+          busyId={svcBusy}
           compact
-          onStart={() => void bootServices()}
+          onToggle={(id, running) => void toggleService(id, running)}
         />
 
         <div className="rail-foot">
@@ -661,8 +663,8 @@ export default function App() {
               {(boot || (services && !services.ok)) && (
                 <ServiceBoard
                   data={services}
-                  starting={starting}
-                  onStart={() => void bootServices()}
+                  busyId={svcBusy}
+                  onToggle={(id, running) => void toggleService(id, running)}
                 />
               )}
             </div>
