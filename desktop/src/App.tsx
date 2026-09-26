@@ -19,6 +19,7 @@ import {
 } from "./api";
 import { Catalog } from "./Catalog";
 import { Databases } from "./Databases";
+import { WhatsApp } from "./WhatsApp";
 import { Message } from "./components/Message";
 import { Composer } from "./components/Composer";
 import { Activity } from "./components/Activity";
@@ -35,6 +36,7 @@ import {
   IconPlus,
   IconSliders,
   IconSun,
+  IconWhatsApp,
 } from "./icons";
 import { VoiceStage, type VoicePhase } from "./VoiceStage";
 import { startVoice, type VoiceSession } from "./voice";
@@ -81,6 +83,7 @@ export default function App() {
   const [receiving, setReceiving] = useState(false);
   const [catalog, setCatalog] = useState(false);
   const [databases, setDatabases] = useState(false);
+  const [whatsapp, setWhatsapp] = useState(false);
   const [rail, setRail] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 860px)").matches);
   const railRef = useSheetFocus(rail && isMobile, '[data-mobile-menu="true"]');
@@ -146,6 +149,7 @@ export default function App() {
       await refresh();
       const q = new URLSearchParams(window.location.search);
       if (q.has("catalog")) setCatalog(true);
+      if (q.has("whatsapp")) setWhatsapp(true);
       if (q.has("demo")) {
         setBubbles([
           { id: "d1", kind: "user", text: "¿qué tiempo hace en Madrid?" },
@@ -217,6 +221,7 @@ export default function App() {
       if (e.key === "Escape") {
         setCatalog(false);
         setDatabases(false);
+        setWhatsapp(false);
         setRail(false);
         stopVoice();
       }
@@ -525,7 +530,7 @@ export default function App() {
       )}
       </AnimatePresence>
 
-      <aside ref={railRef} className="rail" aria-label="navegación" role={isMobile && rail ? "dialog" : undefined} aria-modal={isMobile && rail ? true : undefined} inert={catalog || databases || voiceOpen}>
+      <aside ref={railRef} className="rail" aria-label="navegación" role={isMobile && rail ? "dialog" : undefined} aria-modal={isMobile && rail ? true : undefined} inert={catalog || databases || whatsapp || voiceOpen}>
         <div className="rail-top">
           <p className="brand">
              <img src="/ira-cabeza-recortada.png" alt="" />
@@ -574,7 +579,7 @@ export default function App() {
             className={`nav-item${catalog ? " on" : ""}`}
             data-sheet-trigger={catalog ? "true" : undefined}
             title="Modelos y configuración" aria-label="Modelos y configuración"
-            onClick={() => { setCatalog(true); setDatabases(false); setRail(false); }}
+            onClick={() => { setCatalog(true); setDatabases(false); setWhatsapp(false); setRail(false); }}
           >
             <IconSliders />
             <span className="rail-label">Modelos y configuración</span>
@@ -584,10 +589,20 @@ export default function App() {
             className={`nav-item${databases ? " on" : ""}`}
             data-sheet-trigger={databases ? "true" : undefined}
             title="Bases de datos" aria-label="Bases de datos"
-            onClick={() => { setDatabases(true); setCatalog(false); setRail(false); }}
+            onClick={() => { setDatabases(true); setCatalog(false); setWhatsapp(false); setRail(false); }}
           >
             <IconDatabase />
             <span className="rail-label">Bases de datos</span>
+          </button>
+          <button
+            type="button"
+            className={`nav-item${whatsapp ? " on" : ""}`}
+            data-sheet-trigger={whatsapp ? "true" : undefined}
+            title="WhatsApp" aria-label="WhatsApp"
+            onClick={() => { setWhatsapp(true); setCatalog(false); setDatabases(false); setRail(false); }}
+          >
+            <IconWhatsApp />
+            <span className="rail-label">WhatsApp</span>
           </button>
         </nav>
 
@@ -607,7 +622,7 @@ export default function App() {
         {!railCollapsed && <div className="rail-resize" {...sidebar.resizeProps} />}
       </aside>
 
-      <div className="stage" inert={catalog || databases || voiceOpen || rail}>
+      <div className="stage" inert={catalog || databases || whatsapp || voiceOpen || rail}>
         <header className="topbar">
           <button
             type="button"
@@ -726,6 +741,16 @@ export default function App() {
       <AnimatePresence>
       {databases && (
           <Databases onClose={() => setDatabases(false)} />
+      )}
+      </AnimatePresence>
+      <AnimatePresence>
+      {whatsapp && (
+          <motion.button type="button" className="scrim settings" aria-label="cerrar WhatsApp" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setWhatsapp(false)} />
+      )}
+      </AnimatePresence>
+      <AnimatePresence>
+      {whatsapp && (
+          <WhatsApp onClose={() => setWhatsapp(false)} />
       )}
       </AnimatePresence>
       <AnimatePresence>

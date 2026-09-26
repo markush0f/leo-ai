@@ -4,7 +4,7 @@ import {
   Settings02Icon, Menu01Icon, PowerServiceIcon, Cancel01Icon,
   Database02Icon, SidebarLeft01Icon, BubbleChatIcon, Brain01Icon,
   Wrench01Icon, ArrowDown02Icon, ViewIcon, ViewOffSlashIcon,
-  Search01Icon, Delete02Icon, Link01Icon, Tick02Icon,
+  Search01Icon, Delete02Icon, Link01Icon, Tick02Icon, WhatsappIcon,
 } from "@hugeicons/core-free-icons";
 
 type Props = { className?: string };
@@ -33,3 +33,4 @@ export const IconSearch = makeIcon(Search01Icon);
 export const IconDelete = makeIcon(Delete02Icon);
 export const IconLink = makeIcon(Link01Icon);
 export const IconCheck = makeIcon(Tick02Icon);
+export const IconWhatsApp = makeIcon(WhatsappIcon);

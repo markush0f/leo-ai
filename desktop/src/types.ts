@@ -57,6 +57,15 @@ export type Services = {
   error?: string | null;
 };
 
+export type WhatsAppStatus = {
+  ok: boolean;
+  phase: "down" | "connecting" | "qr" | "open" | "closed" | string;
+  user: string | null;
+  qr: string | null;
+  allow_phones: string[];
+  error?: string | null;
+};
+
 export type DatabaseConnection = {
   id: string;
   name: string;

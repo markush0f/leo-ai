@@ -14,6 +14,7 @@ import type {
   Op,
   Services,
   Snapshot,
+  WhatsAppStatus,
   Turn,
 } from "./types";
 
@@ -118,6 +119,29 @@ export async function loadServices(): Promise<Services> {
 export async function startServices(): Promise<Services> {
   if (inTauri) return invoke<Services>("start_services");
   return http<Services>("/api/services", { method: "POST" });
+}
+
+export async function loadWhatsApp(): Promise<WhatsAppStatus> {
+  if (inTauri) return invoke<WhatsAppStatus>("whatsapp_status");
+  return http<WhatsAppStatus>("/api/whatsapp");
+}
+
+export async function startWhatsApp(): Promise<WhatsAppStatus> {
+  if (inTauri) return invoke<WhatsAppStatus>("whatsapp_start");
+  return http<WhatsAppStatus>("/api/whatsapp", { method: "POST" });
+}
+
+export async function pairWhatsApp(): Promise<WhatsAppStatus> {
+  if (inTauri) return invoke<WhatsAppStatus>("whatsapp_pair");
+  return http<WhatsAppStatus>("/api/whatsapp/pair", { method: "POST" });
+}
+
+export async function saveWhatsAppAllow(phones: string): Promise<WhatsAppStatus> {
+  if (inTauri) return invoke<WhatsAppStatus>("whatsapp_allow", { phones });
+  return http<WhatsAppStatus>("/api/whatsapp/allow", {
+    method: "PUT",
+    body: JSON.stringify({ phones }),
+  });
 }
 
 export async function sendChat(conversationId: string, text: string): Promise<string> {
