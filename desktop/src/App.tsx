@@ -497,9 +497,10 @@ export default function App() {
     }
   };
 
-  const thinking = snap?.thinking ?? false;
   const useTools = snap?.tools_enabled ?? true;
   const model = snap?.models.find((m) => m.id === snap.active_model_id);
+  const effort = model?.effort || "low";
+  const thinking = effort !== "low";
   const provider = snap?.providers.find((p) => p.id === model?.provider_id);
   const chatting = bubbles.length > 0 || busy || listening;
   const canSend = Boolean(snap) && Boolean(conversationId) && !busy && !listening && input.trim().length > 0;
@@ -512,7 +513,7 @@ export default function App() {
     busy={busy} listening={listening} canTalk={canTalk} canSend={canSend}
     onSend={() => void send()} onTalk={() => void talk()}
     onModel={(id) => { if (id) changeMode({ op: "activate_model", id }); }}
-    onThinking={() => changeMode({ op: "set_thinking", value: !thinking })}
+    onEffort={(id, effort) => changeMode({ op: "set_model_effort", id, effort })}
     onTools={() => changeMode({ op: "set_tools_enabled", value: !useTools })} />;
 
   return (
@@ -691,7 +692,7 @@ export default function App() {
                    <span className="who"><img src="/ira-cabeza-recortada.png" alt="" /></span>
                   <div className="bubble ira load">
                     <Activity />
-                    {thinking ? "Razonando tu respuesta" : "Preparando tu respuesta"}
+                    {thinking ? `Razonando · ${effort}` : "Preparando tu respuesta"}
                   </div>
                 </motion.article>
               )}

@@ -3,7 +3,7 @@ import { parseDatabaseUrl } from "../src/database-url";
 
 const snapshot = {
   providers: [{ id: "p1", name: "Ollama", kind: "ollama", base_url: null, key: "none" }],
-  models: [{ id: "m1", provider_id: "p1", name: "qwen3:8b" }], engines: [],
+  models: [{ id: "m1", provider_id: "p1", name: "qwen3:8b", effort: "low" }], engines: [],
   active_model_id: "m1", active_conversation_id: null, system: "Responde en español.",
   voice_system: "", stt_engine_id: null, tts_engine_id: null, wake_engine_id: null,
   stt_language: "es", thinking: true, tools_enabled: true, tools: ["get_weather", "database_query"],

@@ -758,7 +758,8 @@ button:disabled {
   flex: 1;
 }
 
-.model-select {
+.model-select,
+.effort-select {
   max-width: min(15rem, 35%);
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -766,6 +767,11 @@ button:disabled {
   padding: 0.35rem 0.7rem;
   font-size: 0.82rem;
   font-weight: 600;
+}
+
+.effort-select {
+  max-width: 6.5rem;
+  flex-shrink: 0;
 }
 
 .mode-chip {
@@ -1560,8 +1566,9 @@ svg { flex-shrink: 0; }
 .mode-chip { display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; min-height: 34px; border: 0; border-radius: 8px; padding: 0.4rem 0.55rem; }
 .mode-chip svg { width: 17px; height: 17px; }
 .mode-chip.on { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent); }
-.model-select { min-height: 34px; border: 0; border-radius: 8px; padding: 0.4rem; background: transparent; text-overflow: ellipsis; }
-.model-select option, .model-select optgroup { background: var(--surface); color: var(--text); }
+.model-select, .effort-select { min-height: 34px; border: 0; border-radius: 8px; padding: 0.4rem; background: transparent; text-overflow: ellipsis; }
+.model-select option, .model-select optgroup, .effort-select option { background: var(--surface); color: var(--text); }
+.catalog-models .effort-select { min-height: 2rem; border: 1px solid var(--border); border-radius: 999px; background: var(--elevated); margin-right: 0.35rem; }
 .btn-send, .btn-mic { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; }
 .btn-send svg, .btn-mic svg { width: 20px; height: 20px; }
 .btn-send svg { transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1); }

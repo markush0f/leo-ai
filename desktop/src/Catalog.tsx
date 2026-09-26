@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import { openExternal } from "./api";
-import type { CodexLogin, Model, Op, Provider, Snapshot } from "./types";
+import { EFFORTS, type CodexLogin, type Model, type Op, type Provider, type Snapshot } from "./types";
 import { Input, Select, TextArea } from "./components/Field";
 import { useSheetFocus } from "./components/useSheetFocus";
 import { IconClose, IconDelete, IconSearch } from "./icons";
@@ -196,6 +196,9 @@ function ProviderEditor({
                     <span className="catalog-model-name">{m.name}</span>
                     <span className="catalog-model-action">{m.id === activeModelId ? "En uso" : "Usar"}</span>
                   </button>
+                  <select className="effort-select" aria-label={`Tipo de ${m.name}`} disabled={busy} value={m.effort || "low"} onChange={(event) => void onOp({ op: "set_model_effort", id: m.id, effort: event.target.value })}>
+                    {EFFORTS.map((effort) => <option key={effort} value={effort}>{effort}</option>)}
+                  </select>
                   <button type="button" className="catalog-remove" disabled={busy} aria-label={`Borrar modelo ${m.name}`} title={`Borrar ${m.name}`} onClick={() => setPendingDelete(m.id)}>
                     <IconDelete />
                   </button>

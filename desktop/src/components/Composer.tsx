@@ -1,16 +1,16 @@
 import { useLayoutEffect, useRef, type RefObject } from "react";
 import { motion } from "motion/react";
-import { IconBrain, IconMic, IconSend, IconTools } from "../icons";
-import type { Snapshot } from "../types";
+import { IconMic, IconSend, IconTools } from "../icons";
+import { EFFORTS, type Snapshot } from "../types";
 
 type Props = {
   input: string; onInput: (value: string) => void; onSend: () => void; onTalk: () => void;
   snap: Snapshot | null; busy: boolean; listening: boolean; canTalk: boolean; canSend: boolean;
   boxRef: RefObject<HTMLTextAreaElement | null>;
-  onModel: (id: string) => void; onThinking: () => void; onTools: () => void;
+  onModel: (id: string) => void; onEffort: (id: string, effort: string) => void; onTools: () => void;
 };
 
-export function Composer({ input, onInput, onSend, onTalk, snap, busy, listening, canTalk, canSend, boxRef, onModel, onThinking, onTools }: Props) {
+export function Composer({ input, onInput, onSend, onTalk, snap, busy, listening, canTalk, canSend, boxRef, onModel, onEffort, onTools }: Props) {
   const composing = useRef(false);
   useLayoutEffect(() => {
     const box = boxRef.current;
@@ -37,10 +37,10 @@ export function Composer({ input, onInput, onSend, onTalk, snap, busy, listening
           {snap.models.filter((model) => model.provider_id === provider.id).map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}
         </optgroup>)}
       </select>
-      <button type="button" className={`mode-chip${snap?.thinking ? " on" : ""}`} disabled={!snap || busy}
-        aria-pressed={snap?.thinking ?? false} title="Razonamiento ampliado" onClick={onThinking}>
-        <IconBrain /><span>Pensar</span>
-      </button>
+      <select className="effort-select" aria-label="Tipo de razonamiento" disabled={!active || busy || listening}
+        value={active?.effort || "low"} onChange={(event) => active && onEffort(active.id, event.target.value)}>
+        {EFFORTS.map((effort) => <option key={effort} value={effort}>{effort}</option>)}
+      </select>
       <button type="button" className={`mode-chip${snap?.tools_enabled ? " on" : ""}`} disabled={!snap || busy}
         aria-pressed={snap?.tools_enabled ?? false} title="Permitir herramientas" onClick={onTools}>
         <IconTools /><span>Herramientas</span>

@@ -13,10 +13,13 @@ export type Provider = {
   key: KeyStatus;
 };
 
+export const EFFORTS = ["low", "medium", "high", "xhigh"] as const;
+
 export type Model = {
   id: string;
   provider_id: string;
   name: string;
+  effort: string;
 };
 
 export type Engine = {
@@ -145,4 +148,5 @@ export type Op =
   | { op: "set_engine"; role: string; id: string }
   | { op: "set_stt_language"; text: string }
   | { op: "set_thinking"; value: boolean }
+  | { op: "set_model_effort"; id: string; effort: string }
   | { op: "set_tools_enabled"; value: boolean };
