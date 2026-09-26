@@ -270,6 +270,7 @@ mod tests {
             id: Uuid::from_u128(3),
             provider_id: pid,
             name: "grok-4.5".into(),
+            effort: "low".into(),
         });
         let other = Uuid::from_u128(9);
         s.providers.push(ira_store::ProviderRow {
@@ -283,6 +284,7 @@ mod tests {
             id: Uuid::from_u128(10),
             provider_id: other,
             name: "gpt-4.1".into(),
+            effort: "low".into(),
         });
         s
     }

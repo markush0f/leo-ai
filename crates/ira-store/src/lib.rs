@@ -89,11 +89,56 @@ pub struct ProviderRow {
     pub api_key: Option<String>,
 }
 
+pub const EFFORTS: [&str; 4] = ["low", "medium", "high", "xhigh"];
+
 #[derive(Debug, Clone)]
 pub struct ModelRow {
     pub id: Uuid,
     pub provider_id: Uuid,
     pub name: String,
+    pub effort: String,
+}
+
+pub fn normalize_effort(value: &str) -> &'static str {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "medium" => "medium",
+        "high" => "high",
+        "xhigh" => "xhigh",
+        _ => "low",
+    }
+}
+
+pub fn next_effort(value: &str) -> &'static str {
+    let current = normalize_effort(value);
+    let index = EFFORTS
+        .iter()
+        .position(|effort| *effort == current)
+        .unwrap_or(0);
+    EFFORTS[(index + 1) % EFFORTS.len()]
+}
+
+pub fn prev_effort(value: &str) -> &'static str {
+    let current = normalize_effort(value);
+    let index = EFFORTS
+        .iter()
+        .position(|effort| *effort == current)
+        .unwrap_or(0);
+    EFFORTS[(index + EFFORTS.len() - 1) % EFFORTS.len()]
+}
+
+pub fn accepts_effort(kind: &str, model: &str) -> bool {
+    match kind.trim().to_ascii_lowercase().as_str() {
+        "grok" | "codex" => true,
+        "gpt" => {
+            let model = model.to_ascii_lowercase();
+            model.contains("gpt-5")
+                || model.contains("o1")
+                || model.contains("o3")
+                || model.contains("o4")
+                || model.contains("reasoning")
+        }
+        _ => false,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -216,6 +261,10 @@ pub enum DbOp {
     },
     SetSttLanguage(String),
     SetThinking(bool),
+    SetModelEffort {
+        id: Uuid,
+        effort: String,
+    },
     SetToolsEnabled(bool),
     SetTelegram {
         token: Option<String>,
@@ -231,6 +280,19 @@ impl Snapshot {
     pub fn active_model(&self) -> Option<&ModelRow> {
         let id = self.active_model_id?;
         self.models.iter().find(|m| m.id == id)
+    }
+
+    pub fn reasoning_effort(&self) -> Option<String> {
+        let provider = self.active_provider()?;
+        let model = self.active_model()?;
+        accepts_effort(&provider.kind, &model.name)
+            .then(|| normalize_effort(&model.effort).to_string())
+    }
+
+    pub fn apply_reasoning(&self, request: &mut ira_llm::ChatRequest) {
+        if let Some(effort) = self.reasoning_effort() {
+            request.reasoning_effort = Some(effort);
+        }
     }
 
     pub fn active_provider(&self) -> Option<&ProviderRow> {
@@ -328,7 +390,7 @@ pub async fn load(pool: &PgPool) -> Result<Snapshot, sqlx::Error> {
             })
             .collect();
 
-    let models = sqlx::query("SELECT id, provider_id, name FROM models ORDER BY name")
+    let models = sqlx::query("SELECT id, provider_id, name, effort FROM models ORDER BY name")
         .fetch_all(pool)
         .await?
         .into_iter()
@@ -336,6 +398,7 @@ pub async fn load(pool: &PgPool) -> Result<Snapshot, sqlx::Error> {
             id: row.get("id"),
             provider_id: row.get("provider_id"),
             name: row.get("name"),
+            effort: normalize_effort(&row.get::<String, _>("effort")).into(),
         })
         .collect();
 
@@ -547,8 +610,28 @@ pub async fn apply(pool: &PgPool, op: DbOp) -> Result<Snapshot, sqlx::Error> {
                 .await?;
         }
         DbOp::SetThinking(value) => {
+            let effort = if value { "high" } else { "low" };
             sqlx::query("UPDATE settings SET thinking = $1 WHERE id = 1")
                 .bind(value)
+                .execute(pool)
+                .await?;
+            sqlx::query(
+                "UPDATE models SET effort = $1 WHERE id = (SELECT active_model_id FROM settings WHERE id = 1)",
+            )
+            .bind(effort)
+            .execute(pool)
+            .await?;
+        }
+        DbOp::SetModelEffort { id, effort } => {
+            let effort = normalize_effort(&effort);
+            sqlx::query("UPDATE models SET effort = $2 WHERE id = $1")
+                .bind(id)
+                .bind(effort)
+                .execute(pool)
+                .await?;
+            sqlx::query("UPDATE settings SET thinking = $1 WHERE id = 1 AND active_model_id = $2")
+                .bind(effort != "low")
+                .bind(id)
                 .execute(pool)
                 .await?;
         }
@@ -740,6 +823,7 @@ pub fn stub_snapshot(provider: &str, model: &str, system: &str) -> Snapshot {
             id: mid,
             provider_id: pid,
             name: model.into(),
+            effort: "low".into(),
         }],
         engines: Vec::new(),
         settings,
@@ -751,6 +835,18 @@ pub fn stub_snapshot(provider: &str, model: &str, system: &str) -> Snapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reasoning_effort_follows_active_model() {
+        let mut snap = stub_snapshot("grok", "grok-4.6", "x");
+        assert_eq!(snap.reasoning_effort().as_deref(), Some("low"));
+        snap.models[0].effort = "xhigh".into();
+        assert_eq!(snap.reasoning_effort().as_deref(), Some("xhigh"));
+        snap.providers[0].kind = "ollama".into();
+        assert!(snap.reasoning_effort().is_none());
+        assert!(!accepts_effort("gpt", "gpt-4.1"));
+        assert!(accepts_effort("codex", "gpt-5.4"));
+    }
 
     #[test]
     fn activate_provider_picks_first_model() {
@@ -767,6 +863,7 @@ mod tests {
             id: Uuid::from_u128(10),
             provider_id: other,
             name: "gpt-4.1".into(),
+            effort: "low".into(),
         });
         snap.activate_provider(other);
         assert_eq!(snap.active_model().unwrap().name, "gpt-4.1");

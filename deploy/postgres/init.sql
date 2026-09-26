@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS models (
     id UUID PRIMARY KEY,
     provider_id UUID NOT NULL REFERENCES providers (id) ON DELETE CASCADE,
     name TEXT NOT NULL,
+    effort TEXT NOT NULL DEFAULT 'low'
+        CHECK (effort IN ('low', 'medium', 'high', 'xhigh')),
     UNIQUE (provider_id, name)
 );
 
