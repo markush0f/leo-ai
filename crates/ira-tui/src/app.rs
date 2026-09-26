@@ -388,10 +388,9 @@ impl App {
             text: text.clone(),
         });
         self.history.push(ChatMessage::user(text));
-        self.pending_chat = Some(ChatRequest::with_history(
-            self.system(),
-            self.history.clone(),
-        ));
+        let mut req = ChatRequest::with_history(self.system(), self.history.clone());
+        self.snapshot.apply_reasoning(&mut req);
+        self.pending_chat = Some(req);
         self.busy = true;
         self.follow = true;
     }

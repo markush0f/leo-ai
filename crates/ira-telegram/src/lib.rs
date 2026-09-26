@@ -159,7 +159,7 @@ fn list_models(snap: &Snapshot, query: Option<&str>) -> String {
             " "
         };
         let provider = provider_name(snap, m.provider_id);
-        out.push_str(&format!("\n{mark} {}  ({provider})", m.name));
+        out.push_str(&format!("\n{mark} {}  {}  ({provider})", m.name, m.effort));
     }
     out
 }

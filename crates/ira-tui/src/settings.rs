@@ -3,7 +3,7 @@ use ira_llm::ProviderId;
 use uuid::Uuid;
 
 use crate::input::LineEdit;
-use ira_store::{DbOp, Snapshot};
+use ira_store::{DbOp, Snapshot, next_effort, prev_effort};
 
 #[derive(Clone, Debug)]
 pub enum Row {
@@ -17,6 +17,7 @@ pub enum Row {
     Model {
         id: Uuid,
         name: String,
+        effort: String,
         active: bool,
     },
     NewProvider,
@@ -38,8 +39,9 @@ pub enum Row {
     System {
         preview: String,
     },
-    Thinking {
-        on: bool,
+    Effort {
+        id: Uuid,
+        effort: String,
     },
     ToolsEnabled {
         on: bool,
@@ -95,6 +97,7 @@ impl SettingsState {
                 rows.push(Row::Model {
                     id: m.id,
                     name: m.name.clone(),
+                    effort: m.effort.clone(),
                     active: snap.active_model_id == Some(m.id),
                 });
             }
@@ -123,9 +126,12 @@ impl SettingsState {
             preview: preview(&snap.system, 48),
         });
         rows.push(Row::Header("chat".into()));
-        rows.push(Row::Thinking {
-            on: snap.settings.thinking,
-        });
+        if let Some(model) = snap.active_model() {
+            rows.push(Row::Effort {
+                id: model.id,
+                effort: model.effort.clone(),
+            });
+        }
         rows.push(Row::ToolsEnabled {
             on: snap.settings.tools_enabled,
         });
@@ -172,6 +178,8 @@ impl SettingsState {
         match key.code {
             KeyCode::Up | KeyCode::Char('k') => self.move_by(&rows, -1),
             KeyCode::Down | KeyCode::Char('j') => self.move_by(&rows, 1),
+            KeyCode::Left => return self.cycle_effort(&rows, -1),
+            KeyCode::Right => return self.cycle_effort(&rows, 1),
             KeyCode::Enter => return self.activate(&rows, snap),
             KeyCode::Char('e') => self.start_rename(&rows, snap),
             KeyCode::Char('d') => return self.delete(&rows, snap),
@@ -185,6 +193,22 @@ impl SettingsState {
         if let Some((_, line)) = self.edit.as_mut() {
             line.paste(&text);
         }
+    }
+
+    fn cycle_effort(&self, rows: &[Row], dir: i16) -> Option<DbOp> {
+        let (id, effort) = match rows.get(self.cursor)? {
+            Row::Model { id, effort, .. } | Row::Effort { id, effort } => (*id, effort.as_str()),
+            _ => return None,
+        };
+        let next = if dir < 0 {
+            prev_effort(effort)
+        } else {
+            next_effort(effort)
+        };
+        Some(DbOp::SetModelEffort {
+            id,
+            effort: next.into(),
+        })
     }
 
     fn move_by(&mut self, rows: &[Row], dir: i16) {
@@ -232,7 +256,10 @@ impl SettingsState {
                 self.edit_system(&snap.system);
                 None
             }
-            Row::Thinking { on } => Some(DbOp::SetThinking(!on)),
+            Row::Effort { id, effort } => Some(DbOp::SetModelEffort {
+                id: *id,
+                effort: next_effort(effort).into(),
+            }),
             Row::ToolsEnabled { on } => Some(DbOp::SetToolsEnabled(!on)),
             Row::NewProvider => {
                 self.edit = Some((EditTarget::NewProvider, LineEdit::default()));

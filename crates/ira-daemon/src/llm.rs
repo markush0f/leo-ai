@@ -9,18 +9,30 @@ use tokio::runtime::Handle;
 pub struct BlockingLlm {
     client: Client,
     system: String,
+    reasoning_effort: Option<String>,
     rt: Handle,
 }
 
 impl BlockingLlm {
-    pub fn new(client: Client, system: String, rt: Handle) -> Self {
-        Self { client, system, rt }
+    pub fn new(
+        client: Client,
+        system: String,
+        reasoning_effort: Option<String>,
+        rt: Handle,
+    ) -> Self {
+        Self {
+            client,
+            system,
+            reasoning_effort,
+            rt,
+        }
     }
 }
 
 impl LlmEngine for BlockingLlm {
     fn reply(&self, user_text: &str) -> Result<String, String> {
-        let req = ChatRequest::user(user_text).with_system(&self.system);
+        let mut req = ChatRequest::user(user_text).with_system(&self.system);
+        req.reasoning_effort = self.reasoning_effort.clone();
         let response = self
             .rt
             .block_on(self.client.chat(req))

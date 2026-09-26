@@ -59,6 +59,7 @@ pub struct ModelDto {
     pub id: Uuid,
     pub provider_id: Uuid,
     pub name: String,
+    pub effort: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -177,6 +178,7 @@ pub enum Op {
     SetEngine { role: String, id: Uuid },
     SetSttLanguage { text: String },
     SetThinking { value: bool },
+    SetModelEffort { id: Uuid, effort: String },
     SetToolsEnabled { value: bool },
 }
 
@@ -202,6 +204,7 @@ impl From<Op> for DbOp {
             },
             Op::SetSttLanguage { text } => DbOp::SetSttLanguage(text),
             Op::SetThinking { value } => DbOp::SetThinking(value),
+            Op::SetModelEffort { id, effort } => DbOp::SetModelEffort { id, effort },
             Op::SetToolsEnabled { value } => DbOp::SetToolsEnabled(value),
         }
     }
@@ -209,6 +212,9 @@ impl From<Op> for DbOp {
 
 /// Converts internal rows into the frontend contract without returning API keys.
 pub fn snapshot_dto(snap: Snapshot, tools: &[String]) -> SnapshotDto {
+    let thinking = snap
+        .active_model()
+        .is_some_and(|model| ira_store::normalize_effort(&model.effort) != "low");
     SnapshotDto {
         providers: snap
             .providers
@@ -228,6 +234,7 @@ pub fn snapshot_dto(snap: Snapshot, tools: &[String]) -> SnapshotDto {
                 id: m.id,
                 provider_id: m.provider_id,
                 name: m.name.clone(),
+                effort: m.effort.clone(),
             })
             .collect(),
         engines: snap
@@ -248,7 +255,7 @@ pub fn snapshot_dto(snap: Snapshot, tools: &[String]) -> SnapshotDto {
         tts_engine_id: snap.settings.tts_engine_id,
         wake_engine_id: snap.settings.wake_engine_id,
         stt_language: snap.settings.stt_language.clone(),
-        thinking: snap.settings.thinking,
+        thinking,
         tools_enabled: snap.settings.tools_enabled,
         tools: tools.to_vec(),
     }

@@ -590,19 +590,7 @@ impl App {
             .await
             .map_err(|e| e.to_string())?;
         let mut req = ChatRequest::with_history(&snap.system, history);
-        if snap
-            .active_provider()
-            .is_some_and(|p| p.kind.eq_ignore_ascii_case("grok"))
-        {
-            req.reasoning_effort = Some(
-                if snap.settings.thinking {
-                    "high"
-                } else {
-                    "low"
-                }
-                .into(),
-            );
-        }
+        snap.apply_reasoning(&mut req);
         let registry = if snap.settings.tools_enabled {
             self.inner.tools.clone()
         } else {
@@ -691,19 +679,7 @@ impl App {
                 .await
                 .map_err(|error| error.to_string())?;
             let mut req = ChatRequest::with_history(&snap.system, history);
-            if snap
-                .active_provider()
-                .is_some_and(|provider| provider.kind.eq_ignore_ascii_case("grok"))
-            {
-                req.reasoning_effort = Some(
-                    if snap.settings.thinking {
-                        "high"
-                    } else {
-                        "low"
-                    }
-                    .into(),
-                );
-            }
+            snap.apply_reasoning(&mut req);
             let registry = if snap.settings.tools_enabled {
                 self.inner.tools.clone()
             } else {

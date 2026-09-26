@@ -259,6 +259,7 @@ pub(crate) fn build_llm(
     Ok(Box::new(BlockingLlm::new(
         client,
         snap.settings.voice_system_prompt.clone(),
+        snap.reasoning_effort(),
         rt,
     )))
 }

@@ -199,9 +199,14 @@ fn row_line(row: &Row, selected: bool, width: usize) -> Line<'static> {
                 },
             )
         }
-        Row::Model { name, active, .. } => {
+        Row::Model {
+            name,
+            effort,
+            active,
+            ..
+        } => {
             let star = if *active { "*" } else { " " };
-            (format!("{star} {name}"), Style::new().fg(FG))
+            (format!("{star} {name}  {effort}"), Style::new().fg(FG))
         }
         Row::NewProvider => ("+  nuevo proveedor".into(), Style::new().fg(DIM)),
         Row::NewModel { .. } => ("+  nuevo modelo".into(), Style::new().fg(DIM)),
@@ -209,10 +214,7 @@ fn row_line(row: &Row, selected: bool, width: usize) -> Line<'static> {
         Row::ApiKey { status, .. } => (field("api key", status), Style::new().fg(FG)),
         Row::BaseUrl { url, .. } => (field("url", url), Style::new().fg(FG)),
         Row::System { preview } => (field("sistema", preview), Style::new().fg(FG)),
-        Row::Thinking { on } => (
-            field("pensar", if *on { "sí" } else { "no" }),
-            Style::new().fg(FG),
-        ),
+        Row::Effort { effort, .. } => (field("esfuerzo", effort), Style::new().fg(FG)),
         Row::ToolsEnabled { on } => (
             field("tools", if *on { "sí" } else { "no" }),
             Style::new().fg(FG),

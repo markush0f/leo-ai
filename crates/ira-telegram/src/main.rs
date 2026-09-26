@@ -245,7 +245,8 @@ async fn reply_llm(
     }
     let history = store::context_messages(pool, session.conversation_id, CONTEXT_LIMIT).await?;
     session.history = history.clone();
-    let req = ChatRequest::with_history(&snap.system, history);
+    let mut req = ChatRequest::with_history(&snap.system, history);
+    snap.apply_reasoning(&mut req);
     match ira_tools::chat(&client, req, tools).await {
         Ok(resp) => {
             store::append_message(

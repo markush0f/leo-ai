@@ -240,7 +240,9 @@ async fn persist_user_and_context(
         db::append_message(pool, app.conversation_id, NewMessage::user(content.clone())).await?;
     }
     let history = db::context_messages(pool, app.conversation_id, CONTEXT_LIMIT).await?;
-    Ok(ira_llm::ChatRequest::with_history(app.system(), history))
+    let mut req = ira_llm::ChatRequest::with_history(app.system(), history);
+    app.snapshot.apply_reasoning(&mut req);
+    Ok(req)
 }
 
 async fn persist_reply(
