@@ -66,6 +66,7 @@ ira-tools-callmebot = { path = "crates/tools/ira-tools-callmebot" }
 ira-tools-db = { path = "crates/tools/ira-tools-db" }
 ira-tools-files = { path = "crates/tools/ira-tools-files" }
 ira-tools-github = { path = "crates/tools/ira-tools-github" }
+ira-tools-kanban = { path = "crates/tools/ira-tools-kanban" }
 ira-tools-google = { path = "crates/tools/ira-tools-google" }
 ira-tools-home-assistant = { path = "crates/tools/ira-tools-home-assistant" }
 ira-tools-shell = { path = "crates/tools/ira-tools-shell" }

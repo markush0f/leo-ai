@@ -12,6 +12,7 @@ ira-tools-callmebot.workspace = true
 ira-tools-db.workspace = true
 ira-tools-files.workspace = true
 ira-tools-github.workspace = true
+ira-tools-kanban.workspace = true
 ira-tools-google.workspace = true
 ira-tools-home-assistant.workspace = true
 ira-tools-shell.workspace = true

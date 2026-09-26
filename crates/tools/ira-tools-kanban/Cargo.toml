@@ -1,0 +1,14 @@
+[package]
+name = "ira-tools-kanban"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tools de Veritas Kanban vía MCP"
+
+[dependencies]
+ira-llm.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync"] }
