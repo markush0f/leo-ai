@@ -113,6 +113,25 @@ cargo run -p ira-telegram
 The allowlist is required: an empty list allows nobody. Plain text reaches the
 model in private chats; groups accept commands only. `/help` lists commands.
 
+## Run WhatsApp
+
+Requires `ira-server` on `127.0.0.1:8787`. Then:
+
+```sh
+cd services/ira-whatsapp
+npm install
+npm start
+```
+
+Scan the QR with the WhatsApp account that should answer as Leo, or open
+WhatsApp in the desktop window: status, QR, allowlist, and changing the linked
+number. By default Leo only replies in that account's self-chat.
+`WHATSAPP_ALLOW_PHONES` adds other private senders; the window can change that
+list without a restart. `npm run pair` deletes the session
+(`WHATSAPP_AUTH_DIR`, default `~/.config/ira-ai/whatsapp`) and prints a new QR.
+The control API listens on `127.0.0.1:8790`. This is not the official WhatsApp
+API.
+
 ## Voice (later)
 
 `ira-daemon` and `ira-ctl` remain in the workspace. They are not wired into

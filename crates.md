@@ -39,6 +39,7 @@ Telegram, desktop, or the browser until that work is scheduled.
 | --- | --- | --- |
 | `ira-tui` | `ira` | Ratatui chat and catalog editor. `app` owns state; `input` and `slash` route input; `settings` and `ui` handle editing and rendering. |
 | `ira-telegram` | `ira-telegram` | Long polling, allowlist enforcement, per-session history, and shared chat tools. Library routing is separate from `tg` HTTP transport. |
+| `services/ira-whatsapp` | `npm start` | Baileys companion. Text DMs only. Calls `ira-server` so history stays on the `whatsapp` channel. |
 | `desktop/` | `npm run tauri dev` | React shell and native commands for chat and catalog editing. |
 | `ira-api` | library | Shared catalog DTOs and chat used by Tauri and `ira-server`. |
 | `ira-server` | `ira-server` | HTTP `/api` for the browser and other machines. Talks to Ollama from the server process. |

@@ -33,6 +33,7 @@ system = "Eres Ira, un asistente de voz. Responde en español, breve y claro, pa
 
 # WhatsApp saliente: CALLMEBOT_PHONE y CALLMEBOT_APIKEY en `.env`.
 # La tool `whatsapp_send` solo avisa a ese número. No sustituye a Telegram.
+# Chat entrante: `services/ira-whatsapp` (Baileys). Sesión en WHATSAPP_AUTH_DIR.
 
 [telegram]
 # Optional: the bot reads TELEGRAM_BOT_TOKEN and TELEGRAM_ALLOW_USERS from `.env`.
