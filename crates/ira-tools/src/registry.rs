@@ -55,6 +55,19 @@ impl Registry {
             None => ToolError::Unknown(name.to_string()).to_json(),
         }
     }
+
+    /// Copies the current tools so more can be added.
+    pub fn builder_from(&self) -> Builder {
+        Builder {
+            ctx: self.ctx.clone(),
+            tools: (*self.tools).clone(),
+        }
+    }
+
+    /// Returns whether a tool with this name is already registered.
+    pub fn has(&self, name: &str) -> bool {
+        self.tools.iter().any(|tool| tool.name() == name)
+    }
 }
 
 /// Incrementally constructs a [`Registry`] with one shared [`Context`].
