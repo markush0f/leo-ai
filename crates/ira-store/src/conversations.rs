@@ -8,6 +8,7 @@ pub const CONTEXT_LIMIT: i64 = 80;
 pub const CHANNEL_LOCAL: &str = "local";
 pub const CHANNEL_TELEGRAM: &str = "telegram";
 pub const CHANNEL_VOICE: &str = "voice";
+pub const CHANNEL_WHATSAPP: &str = "whatsapp";
 
 #[derive(Debug, Clone)]
 pub struct ConversationRow {
@@ -227,6 +228,24 @@ pub async fn new_telegram(pool: &PgPool, chat_id: i64) -> Result<ConversationRow
     create_conversation(pool, CHANNEL_TELEGRAM, Some(&external)).await
 }
 
+pub async fn ensure_whatsapp(pool: &PgPool, jid: &str) -> Result<ConversationRow, sqlx::Error> {
+    if let Some(row) = live_whatsapp(pool, jid).await? {
+        return Ok(row);
+    }
+    match create_conversation(pool, CHANNEL_WHATSAPP, Some(jid)).await {
+        Ok(row) => Ok(row),
+        Err(err) if is_unique_violation(&err) => live_whatsapp(pool, jid).await?.ok_or(err),
+        Err(err) => Err(err),
+    }
+}
+
+pub async fn new_whatsapp(pool: &PgPool, jid: &str) -> Result<ConversationRow, sqlx::Error> {
+    if let Some(row) = live_whatsapp(pool, jid).await? {
+        archive_conversation(pool, row.id).await?;
+    }
+    create_conversation(pool, CHANNEL_WHATSAPP, Some(jid)).await
+}
+
 pub async fn ensure_voice(pool: &PgPool) -> Result<ConversationRow, sqlx::Error> {
     if let Some(row) = live_voice(pool).await? {
         return Ok(row);
@@ -331,6 +350,22 @@ async fn live_telegram(
     sqlx::query(
         "SELECT id, channel, external_id, title FROM conversations
          WHERE channel = 'telegram' AND external_id = $1 AND archived_at IS NULL
+         ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(external_id)
+    .fetch_optional(pool)
+    .await?
+    .map(conversation_from_row)
+    .transpose()
+}
+
+async fn live_whatsapp(
+    pool: &PgPool,
+    external_id: &str,
+) -> Result<Option<ConversationRow>, sqlx::Error> {
+    sqlx::query(
+        "SELECT id, channel, external_id, title FROM conversations
+         WHERE channel = 'whatsapp' AND external_id = $1 AND archived_at IS NULL
          ORDER BY created_at DESC LIMIT 1",
     )
     .bind(external_id)

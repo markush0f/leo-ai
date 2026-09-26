@@ -19,10 +19,11 @@ pub use codex::{
     PostgresCodexTokenStore, client_with_pool, sync_codex_provider, sync_codex_providers,
 };
 pub use conversations::{
-    CHANNEL_LOCAL, CHANNEL_TELEGRAM, CHANNEL_VOICE, CONTEXT_LIMIT, ConversationRow, MessageRow,
-    NewMessage, append_message, archive_conversation, context_messages, conversation_messages,
-    create_conversation, display_kind, ensure_local, ensure_telegram, ensure_voice,
-    get_conversation, list_conversations, new_local, new_telegram, set_active_conversation,
+    CHANNEL_LOCAL, CHANNEL_TELEGRAM, CHANNEL_VOICE, CHANNEL_WHATSAPP, CONTEXT_LIMIT,
+    ConversationRow, MessageRow, NewMessage, append_message, archive_conversation,
+    context_messages, conversation_messages, create_conversation, display_kind, ensure_local,
+    ensure_telegram, ensure_voice, ensure_whatsapp, get_conversation, list_conversations,
+    new_local, new_telegram, new_whatsapp, set_active_conversation,
 };
 pub use databases::{
     DatabaseCipher, DatabaseConnectionRow, DatabaseError, DatabaseWrite,
@@ -852,6 +853,22 @@ mod tests {
         assert_ne!(first.id, second.id);
         let live = ensure_telegram(&pool, chat_id).await.expect("live");
         assert_eq!(live.id, second.id);
+    }
+
+    #[tokio::test]
+    async fn whatsapp_clear_opens_new_live_thread() {
+        let url = database_url();
+        let Ok(pool) = connect(&url).await else {
+            return;
+        };
+        migrate(&pool).await.expect("migrate");
+        let jid = format!("{}@s.whatsapp.net", Uuid::new_v4().as_u128());
+        let first = ensure_whatsapp(&pool, &jid).await.expect("first");
+        let second = new_whatsapp(&pool, &jid).await.expect("second");
+        assert_ne!(first.id, second.id);
+        let live = ensure_whatsapp(&pool, &jid).await.expect("live");
+        assert_eq!(live.id, second.id);
+        assert_eq!(live.channel, CHANNEL_WHATSAPP);
     }
 
     #[tokio::test]

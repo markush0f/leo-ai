@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS engines (
 
 CREATE TABLE IF NOT EXISTS conversations (
     id UUID PRIMARY KEY,
-    channel TEXT NOT NULL CHECK (channel IN ('local', 'telegram', 'voice')),
+    channel TEXT NOT NULL CHECK (channel IN ('local', 'telegram', 'voice', 'whatsapp')),
     external_id TEXT,
     title TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -46,6 +46,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS conversations_telegram_live
 CREATE UNIQUE INDEX IF NOT EXISTS conversations_voice_live
     ON conversations (channel)
     WHERE channel = 'voice' AND archived_at IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS conversations_whatsapp_live
+    ON conversations (external_id)
+    WHERE channel = 'whatsapp' AND archived_at IS NULL AND external_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS messages (
     id UUID PRIMARY KEY,
