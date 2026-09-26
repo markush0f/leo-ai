@@ -24,8 +24,7 @@ services:
 
   colibri:
     build:
-      context: .
-      dockerfile: deploy/colibri/Dockerfile
+      context: ./deploy/colibri
     image: ira-ai-colibri:1.11.0
     environment:
       COLI_ALLOW_INSECURE_BIND: "1"
