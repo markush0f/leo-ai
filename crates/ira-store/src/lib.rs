@@ -7,6 +7,7 @@
 mod codex;
 mod conversations;
 mod databases;
+mod host_services;
 mod migrate;
 mod secrets;
 
@@ -30,6 +31,7 @@ pub use databases::{
     create_database_connection, database_connection, database_password, delete_database_connection,
     list_database_connections, set_database_test_result, update_database_connection,
 };
+pub use host_services::{HostServiceRow, list_host_services, sync_host_services};
 pub use migrate::migrate;
 pub use secrets::{SecretRow, apply_secrets_to_env, get_secret, list_secrets, set_secret};
 
