@@ -1,3 +1,6 @@
+include:
+  - path: services/veritas-kanban/docker-compose.yml
+
 services:
   ira-realtime:
     build:

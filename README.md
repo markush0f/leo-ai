@@ -50,6 +50,14 @@ boundary. Use `host.docker.internal` for PostgreSQL running on the Docker host.
 Set `IRA_UID` and `IRA_GID` when Ira writes runtime files under a user other
 than `1000:1000`.
 
+`./scripts/start-ira.sh` also starts Veritas Kanban (`--profile kanban`).
+The board is `http://127.0.0.1:3001`. Ira inserts tasks through the MCP gateway
+at `VERITAS_MCP_URL=http://127.0.0.1:3100` with an `agent` key (`kanban_create_task`,
+`kanban_update_task`, `kanban_invoke`). The desktop service board can start or
+stop each Compose service. Local defaults stay on loopback; override
+`VERITAS_ADMIN_KEY`, `VERITAS_AGENT_KEY`, and `VERITAS_JWT_SECRET` before
+exposing the board.
+
 ## Run desktop chat
 
 Para arrancar Postgres, MCP Toolbox, la API, WhatsApp y el frontend web con un solo comando:

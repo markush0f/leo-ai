@@ -22,8 +22,9 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-printf 'Arrancando Postgres, MCP Toolbox y Ira Realtime...\n'
-docker compose --project-directory "$root" up -d --build postgres toolbox ira-realtime
+printf 'Arrancando Postgres, MCP Toolbox, Ira Realtime y Veritas Kanban...\n'
+docker compose --project-directory "$root" --profile kanban up -d --build \
+  postgres toolbox ira-realtime veritas-kanban veritas-mcp
 
 deadline=$((SECONDS + 120))
 until docker compose --project-directory "$root" exec -T postgres \
@@ -46,6 +47,28 @@ until curl -fsS http://127.0.0.1:5000/healthz >/dev/null 2>&1; do
   sleep 1
 done
 
+deadline=$((SECONDS + 180))
+until curl -fsS http://127.0.0.1:3001/health >/dev/null 2>&1; do
+  if (( SECONDS >= deadline )); then
+    printf 'Veritas Kanban no respondió antes del timeout.\n' >&2
+    docker compose --project-directory "$root" --profile kanban ps
+    exit 1
+  fi
+  sleep 1
+done
+
+deadline=$((SECONDS + 120))
+until curl -sS -o /dev/null -X POST http://127.0.0.1:3100/mcp \
+  -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' \
+  --data '{}'; do
+  if (( SECONDS >= deadline )); then
+    printf 'Veritas MCP no respondió antes del timeout.\n' >&2
+    docker compose --project-directory "$root" --profile kanban ps
+    exit 1
+  fi
+  sleep 1
+done
+
 deadline=$((SECONDS + 120))
 until curl -fsS "http://127.0.0.1:$realtime_port/healthz" >/dev/null 2>&1; do
   if (( SECONDS >= deadline )); then
@@ -62,6 +85,7 @@ if [[ ! -d "$desktop/node_modules" ]]; then
 fi
 
 export MCP_TOOLBOX_URL="${MCP_TOOLBOX_URL:-http://127.0.0.1:5000}"
+export VERITAS_MCP_URL="${VERITAS_MCP_URL:-http://127.0.0.1:3100}"
 api_port="${IRA_HTTP_PORT:-8787}"
 api_bind="${IRA_HTTP_BIND:-127.0.0.1:$api_port}"
 api_health="http://127.0.0.1:$api_port/api/health"

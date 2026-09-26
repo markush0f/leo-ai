@@ -1,0 +1,67 @@
+# Veritas Kanban local. UI en 127.0.0.1:3001. MCP streamable HTTP en 127.0.0.1:3100/mcp.
+# docker compose --profile kanban up -d --build veritas-kanban veritas-mcp
+services:
+  veritas-kanban:
+    profiles: ["kanban"]
+    build:
+      context: https://github.com/BradGroux/veritas-kanban.git#v6.2.1
+      dockerfile: Dockerfile
+    image: veritas-kanban:6.2.1
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      HOST: 0.0.0.0
+      DATA_DIR: /app/data
+      VERITAS_AUTH_ENABLED: "true"
+      VERITAS_AUTH_LOCALHOST_BYPASS: "false"
+      VERITAS_ADMIN_KEY: ${VERITAS_ADMIN_KEY:-ira-veritas-local-admin-key-32b}
+      VERITAS_JWT_SECRET: ${VERITAS_JWT_SECRET:-ira-veritas-local-jwt-secret-change-me}
+      VERITAS_API_KEYS: ira:${VERITAS_AGENT_KEY:-ira-veritas-local-agent-key-32b}:agent
+      CORS_ORIGINS: http://127.0.0.1:3001,http://localhost:3001
+    ports:
+      - "127.0.0.1:${VERITAS_PORT:-3001}:3001"
+    volumes:
+      - veritas-data:/app/data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  veritas-mcp:
+    profiles: ["kanban"]
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+      args:
+        VERITAS_REF: ${VERITAS_REF:-v6.2.1}
+    image: veritas-kanban-mcp:6.2.1
+    depends_on:
+      veritas-kanban:
+        condition: service_healthy
+    environment:
+      VK_API_URL: http://veritas-kanban:3001
+      VK_API_KEY: ${VERITAS_AGENT_KEY:-ira-veritas-local-agent-key-32b}
+      PORT: "3100"
+    ports:
+      - "127.0.0.1:${VERITAS_MCP_PORT:-3100}:3100"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3100/mcp',{method:'POST',headers:{'content-type':'application/json','accept':'application/json, text/event-stream'},body:'{}'}).then(()=>process.exit(0)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
+volumes:
+  veritas-data:
