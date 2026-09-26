@@ -31,6 +31,9 @@ provider = "ollama"
 # model = "grok-4.6"
 system = "Eres Ira, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta."
 
+# WhatsApp saliente: CALLMEBOT_PHONE y CALLMEBOT_APIKEY en `.env`.
+# La tool `whatsapp_send` solo avisa a ese número. No sustituye a Telegram.
+
 [telegram]
 # Optional: the bot reads TELEGRAM_BOT_TOKEN and TELEGRAM_ALLOW_USERS from `.env`.
 # allow_users = [111]

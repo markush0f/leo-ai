@@ -62,6 +62,7 @@ ira-ipc = { path = "crates/ira-ipc" }
 ira-store = { path = "crates/ira-store" }
 ira-tools = { path = "crates/ira-tools" }
 ira-tools-appflowy = { path = "crates/tools/ira-tools-appflowy" }
+ira-tools-callmebot = { path = "crates/tools/ira-tools-callmebot" }
 ira-tools-db = { path = "crates/tools/ira-tools-db" }
 ira-tools-files = { path = "crates/tools/ira-tools-files" }
 ira-tools-github = { path = "crates/tools/ira-tools-github" }

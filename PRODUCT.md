@@ -29,7 +29,7 @@ One catalog and conversation store (Postgres) and one tool registry feed every s
 
 - The catalog, engines, settings, and chat history live in Postgres (`docker compose up -d`).
 - Voice crates (`ira-daemon`, `ira-ctl`) exist in the workspace but are out of scope until chat ships.
-- Tools register from the environment (files, shell, system, weather always; AppFlowy/GitHub/Google/Home Assistant when credentials exist; local MCP Toolbox when `MCP_TOOLBOX_URL` is set).
+- Tools register from the environment (files, shell, system, weather always; AppFlowy/GitHub/Google/Home Assistant/CallMeBot WhatsApp when credentials exist; local MCP Toolbox when `MCP_TOOLBOX_URL` is set).
 - Keys may sit in the catalog or in env (`XAI_API_KEY`, etc.).
 - Copy and UI are in Spanish, matching TUI and Telegram.
 

@@ -13,6 +13,7 @@ pub fn register(b: &mut Builder) {
     github(b);
     google(b);
     home_assistant(b);
+    callmebot(b);
     db(b);
 }
 
@@ -574,6 +575,24 @@ fn home_assistant(b: &mut Builder) {
                         args.get("data"),
                     )
                     .await,
+                )
+            }
+        },
+    );
+}
+
+fn callmebot(b: &mut Builder) {
+    let Some(client) = ira_tools_callmebot::Client::from_env() else {
+        return;
+    };
+    tracing::info!("tool whatsapp lista");
+    b.add_fn(
+        ira_tools_callmebot::send_message::spec(),
+        move |_ctx, args| {
+            let c = client.clone();
+            async move {
+                stringify(
+                    ira_tools_callmebot::send_message::run(&c, require_str(&args, "text")?).await,
                 )
             }
         },

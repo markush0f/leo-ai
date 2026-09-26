@@ -111,6 +111,7 @@ arguments, resolves paths, and registers these implementations.
 | `github` | Issues and pull requests | `GITHUB_TOKEN` or `GH_TOKEN`. |
 | `google` | Calendars and events | `GOOGLE_ACCESS_TOKEN` or `GOOGLE_API_KEY`. |
 | `home-assistant` | Entity states and service calls | Server URL and token. |
+| `callmebot` | WhatsApp text to the configured number (`whatsapp_send`) | `CALLMEBOT_PHONE` and `CALLMEBOT_APIKEY`. Send-only; no replies. |
 | `db` | SQL and schema discovery through a local MCP Toolbox (`db_list_tools`, `db_invoke`, `db_execute_sql`, …) | Official container managed by Compose. `docker compose up -d postgres toolbox` and `MCP_TOOLBOX_URL=http://127.0.0.1:5000`. |
 | `notion`, `spotify` | None | Placeholder crates, not registered. |
 
