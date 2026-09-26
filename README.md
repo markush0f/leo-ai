@@ -52,7 +52,7 @@ than `1000:1000`.
 
 ## Run desktop chat
 
-Para arrancar Postgres, MCP Toolbox, la API y el frontend web con un solo comando:
+Para arrancar Postgres, MCP Toolbox, la API, WhatsApp y el frontend web con un solo comando:
 
 ```sh
 ./scripts/start-ira.sh

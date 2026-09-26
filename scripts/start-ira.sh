@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Start Ira's local services, HTTP API, and web frontend.
+# Start Ira's local services, HTTP API, WhatsApp bridge, and web frontend.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 desktop="$root/desktop"
+whatsapp="$root/services/ira-whatsapp"
 export IRA_UID="${IRA_UID:-$(id -u)}"
 export IRA_GID="${IRA_GID:-$(id -g)}"
 realtime_port="${IRA_REALTIME_PORT:-8765}"
@@ -65,12 +66,22 @@ api_port="${IRA_HTTP_PORT:-8787}"
 api_bind="${IRA_HTTP_BIND:-127.0.0.1:$api_port}"
 api_health="http://127.0.0.1:$api_port/api/health"
 api_pid=""
+whatsapp_port="${WHATSAPP_CONTROL_PORT:-8790}"
+whatsapp_pid=""
+export IRA_API_URL="${IRA_API_URL:-http://127.0.0.1:$api_port}"
+export WHATSAPP_CONTROL_PORT="$whatsapp_port"
+
+stop_pid() {
+  local pid="$1"
+  if [[ -n "$pid" ]] && kill -0 "$pid" >/dev/null 2>&1; then
+    kill "$pid" >/dev/null 2>&1 || true
+    wait "$pid" 2>/dev/null || true
+  fi
+}
 
 cleanup() {
-  if [[ -n "$api_pid" ]] && kill -0 "$api_pid" >/dev/null 2>&1; then
-    kill "$api_pid" >/dev/null 2>&1 || true
-    wait "$api_pid" 2>/dev/null || true
-  fi
+  stop_pid "$whatsapp_pid"
+  stop_pid "$api_pid"
 }
 trap cleanup EXIT INT TERM
 
@@ -93,9 +104,34 @@ if ! curl -fsS "$api_health" >/dev/null 2>&1; then
   done
 fi
 
+whatsapp_status="http://127.0.0.1:$whatsapp_port/status"
+if ! curl -fsS "$whatsapp_status" >/dev/null 2>&1; then
+  if [[ ! -d "$whatsapp/node_modules" ]]; then
+    printf 'Instalando dependencias de WhatsApp...\n'
+    npm --prefix "$whatsapp" ci
+  fi
+  printf 'Arrancando puente WhatsApp...\n'
+  npm --prefix "$whatsapp" start &
+  whatsapp_pid=$!
+
+  deadline=$((SECONDS + 60))
+  until curl -fsS "$whatsapp_status" >/dev/null 2>&1; do
+    if ! kill -0 "$whatsapp_pid" >/dev/null 2>&1; then
+      wait "$whatsapp_pid"
+      exit $?
+    fi
+    if (( SECONDS >= deadline )); then
+      printf 'el puente de WhatsApp no respondió antes del timeout.\n' >&2
+      exit 1
+    fi
+    sleep 1
+  done
+fi
+
 printf '\nIra listo:\n'
 printf '  Frontend  http://127.0.0.1:%s\n' "${IRA_DEV_PORT:-5179}"
 printf '  API       http://127.0.0.1:%s\n' "$api_port"
+printf '  WhatsApp  http://127.0.0.1:%s\n' "$whatsapp_port"
 printf '  Toolbox   http://127.0.0.1:5000\n'
 printf '  Realtime  http://127.0.0.1:%s/test\n\n' "$realtime_port"
 
