@@ -219,6 +219,17 @@ impl App {
         host::status(&self.service_catalog().await).await
     }
 
+    async fn tools(&self) -> Registry {
+        let Ok(found) = host::discover_mcp().await else {
+            return self.inner.tools.clone();
+        };
+        let endpoints: Vec<(&str, &str)> = found
+            .iter()
+            .map(|endpoint| (endpoint.id.as_str(), endpoint.url.as_str()))
+            .collect();
+        ira_tools::attach_mcp(self.inner.tools.clone(), &endpoints).await
+    }
+
     async fn try_connect(&self) -> Result<(), String> {
         let url = db::database_url();
         match db::connect(&url).await {
@@ -287,7 +298,7 @@ impl App {
         let pool = self.pool().await?;
         let _ = db::sync_ollama_providers(&pool).await;
         let snap = db::load(&pool).await.map_err(|e| e.to_string())?;
-        Ok(dto::snapshot_dto(snap, &self.inner.tools.names()))
+        Ok(dto::snapshot_dto(snap, &self.tools().await.names()))
     }
 
     pub async fn apply(&self, op: Op) -> Result<SnapshotDto, String> {
@@ -295,7 +306,7 @@ impl App {
         let snap = db::apply(&pool, op.into())
             .await
             .map_err(|e| e.to_string())?;
-        Ok(dto::snapshot_dto(snap, &self.inner.tools.names()))
+        Ok(dto::snapshot_dto(snap, &self.tools().await.names()))
     }
 
     pub async fn list_databases(&self) -> Result<Vec<DatabaseConnectionDto>, String> {
@@ -594,7 +605,7 @@ impl App {
             .map_err(|e| e.to_string())?;
         db::sync_codex_provider(&pool, pending.provider_id).await?;
         let snap = db::load(&pool).await.map_err(|e| e.to_string())?;
-        Ok(dto::snapshot_dto(snap, &self.inner.tools.names()))
+        Ok(dto::snapshot_dto(snap, &self.tools().await.names()))
     }
 
     pub async fn list_chats(&self) -> Result<Vec<ConversationDto>, String> {
@@ -663,7 +674,7 @@ impl App {
         let mut req = ChatRequest::with_history(&snap.system, history);
         snap.apply_reasoning(&mut req);
         let registry = if snap.settings.tools_enabled {
-            self.inner.tools.clone()
+            self.tools().await
         } else {
             Registry::default()
         };
@@ -752,7 +763,7 @@ impl App {
             let mut req = ChatRequest::with_history(&snap.system, history);
             snap.apply_reasoning(&mut req);
             let registry = if snap.settings.tools_enabled {
-                self.inner.tools.clone()
+                self.tools().await
             } else {
                 Registry::default()
             };
