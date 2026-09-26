@@ -15,6 +15,7 @@ pub fn register(b: &mut Builder) {
     home_assistant(b);
     callmebot(b);
     db(b);
+    kanban(b);
 }
 
 fn files(b: &mut Builder) {
@@ -623,4 +624,80 @@ fn db(b: &mut Builder) {
             stringify(ira_tools_db::invoke::run(&c, require_str(&args, "tool")?, arguments).await)
         }
     });
+}
+
+fn kanban(b: &mut Builder) {
+    let Some(client) = ira_tools_kanban::Client::from_env() else {
+        return;
+    };
+    tracing::info!("tools kanban listas");
+    let c = client.clone();
+    b.add_fn(ira_tools_kanban::list_tools::spec(), move |_ctx, _args| {
+        let c = c.clone();
+        async move { stringify(ira_tools_kanban::list_tools::run(&c).await) }
+    });
+    let c = client.clone();
+    b.add_fn(ira_tools_kanban::invoke::spec(), move |_ctx, args| {
+        let c = c.clone();
+        async move {
+            let arguments = match args.get("arguments") {
+                Some(serde_json::Value::String(s)) => {
+                    serde_json::from_str(s).unwrap_or_else(|_| serde_json::json!({}))
+                }
+                Some(value) => value.clone(),
+                None => serde_json::json!({}),
+            };
+            stringify(
+                ira_tools_kanban::invoke::run(&c, require_str(&args, "tool")?, arguments).await,
+            )
+        }
+    });
+    let c = client.clone();
+    b.add_fn(
+        ira_tools_kanban::tasks::list_tasks_spec(),
+        move |_ctx, args| {
+            let c = c.clone();
+            async move { stringify(ira_tools_kanban::tasks::list_tasks(&c, args).await) }
+        },
+    );
+    let c = client.clone();
+    b.add_fn(
+        ira_tools_kanban::tasks::get_task_spec(),
+        move |_ctx, args| {
+            let c = c.clone();
+            async move { stringify(ira_tools_kanban::tasks::get_task(&c, args).await) }
+        },
+    );
+    let c = client.clone();
+    b.add_fn(
+        ira_tools_kanban::tasks::create_task_spec(),
+        move |_ctx, args| {
+            let c = c.clone();
+            async move { stringify(ira_tools_kanban::tasks::create_task(&c, args).await) }
+        },
+    );
+    let c = client.clone();
+    b.add_fn(
+        ira_tools_kanban::tasks::update_task_spec(),
+        move |_ctx, args| {
+            let c = c.clone();
+            async move { stringify(ira_tools_kanban::tasks::update_task(&c, args).await) }
+        },
+    );
+    let c = client.clone();
+    b.add_fn(
+        ira_tools_kanban::tasks::archive_task_spec(),
+        move |_ctx, args| {
+            let c = c.clone();
+            async move { stringify(ira_tools_kanban::tasks::archive_task(&c, args).await) }
+        },
+    );
+    let c = client;
+    b.add_fn(
+        ira_tools_kanban::tasks::summary_spec(),
+        move |_ctx, _args| {
+            let c = c.clone();
+            async move { stringify(ira_tools_kanban::tasks::summary(&c).await) }
+        },
+    );
 }
