@@ -39,7 +39,6 @@ Telegram, desktop, or the browser until that work is scheduled.
 | --- | --- | --- |
 | `ira-tui` | `ira` | Ratatui chat and catalog editor. `app` owns state; `input` and `slash` route input; `settings` and `ui` handle editing and rendering. |
 | `ira-telegram` | `ira-telegram` | Long polling, allowlist enforcement, per-session history, and shared chat tools. Library routing is separate from `tg` HTTP transport. |
-| `services/ira-whatsapp` | `npm start` | Baileys companion. Text DMs only. Calls `ira-server` so history stays on the `whatsapp` channel. |
 | `desktop/` | `npm run tauri dev` | React shell and native commands for chat and catalog editing. |
 | `ira-api` | library | Shared catalog DTOs and chat used by Tauri and `ira-server`. |
 | `ira-server` | `ira-server` | HTTP `/api` for the browser and other machines. Talks to Ollama from the server process. |
@@ -112,7 +111,6 @@ arguments, resolves paths, and registers these implementations.
 | `github` | Issues and pull requests | `GITHUB_TOKEN` or `GH_TOKEN`. |
 | `google` | Calendars and events | `GOOGLE_ACCESS_TOKEN` or `GOOGLE_API_KEY`. |
 | `home-assistant` | Entity states and service calls | Server URL and token. |
-| `callmebot` | WhatsApp text to the configured number (`whatsapp_send`) | `CALLMEBOT_PHONE` and `CALLMEBOT_APIKEY`. Send-only; no replies. |
 | `db` | SQL and schema discovery through a local MCP Toolbox (`db_list_tools`, `db_invoke`, `db_execute_sql`, …) | Official container managed by Compose. `docker compose up -d postgres toolbox` and `MCP_TOOLBOX_URL=http://127.0.0.1:5000`. |
 | `kanban` | Veritas Kanban board via its MCP (`kanban_list_tasks`, `kanban_create_task`, `kanban_invoke`, …) | Compose file in `services/veritas-kanban`. `docker compose --profile kanban up -d --build veritas-kanban veritas-mcp` and `VERITAS_MCP_URL=http://127.0.0.1:3100`. |
 | `notion`, `spotify` | None | Placeholder crates, not registered. |
