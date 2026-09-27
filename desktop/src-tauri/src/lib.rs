@@ -13,7 +13,7 @@
 
 use ira_api::{
     App, ChatOut, ChatStreamEvent, ChatStreamSink, CodexLoginDto, ConversationDto, Op, ServicesDto,
-    SnapshotDto, TurnDto, WhatsAppDto,
+    SnapshotDto, TurnDto,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -118,29 +118,6 @@ async fn set_service(
 }
 
 #[tauri::command]
-async fn whatsapp_status(state: tauri::State<'_, AppState>) -> Result<WhatsAppDto, String> {
-    Ok(state.api.whatsapp_status().await)
-}
-
-#[tauri::command]
-async fn whatsapp_start(state: tauri::State<'_, AppState>) -> Result<WhatsAppDto, String> {
-    Ok(state.api.whatsapp_start().await)
-}
-
-#[tauri::command]
-async fn whatsapp_pair(state: tauri::State<'_, AppState>) -> Result<WhatsAppDto, String> {
-    Ok(state.api.whatsapp_pair().await)
-}
-
-#[tauri::command]
-async fn whatsapp_allow(
-    state: tauri::State<'_, AppState>,
-    phones: String,
-) -> Result<WhatsAppDto, String> {
-    Ok(state.api.whatsapp_allow(phones).await)
-}
-
-#[tauri::command]
 async fn chat(
     state: tauri::State<'_, AppState>,
     conversation_id: Uuid,
@@ -240,10 +217,6 @@ pub fn run() {
             services,
             start_services,
             set_service,
-            whatsapp_status,
-            whatsapp_start,
-            whatsapp_pair,
-            whatsapp_allow,
             list_databases,
             create_database,
             update_database,
