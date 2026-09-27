@@ -16,6 +16,8 @@ const MIGRATION_007: &str =
     include_str!("../../../deploy/postgres/migrations/007_model_effort.sql");
 const MIGRATION_008: &str = include_str!("../../../deploy/postgres/migrations/008_mcp_manager.sql");
 const MIGRATION_009: &str = include_str!("../../../deploy/postgres/migrations/009_mcp_config.sql");
+const MIGRATION_010: &str =
+    include_str!("../../../deploy/postgres/migrations/010_drop_whatsapp.sql");
 
 const MIGRATIONS: &[(i32, &str)] = &[
     (1, MIGRATION_001),
@@ -27,6 +29,7 @@ const MIGRATIONS: &[(i32, &str)] = &[
     (7, MIGRATION_007),
     (8, MIGRATION_008),
     (9, MIGRATION_009),
+    (10, MIGRATION_010),
 ];
 
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
