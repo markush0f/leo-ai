@@ -1,0 +1,16 @@
+FROM node:22-alpine
+
+RUN apk add --no-cache git ca-certificates \
+ && npm install -g supergateway@3.4.3
+
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev
+COPY dist/ ./dist/
+
+ENV NODE_ENV=production
+ENV API_URL=http://projects-api:3200
+EXPOSE 3201
+COPY gateway.sh /gateway.sh
+RUN chmod 755 /gateway.sh
+CMD ["/gateway.sh"]
