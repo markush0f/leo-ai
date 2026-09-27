@@ -8,7 +8,6 @@
 mod dto;
 mod host;
 mod toolbox;
-mod whatsapp;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Weak};
@@ -31,7 +30,6 @@ pub use dto::{
 };
 pub use host::{ServiceDto, ServicesDto};
 pub use ira_pgjson::Dump as DatabaseDump;
-pub use whatsapp::WhatsAppDto;
 
 /// Event produced while a chat turn is streamed to a transport.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -99,22 +97,6 @@ impl App {
 
     pub async fn db_ok(&self) -> bool {
         self.inner.pool.read().await.is_some()
-    }
-
-    pub async fn whatsapp_status(&self) -> WhatsAppDto {
-        whatsapp::status().await
-    }
-
-    pub async fn whatsapp_pair(&self) -> WhatsAppDto {
-        whatsapp::pair().await
-    }
-
-    pub async fn whatsapp_allow(&self, phones: String) -> WhatsAppDto {
-        whatsapp::set_allow(&phones).await
-    }
-
-    pub async fn whatsapp_start(&self) -> WhatsAppDto {
-        whatsapp::start().await
     }
 
     /// Starts Postgres and MCP Toolbox via Docker Compose, then reconnects.
@@ -640,24 +622,6 @@ impl App {
         Ok(dto::conversation_dto(row))
     }
 
-    pub async fn ensure_whatsapp(&self, jid: &str) -> Result<ConversationDto, String> {
-        let jid = whatsapp_jid(jid)?;
-        let pool = self.pool().await?;
-        let row = db::ensure_whatsapp(&pool, &jid)
-            .await
-            .map_err(|e| e.to_string())?;
-        Ok(dto::conversation_dto(row))
-    }
-
-    pub async fn reset_whatsapp(&self, jid: &str) -> Result<ConversationDto, String> {
-        let jid = whatsapp_jid(jid)?;
-        let pool = self.pool().await?;
-        let row = db::new_whatsapp(&pool, &jid)
-            .await
-            .map_err(|e| e.to_string())?;
-        Ok(dto::conversation_dto(row))
-    }
-
     pub async fn chat(&self, conversation_id: Uuid, text: String) -> Result<ChatOut, String> {
         let conversation_lock = self.conversation_lock(conversation_id).await;
         let _turn = conversation_lock.lock().await;
@@ -958,19 +922,6 @@ fn tools_unsupported(err: &ira_llm::LlmError) -> bool {
     text.contains("does not support tools") || text.contains("does not support tool")
 }
 
-fn whatsapp_jid(raw: &str) -> Result<String, String> {
-    let jid = raw.trim();
-    let ok = !jid.is_empty()
-        && jid.len() <= 128
-        && !jid.contains(['/', '\\', ' ', '\n', '\r'])
-        && (jid.ends_with("@s.whatsapp.net") || jid.ends_with("@lid"));
-    if ok {
-        Ok(jid.to_string())
-    } else {
-        Err("jid de whatsapp inválido".into())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1022,17 +973,6 @@ mod tests {
             Op::SetKind { kind, .. } => assert_eq!(kind, "ollama"),
             other => panic!("{other:?}"),
         }
-    }
-
-    #[test]
-    fn whatsapp_jid_accepts_phone_and_lid() {
-        assert_eq!(
-            whatsapp_jid("34600000000@s.whatsapp.net").unwrap(),
-            "34600000000@s.whatsapp.net"
-        );
-        assert!(whatsapp_jid("123@lid").is_ok());
-        assert!(whatsapp_jid("34600000000@s.whatsapp.net/extra").is_err());
-        assert!(whatsapp_jid("not-a-jid").is_err());
     }
 
     #[test]
