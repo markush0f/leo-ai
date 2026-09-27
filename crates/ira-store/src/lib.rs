@@ -9,6 +9,7 @@ mod conversations;
 mod databases;
 mod home;
 mod host_services;
+mod mcp;
 mod migrate;
 mod secrets;
 
@@ -34,6 +35,10 @@ pub use databases::{
 };
 pub use home::ira_home;
 pub use host_services::{HostServiceRow, list_host_services, sync_host_services};
+pub use mcp::{
+    McpServer, McpServerConfig, McpTransport, delete_mcp, insert_missing_mcp, list_enabled_mcp,
+    list_mcp, upsert_mcp,
+};
 pub use migrate::migrate;
 pub use secrets::{SecretRow, apply_secrets_to_env, get_secret, list_secrets, set_secret};
 

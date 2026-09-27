@@ -14,6 +14,8 @@ const MIGRATION_006: &str =
     include_str!("../../../deploy/postgres/migrations/006_host_services.sql");
 const MIGRATION_007: &str =
     include_str!("../../../deploy/postgres/migrations/007_model_effort.sql");
+const MIGRATION_008: &str = include_str!("../../../deploy/postgres/migrations/008_mcp_manager.sql");
+const MIGRATION_009: &str = include_str!("../../../deploy/postgres/migrations/009_mcp_config.sql");
 
 const MIGRATIONS: &[(i32, &str)] = &[
     (1, MIGRATION_001),
@@ -23,6 +25,8 @@ const MIGRATIONS: &[(i32, &str)] = &[
     (5, MIGRATION_005),
     (6, MIGRATION_006),
     (7, MIGRATION_007),
+    (8, MIGRATION_008),
+    (9, MIGRATION_009),
 ];
 
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {

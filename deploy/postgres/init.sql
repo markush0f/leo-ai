@@ -123,6 +123,24 @@ CREATE TABLE IF NOT EXISTS host_services (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS mcp_manager (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    transport TEXT NOT NULL,
+    url TEXT,
+    command TEXT,
+    args JSONB NOT NULL DEFAULT '[]'::jsonb,
+    env JSONB NOT NULL DEFAULT '{}'::jsonb,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (transport IN ('stdio', 'streamable_http')),
+    CHECK (
+        (transport = 'stdio' AND command IS NOT NULL AND url IS NULL)
+        OR (transport = 'streamable_http' AND url IS NOT NULL AND command IS NULL)
+    )
+);
+
 INSERT INTO host_services (id, name, required, position) VALUES
     ('postgres', 'Postgres', TRUE, 0),
     ('toolbox', 'Toolbox', TRUE, 1),
