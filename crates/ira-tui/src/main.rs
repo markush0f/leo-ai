@@ -42,13 +42,14 @@
 
 mod app;
 mod input;
+mod mcp_cli;
 mod settings;
 mod slash;
 mod ui;
 
 use std::io::stdout;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use crossterm::event::{
     DisableBracketedPaste, EnableBracketedPaste, Event, EventStream, KeyEventKind,
 };
@@ -68,8 +69,19 @@ use ira_store::{
 #[command(name = "ira", about = "Pregúntale al LLM desde la terminal")]
 struct Cli {
     /// PostgreSQL URL override; otherwise resolved from environment or local defaults.
-    #[arg(long)]
+    #[arg(long, global = true)]
     database_url: Option<String>,
+    #[command(subcommand)]
+    cmd: Option<Cmd>,
+}
+
+#[derive(Subcommand)]
+enum Cmd {
+    /// Instala, registra y lista servidores MCP.
+    Mcp {
+        #[command(subcommand)]
+        cmd: mcp_cli::McpCmd,
+    },
 }
 
 struct Restore;
@@ -91,6 +103,9 @@ async fn main() {
 
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+    if let Some(Cmd::Mcp { cmd }) = cli.cmd {
+        return mcp_cli::run(cli.database_url, cmd).await;
+    }
     let url = cli.database_url.unwrap_or_else(database_url);
     let pool = match db::connect(&url).await {
         Ok(pool) => pool,
@@ -110,6 +125,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut client = try_client(&snapshot, &pool);
     let tools = ira_tools::Registry::from_env();
+    let tools = ira_tools::attach_configured(tools, &ira_tools::file_servers()).await;
     let mut app = App::from_store(snapshot, conv.id, messages);
     let mut terminal = ratatui::init();
     let _restore = Restore;

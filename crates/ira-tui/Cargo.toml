@@ -14,6 +14,7 @@ clap.workspace = true
 crossterm.workspace = true
 futures.workspace = true
 ira-llm.workspace = true
+ira-mcp.workspace = true
 ira-store.workspace = true
 ira-tools.workspace = true
 ratatui.workspace = true
