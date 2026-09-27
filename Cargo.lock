@@ -2540,7 +2540,6 @@ dependencies = [
 name = "ira-daemon"
 version = "0.1.0"
 dependencies = [
- "dirs",
  "ira-audio",
  "ira-core",
  "ira-ipc",
@@ -2667,7 +2666,6 @@ name = "ira-telegram"
 version = "0.1.0"
 dependencies = [
  "clap",
- "dirs",
  "ira-llm",
  "ira-store",
  "ira-tools",

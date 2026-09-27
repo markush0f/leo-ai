@@ -46,7 +46,7 @@
 //!
 //! # Local modules
 //!
-//! - `config`: leftover TOML (`~/.config/ira-ai/config.toml`) and data dirs.
+//! - `config`: leftover TOML (`~/.ira/config.toml`) and data dirs.
 //! - `llm`: `BlockingLlm` bridges the async client to [`ira_core::LlmEngine`]
 //!   with `Handle::block_on`.
 //!

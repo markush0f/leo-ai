@@ -136,7 +136,7 @@ WhatsApp in the desktop window: status, QR, allowlist, and changing the linked
 number. By default Leo only replies in that account's self-chat.
 `WHATSAPP_ALLOW_PHONES` adds other private senders; the window can change that
 list without a restart. `npm run pair` deletes the session
-(`WHATSAPP_AUTH_DIR`, default `~/.config/ira-ai/whatsapp`) and prints a new QR.
+(`WHATSAPP_AUTH_DIR`, default `~/.ira/whatsapp`) and prints a new QR.
 The control API listens on `127.0.0.1:8790`. This is not the official WhatsApp
 API.
 

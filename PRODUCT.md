@@ -40,7 +40,7 @@ Confirmed for this surface:
 - Minimalist chat against the active catalog model, through `ira-tools::chat` (tool loop included).
 - Start local Docker services Ira uses (Postgres and MCP Toolbox) from the window.
 - Configure the catalog the TUI configures: providers (kind, API key, base URL, rename, create, delete), models (create, rename, delete, activate), system prompt, clear conversation.
-- Not in this surface: voice daemon control, Telegram token/allowlist, editing `~/.config/ira-ai/config.toml`.
+- Not in this surface: voice daemon control, Telegram token/allowlist, editing `~/.ira/config.toml`.
 
 ## Brand Commitments
 

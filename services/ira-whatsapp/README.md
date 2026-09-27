@@ -14,7 +14,7 @@ npm install
 npm start
 ```
 
-Scan the QR from WhatsApp → Linked devices. Session files live in `WHATSAPP_AUTH_DIR` (default `~/.config/ira-ai/whatsapp`, mode `0700`). To link a different number:
+Scan the QR from WhatsApp → Linked devices. Session files live in `WHATSAPP_AUTH_DIR` (default `~/.ira/whatsapp`, mode `0700`). To link a different number:
 
 ```sh
 npm run pair
@@ -23,7 +23,7 @@ npm run pair
 ```sh
 IRA_API_URL=http://127.0.0.1:8787
 WHATSAPP_ALLOW_PHONES=34600000000
-WHATSAPP_AUTH_DIR=~/.config/ira-ai/whatsapp
+WHATSAPP_AUTH_DIR=~/.ira/whatsapp
 ```
 
 `/help`, `/status`, and `/clear` are local. Other text is a normal Ira turn, tools included.

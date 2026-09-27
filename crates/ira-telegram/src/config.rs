@@ -65,24 +65,7 @@ fn load_file() -> FileConfig {
 }
 
 fn config_path() -> PathBuf {
-    let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from(".").join(".config"));
-    let current = base.join("ira-ai");
-    if !current.exists() {
-        let legacy = base.join("leo-ai");
-        if legacy.is_dir() {
-            match std::fs::rename(&legacy, &current) {
-                Ok(()) => return current.join("config.toml"),
-                Err(err) => {
-                    if current.is_dir() {
-                        return current.join("config.toml");
-                    }
-                    tracing::warn!(%err, "no se pudo migrar la configuración a Ira");
-                    return legacy.join("config.toml");
-                }
-            }
-        }
-    }
-    current.join("config.toml")
+    ira_store::ira_home().join("config.toml")
 }
 
 fn nonempty(value: Option<String>) -> Option<String> {

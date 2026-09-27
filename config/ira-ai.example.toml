@@ -1,5 +1,5 @@
 # Legacy voice settings map. Runtime state lives in PostgreSQL (`settings` +
-# `engines`). If this file exists at ~/.config/ira-ai/config.toml and the
+# `engines`). If this file exists at ~/.ira/config.toml and the
 # database still has voice defaults, ira-daemon imports audio/VAD/STT language
 # and the spoken prompt once. It does not override the catalog model.
 
@@ -18,7 +18,7 @@ rms_threshold = 0.035
 [wake]
 # Reserved wake-word model path. Detection is not integrated yet;
 # activate with `ira-ctl listen`, optionally through a desktop shortcut.
-# model = "/home/YOU/.config/ira-ai/wake/ira.rpw"
+# model = "/home/YOU/.ira/wake/ira.rpw"
 
 [stt]
 # Grok Speech-to-Text (XAI_API_KEY). Forwarded to the API as the language field.

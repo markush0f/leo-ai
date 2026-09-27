@@ -11,7 +11,6 @@ path = "src/main.rs"
 
 [dependencies]
 clap.workspace = true
-dirs.workspace = true
 ira-llm.workspace = true
 ira-store.workspace = true
 ira-tools.workspace = true

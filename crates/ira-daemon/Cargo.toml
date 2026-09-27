@@ -6,7 +6,6 @@ license.workspace = true
 description = "Daemon de voz Ira en segundo plano"
 
 [dependencies]
-dirs.workspace = true
 ira-audio.workspace = true
 ira-core.workspace = true
 ira-ipc.workspace = true

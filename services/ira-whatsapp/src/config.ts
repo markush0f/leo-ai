@@ -13,7 +13,7 @@ export type Config = {
 export function loadConfig(argv = process.argv.slice(2), env = process.env): Config {
   const home = env.HOME || env.USERPROFILE || os.homedir();
   const authDir =
-    env.WHATSAPP_AUTH_DIR?.trim() || path.join(home, ".config", "ira-ai", "whatsapp");
+    env.WHATSAPP_AUTH_DIR?.trim() || path.join(home, ".ira", "whatsapp");
   return {
     pair: argv.includes("--pair"),
     authDir,
