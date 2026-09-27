@@ -2700,7 +2700,6 @@ dependencies = [
  "ira-llm",
  "ira-mcp",
  "ira-tools-appflowy",
- "ira-tools-callmebot",
  "ira-tools-db",
  "ira-tools-files",
  "ira-tools-github",
@@ -2728,17 +2727,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "tokio",
-]
-
-[[package]]
-name = "ira-tools-callmebot"
-version = "0.1.0"
-dependencies = [
- "ira-llm",
- "reqwest 0.12.28",
- "serde_json",
- "thiserror 2.0.20",
- "url",
 ]
 
 [[package]]
