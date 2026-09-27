@@ -109,6 +109,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let tools = ira_tools::Registry::from_env();
+    let tools = ira_tools::attach_configured(tools, &ira_tools::file_servers()).await;
     let tg = Telegram::new(&cfg.token)?;
     let me = tg.get_me().await?;
     tracing::info!(user = %me, "bot");
