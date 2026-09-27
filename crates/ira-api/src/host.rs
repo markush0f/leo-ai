@@ -77,7 +77,8 @@ async fn compose_profiles() -> Vec<String> {
 }
 
 fn parse_catalog(body: &str) -> Result<Vec<CatalogEntry>, String> {
-    let value: Value = serde_json::from_str(body).map_err(|_| "compose config ilegible".to_string())?;
+    let value: Value =
+        serde_json::from_str(body).map_err(|_| "compose config ilegible".to_string())?;
     let Some(services) = value.get("services").and_then(Value::as_object) else {
         return Ok(Vec::new());
     };
@@ -157,7 +158,8 @@ async fn compose_config() -> Result<String, String> {
 }
 
 fn parse_mcp(body: &str) -> Result<Vec<McpEndpoint>, String> {
-    let value: Value = serde_json::from_str(body).map_err(|_| "compose config ilegible".to_string())?;
+    let value: Value =
+        serde_json::from_str(body).map_err(|_| "compose config ilegible".to_string())?;
     let Some(services) = value.get("services").and_then(Value::as_object) else {
         return Ok(Vec::new());
     };
@@ -230,7 +232,9 @@ fn long_running(service: &Value) -> bool {
         .get("ports")
         .and_then(Value::as_array)
         .is_some_and(|ports| !ports.is_empty())
-        || service.get("healthcheck").is_some_and(|value| !value.is_null())
+        || service
+            .get("healthcheck")
+            .is_some_and(|value| !value.is_null())
 }
 
 fn label(service: &Value, key: &str) -> Option<String> {
@@ -637,12 +641,17 @@ mod tests {
         }"#;
         let entries = parse_catalog(raw).unwrap();
         let ids: Vec<_> = entries.iter().map(|entry| entry.id.as_str()).collect();
-        assert_eq!(
-            ids,
-            ["named", "postgres", "toolbox", "veritas-kanban"]
+        assert_eq!(ids, ["named", "postgres", "toolbox", "veritas-kanban"]);
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry.id == "named" && entry.name == "Bonito" && entry.required)
         );
-        assert!(entries.iter().any(|entry| entry.id == "named" && entry.name == "Bonito" && entry.required));
-        assert!(entries.iter().any(|entry| entry.id == "veritas-kanban" && !entry.required));
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry.id == "veritas-kanban" && !entry.required)
+        );
     }
 
     #[test]

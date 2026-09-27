@@ -25,7 +25,10 @@ pub async fn list_host_services(pool: &PgPool) -> Result<Vec<HostServiceRow>, sq
         .collect())
 }
 
-pub async fn sync_host_services(pool: &PgPool, services: &[HostServiceRow]) -> Result<(), sqlx::Error> {
+pub async fn sync_host_services(
+    pool: &PgPool,
+    services: &[HostServiceRow],
+) -> Result<(), sqlx::Error> {
     if services.is_empty() {
         return Ok(());
     }
