@@ -3,14 +3,12 @@
 //! Browsers cannot call Ollama (CORS). This process does: it owns the catalog
 //! and provider HTTP, then returns the same DTOs as the Tauri bridge.
 
-use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::body::Body;
-use axum::extract::{ConnectInfo, Path, Request, State};
+use axum::extract::{Path, State};
 use axum::http::{StatusCode, header};
-use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
@@ -36,11 +34,6 @@ pub struct Health {
 #[derive(Deserialize)]
 struct ChatIn {
     text: String,
-}
-
-#[derive(Deserialize)]
-struct WhatsAppAllowIn {
-    phones: String,
 }
 
 #[derive(Deserialize)]
@@ -79,13 +72,7 @@ pub fn router(app: App, web_root: Option<PathBuf>) -> Router {
         .route("/chats", get(list_chats).post(new_chat))
         .route("/chats/{id}", get(open_chat))
         .route("/chats/{id}/messages/stream", post(chat_stream))
-        .route("/chats/{id}/messages", post(chat))
-        .route("/channels/whatsapp/{jid}", post(ensure_whatsapp))
-        .route("/channels/whatsapp/{jid}/reset", post(reset_whatsapp))
-        .route("/whatsapp", get(whatsapp_status).post(whatsapp_start))
-        .route("/whatsapp/pair", post(whatsapp_pair))
-        .route("/whatsapp/allow", put(whatsapp_allow))
-        .layer(middleware::from_fn(local_whatsapp_admin));
+        .route("/chats/{id}/messages", post(chat));
 
     let mut router = Router::new()
         .nest("/api", api)
@@ -197,45 +184,6 @@ async fn new_chat(State(app): State<App>) -> Response {
     send(app.new_chat().await)
 }
 
-async fn ensure_whatsapp(State(app): State<App>, Path(jid): Path<String>) -> Response {
-    send(app.ensure_whatsapp(&jid).await)
-}
-
-async fn reset_whatsapp(State(app): State<App>, Path(jid): Path<String>) -> Response {
-    send(app.reset_whatsapp(&jid).await)
-}
-
-async fn local_whatsapp_admin(req: Request, next: Next) -> Response {
-    let path = req.uri().path();
-    let admin = path == "/whatsapp" || path.starts_with("/whatsapp/");
-    if admin
-        && let Some(ConnectInfo(addr)) = req.extensions().get::<ConnectInfo<SocketAddr>>()
-        && !addr.ip().is_loopback()
-    {
-        return fail(
-            StatusCode::FORBIDDEN,
-            "WhatsApp solo se gestiona en esta máquina",
-        );
-    }
-    next.run(req).await
-}
-
-async fn whatsapp_status(State(app): State<App>) -> Response {
-    send(Ok(app.whatsapp_status().await))
-}
-
-async fn whatsapp_start(State(app): State<App>) -> Response {
-    send(Ok(app.whatsapp_start().await))
-}
-
-async fn whatsapp_pair(State(app): State<App>) -> Response {
-    send(Ok(app.whatsapp_pair().await))
-}
-
-async fn whatsapp_allow(State(app): State<App>, Json(body): Json<WhatsAppAllowIn>) -> Response {
-    send(Ok(app.whatsapp_allow(body.phones).await))
-}
-
 async fn open_chat(State(app): State<App>, Path(id): Path<Uuid>) -> Response {
     send(app.open_chat(id).await)
 }
@@ -323,7 +271,6 @@ fn status_for(msg: &str) -> StatusCode {
         || msg.contains("fuera de rango")
         || msg.contains("modo SSL inválido")
         || msg.contains("conexión inválida")
-        || msg.contains("jid de whatsapp inválido")
     {
         StatusCode::BAD_REQUEST
     } else if msg.contains("duplicate key") || msg.contains("database_connections_name_key") {
@@ -461,44 +408,6 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
         let json = body_json(resp).await;
         assert!(json["error"].as_str().unwrap().contains("postgres"));
-    }
-
-    #[tokio::test]
-    async fn whatsapp_status_without_bridge_is_down() {
-        let resp = test_router()
-            .oneshot(Request::get("/api/whatsapp").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
-        let json = body_json(resp).await;
-        assert!(json["phase"].is_string());
-        assert!(json["ok"].is_boolean());
-    }
-
-    #[tokio::test]
-    async fn whatsapp_ensure_without_db_is_unavailable() {
-        let resp = test_router()
-            .oneshot(
-                Request::post("/api/channels/whatsapp/34600000000%40s.whatsapp.net")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
-    }
-
-    #[tokio::test]
-    async fn whatsapp_jid_with_slash_is_rejected() {
-        let resp = test_router()
-            .oneshot(
-                Request::post("/api/channels/whatsapp/34600000000%40s.whatsapp.net%2Fextra")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
