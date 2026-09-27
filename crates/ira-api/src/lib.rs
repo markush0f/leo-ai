@@ -220,14 +220,21 @@ impl App {
     }
 
     async fn tools(&self) -> Registry {
-        let Ok(found) = host::discover_mcp().await else {
-            return self.inner.tools.clone();
-        };
-        let endpoints: Vec<(&str, &str)> = found
-            .iter()
-            .map(|endpoint| (endpoint.id.as_str(), endpoint.url.as_str()))
-            .collect();
-        ira_tools::attach_mcp(self.inner.tools.clone(), &endpoints).await
+        let mut configs = ira_tools::file_servers();
+        let discovered = host::discover_mcp().await.unwrap_or_default();
+        for endpoint in discovered {
+            if configs
+                .iter()
+                .any(|server| server.id == endpoint.id || server.name == endpoint.id)
+            {
+                continue;
+            }
+            configs.push(db::McpServerConfig::http(
+                endpoint.id.clone(),
+                endpoint.url.clone(),
+            ));
+        }
+        ira_tools::attach_configured(self.inner.tools.clone(), &configs).await
     }
 
     async fn try_connect(&self) -> Result<(), String> {
