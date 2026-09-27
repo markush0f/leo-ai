@@ -60,6 +60,7 @@ ira-core = { path = "crates/ira-core" }
 ira-engine = { path = "crates/ira-engine" }
 ira-ipc = { path = "crates/ira-ipc" }
 ira-store = { path = "crates/ira-store" }
+ira-mcp = { path = "crates/ira-mcp" }
 ira-tools = { path = "crates/ira-tools" }
 ira-tools-appflowy = { path = "crates/tools/ira-tools-appflowy" }
 ira-tools-callmebot = { path = "crates/tools/ira-tools-callmebot" }

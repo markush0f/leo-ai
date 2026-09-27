@@ -1,0 +1,17 @@
+[package]
+name = "ira-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cliente MCP genérico: stdio, HTTP, registry e instalación"
+
+[dependencies]
+ira-store.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "process", "rt", "sync", "time"] }
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
