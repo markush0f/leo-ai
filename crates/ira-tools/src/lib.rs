@@ -18,8 +18,8 @@ mod registry;
 mod tool;
 
 pub use chat::{StreamEvent, StreamSink, chat, chat_stream, run};
-pub use mcp::attach_mcp;
+pub use mcp::{attach_configured, attach_mcp, file_servers};
 pub use context::Context;
 pub use error::ToolError;
-pub use registry::Registry;
+pub use registry::{Registry, ToolProvider};
 pub use tool::{DynTool, Tool};

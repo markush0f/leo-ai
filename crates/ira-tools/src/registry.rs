@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use ira_llm::ToolSpec;
@@ -7,11 +8,26 @@ use crate::context::Context;
 use crate::error::ToolError;
 use crate::tool::{DynTool, Tool};
 
+/// Where a registered tool executes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ToolProvider {
+    /// Local function compiled into Ira.
+    Native,
+    /// Tool advertised by a connected MCP server.
+    Mcp {
+        /// `mcp_manager.id`.
+        server_id: String,
+        /// Name returned by `tools/list`, before prefixing.
+        tool_name: String,
+    },
+}
+
 /// Cloneable catalog with shared tools; an empty registry offers no tools.
 #[derive(Clone, Default)]
 pub struct Registry {
     ctx: Context,
     tools: Arc<Vec<DynTool>>,
+    providers: Arc<HashMap<String, ToolProvider>>,
 }
 
 impl Registry {
@@ -20,6 +36,7 @@ impl Registry {
         Builder {
             ctx,
             tools: Vec::new(),
+            providers: HashMap::new(),
         }
     }
 
@@ -45,8 +62,26 @@ impl Registry {
         self.tools.iter().map(|t| t.name()).collect()
     }
 
+    /// Returns the executor for a registered tool name.
+    pub fn provider(&self, name: &str) -> ToolProvider {
+        self.providers
+            .get(name)
+            .cloned()
+            .unwrap_or(ToolProvider::Native)
+    }
+
     /// Invokes the first matching name; failures are returned as JSON content.
     pub async fn call(&self, name: &str, args: serde_json::Value) -> String {
+        if let ToolProvider::Mcp {
+            server_id,
+            tool_name,
+        } = self.provider(name)
+        {
+            return match ira_mcp::shared().call_tool(&server_id, &tool_name, args).await {
+                Ok(value) => value.to_string(),
+                Err(err) => ToolError::from_display(err).to_json(),
+            };
+        }
         match self.tools.iter().find(|t| t.name() == name) {
             Some(tool) => match tool.invoke(&self.ctx, args).await {
                 Ok(s) => s,
@@ -61,6 +96,7 @@ impl Registry {
         Builder {
             ctx: self.ctx.clone(),
             tools: (*self.tools).clone(),
+            providers: (*self.providers).clone(),
         }
     }
 
@@ -74,11 +110,25 @@ impl Registry {
 pub struct Builder {
     ctx: Context,
     tools: Vec<DynTool>,
+    providers: HashMap<String, ToolProvider>,
 }
 
 impl Builder {
     /// Adds an already type-erased tool to the registry.
     pub fn add(&mut self, tool: DynTool) {
+        self.tools.push(tool);
+    }
+
+    /// Registers a tool and records which MCP server owns the remote name.
+    pub fn add_mcp(&mut self, tool: DynTool, server_id: impl Into<String>, tool_name: impl Into<String>) {
+        let name = tool.name();
+        self.providers.insert(
+            name,
+            ToolProvider::Mcp {
+                server_id: server_id.into(),
+                tool_name: tool_name.into(),
+            },
+        );
         self.tools.push(tool);
     }
 
@@ -96,6 +146,7 @@ impl Builder {
         Registry {
             ctx: self.ctx,
             tools: Arc::new(self.tools),
+            providers: Arc::new(self.providers),
         }
     }
 }

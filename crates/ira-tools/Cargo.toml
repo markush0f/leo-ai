@@ -7,6 +7,7 @@ description = "Registro y bucle de tools que el LLM puede llamar"
 
 [dependencies]
 ira-llm.workspace = true
+ira-mcp.workspace = true
 ira-tools-appflowy.workspace = true
 ira-tools-callmebot.workspace = true
 ira-tools-db.workspace = true

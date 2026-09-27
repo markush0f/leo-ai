@@ -2698,6 +2698,7 @@ name = "ira-tools"
 version = "0.1.0"
 dependencies = [
  "ira-llm",
+ "ira-mcp",
  "ira-tools-appflowy",
  "ira-tools-callmebot",
  "ira-tools-db",
