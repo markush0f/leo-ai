@@ -22,13 +22,9 @@ impl PostgresCodexTokenStore {
 impl TokenStore for PostgresCodexTokenStore {
     fn load(&self) -> TokenStoreFuture<'_, Option<OAuthCredentials>> {
         Box::pin(async move {
-            let encoded: Option<String> =
-                sqlx::query_scalar("SELECT api_key FROM providers WHERE id = $1")
-                    .bind(self.provider_id)
-                    .fetch_optional(&self.pool)
-                    .await
-                    .map_err(store_error)?
-                    .flatten();
+            let encoded = crate::databases::read_provider_secret(&self.pool, self.provider_id)
+                .await
+                .map_err(|err| store_error(err))?;
             encoded
                 .filter(|value| !value.trim().is_empty())
                 .map(|value| serde_json::from_str(&value).map_err(store_error))
@@ -40,13 +36,11 @@ impl TokenStore for PostgresCodexTokenStore {
         let credentials = credentials.clone();
         Box::pin(async move {
             let encoded = serde_json::to_string(&credentials).map_err(store_error)?;
-            let result = sqlx::query("UPDATE providers SET api_key = $1 WHERE id = $2")
-                .bind(encoded)
-                .bind(self.provider_id)
-                .execute(&self.pool)
-                .await
-                .map_err(store_error)?;
-            if result.rows_affected() == 0 {
+            let updated =
+                crate::databases::write_provider_secret(&self.pool, self.provider_id, Some(&encoded))
+                    .await
+                    .map_err(|err| store_error(err))?;
+            if updated == 0 {
                 return Err(TokenStoreError("proveedor Codex inexistente".into()));
             }
             Ok(())

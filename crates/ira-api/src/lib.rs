@@ -109,7 +109,8 @@ impl App {
         }
         let catalog = self.service_catalog().await;
         let mut out = host::start(&catalog).await;
-        if out.error.is_some() {
+        if out.error.is_some() || !out.services.iter().any(|service| service.id == "postgres" && service.autostart)
+        {
             return out;
         }
         for _ in 0..25 {
@@ -131,12 +132,62 @@ impl App {
         self.host_status().await
     }
 
-    /// Starts or stops one Compose service. Starting Postgres also reconnects.
-    pub async fn set_service(&self, id: &str, action: &str) -> ServicesDto {
+    /// Starts the services marked for boot. Safe to call from process startup.
+    pub async fn boot_services(&self) -> ServicesDto {
+        let catalog = self.service_catalog().await;
+        let out = host::start(&catalog).await;
+        if out.error.is_none() && out.services.iter().any(|service| service.id == "postgres" && service.autostart)
+        {
+            let _ = self.try_connect().await;
+        }
+        self.host_status().await
+    }
+
+    /// Starts, stops, or reconfigures one Compose service. Starting Postgres also reconnects.
+    pub async fn set_service(
+        &self,
+        id: &str,
+        action: &str,
+        port: Option<u16>,
+        name: Option<&str>,
+        description: Option<&str>,
+    ) -> ServicesDto {
         let catalog = self.service_catalog().await;
         let out = match action {
             "start" => host::start_one(id, &catalog).await,
             "stop" => host::stop_one(id, &catalog).await,
+            "autostart" | "manual" => match host::set_boot(id, action == "autostart", &catalog) {
+                Ok(()) => host::status(&catalog).await,
+                Err(error) => {
+                    let mut out = host::status(&catalog).await;
+                    out.ok = false;
+                    out.error = Some(error);
+                    out
+                }
+            },
+            "meta" => match host::set_meta(
+                id,
+                name.unwrap_or(""),
+                description.unwrap_or(""),
+                &catalog,
+            ) {
+                Ok(()) => host::status(&catalog).await,
+                Err(error) => {
+                    let mut out = host::status(&catalog).await;
+                    out.ok = false;
+                    out.error = Some(error);
+                    out
+                }
+            },
+            "port" => {
+                let Some(port) = port else {
+                    let mut out = host::status(&catalog).await;
+                    out.ok = false;
+                    out.error = Some("falta el puerto".into());
+                    return out;
+                };
+                host::set_port(id, port, &catalog).await
+            }
             _ => {
                 let mut out = host::status(&catalog).await;
                 out.ok = false;
@@ -144,7 +195,7 @@ impl App {
                 return out;
             }
         };
-        if action == "start" && id == "postgres" && out.error.is_none() {
+        if (action == "start" || action == "port") && id == "postgres" && out.error.is_none() {
             for _ in 0..25 {
                 if self.try_connect().await.is_ok() {
                     return self.host_status().await;
@@ -187,14 +238,31 @@ impl App {
         {
             return rows
                 .into_iter()
-                .map(|row| host::CatalogEntry {
-                    id: row.id,
-                    name: row.name,
-                    required: row.required,
+                .map(|row| {
+                    let kind = if row.id.ends_with("-mcp") { "mcp" } else { "service" };
+                    host::CatalogEntry {
+                        id: row.id,
+                        name: row.name,
+                        required: row.required,
+                        host_port: None,
+                        container_port: None,
+                        kind: kind.into(),
+                        description: String::new(),
+                        peer: None,
+                    }
                 })
                 .collect();
         }
         host::builtin_catalog()
+    }
+
+    async fn system_text(&self, base: &str) -> String {
+        let note = host::catalog_note(&self.service_catalog().await);
+        if note.is_empty() {
+            base.to_string()
+        } else {
+            format!("{base}\n\n{note}")
+        }
     }
 
     async fn host_status(&self) -> ServicesDto {
@@ -642,13 +710,9 @@ impl App {
         let history = db::context_messages(&pool, conversation_id, CONTEXT_LIMIT)
             .await
             .map_err(|e| e.to_string())?;
-        let mut req = ChatRequest::with_history(&snap.system, history);
+        let mut req = ChatRequest::with_history(&self.system_text(&snap.system).await, history);
         snap.apply_reasoning(&mut req);
-        let registry = if snap.settings.tools_enabled {
-            self.tools().await
-        } else {
-            Registry::default()
-        };
+        let registry = chat_tools(self.tools().await, &snap);
         let mut result = ira_tools::chat(&client, req.clone(), &registry).await;
         if let Err(err) = &result
             && !registry.is_empty()
@@ -731,13 +795,9 @@ impl App {
             let history = db::context_messages(&pool, conversation_id, CONTEXT_LIMIT)
                 .await
                 .map_err(|error| error.to_string())?;
-            let mut req = ChatRequest::with_history(&snap.system, history);
+            let mut req = ChatRequest::with_history(&self.system_text(&snap.system).await, history);
             snap.apply_reasoning(&mut req);
-            let registry = if snap.settings.tools_enabled {
-                self.tools().await
-            } else {
-                Registry::default()
-            };
+            let registry = chat_tools(self.tools().await, &snap);
             let event_sink = sink.clone();
             let tool_sink: ira_tools::StreamSink = Arc::new(move |event| match event {
                 ira_tools::StreamEvent::Delta(text) => event_sink(ChatStreamEvent::Delta { text }),
@@ -917,6 +977,17 @@ async fn wait_for_toolbox(expected: &[String], require_empty: bool) -> Result<()
     }))
 }
 
+fn chat_tools(registry: Registry, snap: &ira_store::Snapshot) -> Registry {
+    if !snap.settings.tools_enabled {
+        return Registry::default();
+    }
+    if snap.settings.tools_mutate {
+        registry
+    } else {
+        registry.read_only()
+    }
+}
+
 fn tools_unsupported(err: &ira_llm::LlmError) -> bool {
     let text = err.to_string().to_ascii_lowercase();
     text.contains("does not support tools") || text.contains("does not support tool")
@@ -984,6 +1055,7 @@ mod tests {
         assert_eq!(dto.tools, ["get_weather"]);
         let json = serde_json::to_value(&dto).unwrap();
         assert!(json.get("providers").unwrap()[0].get("api_key").is_none());
+        assert_eq!(json["tools_mutate"], false);
         assert_eq!(json["active_model_id"].as_str().unwrap().len(), 36);
     }
 

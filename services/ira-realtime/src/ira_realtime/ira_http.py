@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Protocol
 
 import httpx
@@ -42,11 +43,19 @@ class IraHttpClient:
         timeout: float,
         conversation_id: str | None = None,
         http: httpx.AsyncClient | None = None,
+        token: str | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._conversation_id = conversation_id
         self._owns_http = http is None
         self._http = http or httpx.AsyncClient(timeout=timeout)
+        raw = os.environ.get("IRA_HTTP_TOKEN", "") if token is None else token
+        self._token = raw.strip()
+
+    def _auth_headers(self) -> dict[str, str]:
+        if not self._token:
+            return {}
+        return {"Authorization": f"Bearer {self._token}"}
 
     async def aclose(self) -> None:
         if self._owns_http:
@@ -56,7 +65,10 @@ class IraHttpClient:
         if self._conversation_id:
             return self._conversation_id
         try:
-            response = await self._http.post(f"{self._base_url}/api/chats")
+            response = await self._http.post(
+                f"{self._base_url}/api/chats",
+                headers=self._auth_headers(),
+            )
         except httpx.HTTPError as exc:
             raise IraHttpError(f"no se pudo crear el chat: {exc}") from exc
         payload = _json_object(response)
@@ -72,6 +84,7 @@ class IraHttpClient:
             response = await self._http.post(
                 f"{self._base_url}/api/chats/{conversation_id}/messages",
                 json={"text": text},
+                headers=self._auth_headers(),
             )
         except httpx.HTTPError as exc:
             raise IraHttpError(f"no se pudo hablar con Ira: {exc}") from exc

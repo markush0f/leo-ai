@@ -7,10 +7,10 @@ type Props = {
   input: string; onInput: (value: string) => void; onSend: () => void; onTalk: () => void;
   snap: Snapshot | null; busy: boolean; listening: boolean; canTalk: boolean; canSend: boolean;
   boxRef: RefObject<HTMLTextAreaElement | null>;
-  onModel: (id: string) => void; onEffort: (id: string, effort: string) => void; onTools: () => void;
+  onModel: (id: string) => void; onEffort: (id: string, effort: string) => void; onTools: () => void; onMutate: () => void;
 };
 
-export function Composer({ input, onInput, onSend, onTalk, snap, busy, listening, canTalk, canSend, boxRef, onModel, onEffort, onTools }: Props) {
+export function Composer({ input, onInput, onSend, onTalk, snap, busy, listening, canTalk, canSend, boxRef, onModel, onEffort, onTools, onMutate }: Props) {
   const composing = useRef(false);
   useLayoutEffect(() => {
     const box = boxRef.current;
@@ -44,6 +44,10 @@ export function Composer({ input, onInput, onSend, onTalk, snap, busy, listening
       <button type="button" className={`mode-chip${snap?.tools_enabled ? " on" : ""}`} disabled={!snap || busy}
         aria-pressed={snap?.tools_enabled ?? false} title="Permitir herramientas" onClick={onTools}>
         <IconTools /><span>Herramientas</span>
+      </button>
+      <button type="button" className={`mode-chip${snap?.tools_mutate ? " on" : ""}`} disabled={!snap || busy || !snap.tools_enabled}
+        aria-pressed={snap?.tools_mutate ?? false} title="Permitir escritura, shell y borrado" onClick={onMutate}>
+        <span>Escritura</span>
       </button>
       <span className="composer-grow" />
       <button type="button" className={`btn-mic${listening ? " on" : ""}`} disabled={!canTalk}

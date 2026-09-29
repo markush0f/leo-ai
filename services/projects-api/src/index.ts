@@ -18,7 +18,7 @@ app.get("/health", (_req, res) => {
 });
 
 getDb().then(() => {
-  app.listen(port, () => {
-    console.log(`projects-api running on http://localhost:${port}`);
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`projects-api running on http://0.0.0.0:${port}`);
   });
 });

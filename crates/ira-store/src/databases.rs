@@ -87,6 +87,14 @@ impl DatabaseCipher {
         Ok(Self(key))
     }
 
+    pub fn seal(&self, id: Uuid, plaintext: &str) -> Result<(Vec<u8>, Vec<u8>), DatabaseError> {
+        self.encrypt(id, plaintext)
+    }
+
+    pub fn open(&self, id: Uuid, encrypted: &[u8], nonce: &[u8]) -> Result<String, DatabaseError> {
+        self.decrypt(id, encrypted, nonce)
+    }
+
     fn encrypt(&self, id: Uuid, password: &str) -> Result<(Vec<u8>, Vec<u8>), DatabaseError> {
         let mut nonce = [0_u8; 24];
         getrandom::fill(&mut nonce).map_err(|_| DatabaseError::Encrypt)?;
@@ -293,6 +301,99 @@ pub async fn set_database_test_result(
     .execute(pool)
     .await?;
     Ok(())
+}
+
+pub(crate) fn open_provider_secret(
+    id: Uuid,
+    plain: Option<String>,
+    ciphertext: Option<Vec<u8>>,
+    nonce: Option<Vec<u8>>,
+) -> Result<Option<String>, DatabaseError> {
+    match (ciphertext, nonce) {
+        (Some(ciphertext), Some(nonce)) => {
+            let cipher = DatabaseCipher::from_env()?;
+            Ok(Some(cipher.open(id, &ciphertext, &nonce)?))
+        }
+        _ => Ok(nonempty(plain)),
+    }
+}
+
+pub(crate) async fn read_provider_secret(
+    pool: &PgPool,
+    id: Uuid,
+) -> Result<Option<String>, DatabaseError> {
+    let Some(row) = sqlx::query(
+        "SELECT api_key, api_key_ciphertext, api_key_nonce FROM providers WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?
+    else {
+        return Ok(None);
+    };
+    open_provider_secret(
+        id,
+        row.get("api_key"),
+        row.get("api_key_ciphertext"),
+        row.get("api_key_nonce"),
+    )
+}
+
+pub(crate) async fn write_provider_secret(
+    pool: &PgPool,
+    id: Uuid,
+    plaintext: Option<&str>,
+) -> Result<u64, DatabaseError> {
+    let plaintext = plaintext.map(str::trim).filter(|value| !value.is_empty());
+    let Some(plaintext) = plaintext else {
+        let result = sqlx::query(
+            "UPDATE providers
+             SET api_key = NULL, api_key_ciphertext = NULL, api_key_nonce = NULL
+             WHERE id = $1",
+        )
+        .bind(id)
+        .execute(pool)
+        .await?;
+        return Ok(result.rows_affected());
+    };
+    let (ciphertext, nonce) = DatabaseCipher::from_env()?.seal(id, plaintext)?;
+    let result = sqlx::query(
+        "UPDATE providers
+         SET api_key = NULL, api_key_ciphertext = $2, api_key_nonce = $3
+         WHERE id = $1",
+    )
+    .bind(id)
+    .bind(ciphertext)
+    .bind(nonce)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
+pub(crate) async fn seal_plaintext_api_keys(pool: &PgPool) -> Result<(), DatabaseError> {
+    let rows = sqlx::query(
+        "SELECT id, api_key FROM providers
+         WHERE api_key IS NOT NULL AND btrim(api_key) <> '' AND api_key_ciphertext IS NULL",
+    )
+    .fetch_all(pool)
+    .await?;
+    for row in rows {
+        let id: Uuid = row.get("id");
+        let plain: String = row.get("api_key");
+        let _ = write_provider_secret(pool, id, Some(&plain)).await?;
+    }
+    Ok(())
+}
+
+fn nonempty(value: Option<String>) -> Option<String> {
+    value.and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
 }
 
 fn master_key_path() -> PathBuf {
@@ -514,5 +615,39 @@ mod tests {
             "secret"
         );
         delete_database_connection(&pool, row.id).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn seals_plaintext_provider_keys() {
+        let Ok(pool) = crate::connect(&crate::database_url()).await else {
+            return;
+        };
+        crate::migrate(&pool).await.unwrap();
+        let id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO providers (id, name, kind, api_key) VALUES ($1, $2, 'grok', 'secret-key')",
+        )
+        .bind(id)
+        .bind(format!("seal-{id}"))
+        .execute(&pool)
+        .await
+        .unwrap();
+        seal_plaintext_api_keys(&pool).await.unwrap();
+        let plain: Option<String> =
+            sqlx::query_scalar("SELECT api_key FROM providers WHERE id = $1")
+                .bind(id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert!(plain.is_none());
+        assert_eq!(
+            read_provider_secret(&pool, id).await.unwrap().as_deref(),
+            Some("secret-key")
+        );
+        sqlx::query("DELETE FROM providers WHERE id = $1")
+            .bind(id)
+            .execute(&pool)
+            .await
+            .unwrap();
     }
 }

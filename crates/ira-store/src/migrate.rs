@@ -18,6 +18,9 @@ const MIGRATION_008: &str = include_str!("../../../deploy/postgres/migrations/00
 const MIGRATION_009: &str = include_str!("../../../deploy/postgres/migrations/009_mcp_config.sql");
 const MIGRATION_010: &str =
     include_str!("../../../deploy/postgres/migrations/010_drop_whatsapp.sql");
+const MIGRATION_011: &str =
+    include_str!("../../../deploy/postgres/migrations/011_secrets_and_tool_policy.sql");
+const MIGRATION_012: &str = include_str!("../../../deploy/postgres/migrations/012_drop_veritas.sql");
 
 const MIGRATIONS: &[(i32, &str)] = &[
     (1, MIGRATION_001),
@@ -30,6 +33,8 @@ const MIGRATIONS: &[(i32, &str)] = &[
     (8, MIGRATION_008),
     (9, MIGRATION_009),
     (10, MIGRATION_010),
+    (11, MIGRATION_011),
+    (12, MIGRATION_012),
 ];
 
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
@@ -57,7 +62,7 @@ pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
         sqlx::query("INSERT INTO schema_migrations (version) VALUES (1) ON CONFLICT DO NOTHING")
             .execute(pool)
             .await?;
-        return Ok(());
+        return seal_keys(pool).await;
     }
 
     let applied: Vec<i32> = sqlx::query_scalar("SELECT version FROM schema_migrations")
@@ -78,7 +83,16 @@ pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
             .await?;
         tx.commit().await?;
     }
-    Ok(())
+    seal_keys(pool).await
+}
+
+async fn seal_keys(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
+    crate::databases::seal_plaintext_api_keys(pool)
+        .await
+        .map_err(|err| match err {
+            crate::databases::DatabaseError::Sql(err) => err,
+            other => sqlx::Error::Protocol(other.to_string()),
+        })
 }
 
 pub(crate) fn statements(sql: &str) -> impl Iterator<Item = &str> {

@@ -21,6 +21,7 @@ pub struct SnapshotDto {
     pub stt_language: String,
     pub thinking: bool,
     pub tools_enabled: bool,
+    pub tools_mutate: bool,
     pub tools: Vec<String>,
 }
 
@@ -180,6 +181,7 @@ pub enum Op {
     SetThinking { value: bool },
     SetModelEffort { id: Uuid, effort: String },
     SetToolsEnabled { value: bool },
+    SetToolsMutate { value: bool },
 }
 
 impl From<Op> for DbOp {
@@ -206,6 +208,7 @@ impl From<Op> for DbOp {
             Op::SetThinking { value } => DbOp::SetThinking(value),
             Op::SetModelEffort { id, effort } => DbOp::SetModelEffort { id, effort },
             Op::SetToolsEnabled { value } => DbOp::SetToolsEnabled(value),
+            Op::SetToolsMutate { value } => DbOp::SetToolsMutate(value),
         }
     }
 }
@@ -257,6 +260,7 @@ pub fn snapshot_dto(snap: Snapshot, tools: &[String]) -> SnapshotDto {
         stt_language: snap.settings.stt_language.clone(),
         thinking,
         tools_enabled: snap.settings.tools_enabled,
+        tools_mutate: snap.settings.tools_mutate,
         tools: tools.to_vec(),
     }
 }

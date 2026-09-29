@@ -12,6 +12,7 @@ import {
   listChats,
   loadServices,
   setService,
+  startServices,
   loadSnapshot,
   newChat,
   openChat,
@@ -25,7 +26,7 @@ import { Composer } from "./components/Composer";
 import { Activity } from "./components/Activity";
 import { useSidebar } from "./components/useSidebar";
 import { useSheetFocus } from "./components/useSheetFocus";
-import { ServiceBoard } from "./Services";
+import { ServicesSheet } from "./Services";
 import {
   IconSidebar,
   IconChat,
@@ -34,6 +35,7 @@ import {
   IconMenu,
   IconMoon,
   IconPlus,
+  IconPower,
   IconSliders,
   IconSun,
 } from "./icons";
@@ -82,6 +84,7 @@ export default function App() {
   const [receiving, setReceiving] = useState(false);
   const [catalog, setCatalog] = useState(false);
   const [databases, setDatabases] = useState(false);
+  const [servicesOpen, setServicesOpen] = useState(false);
   const [rail, setRail] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 860px)").matches);
   const railRef = useSheetFocus(rail && isMobile, '[data-mobile-menu="true"]');
@@ -217,7 +220,6 @@ export default function App() {
       if (e.key === "Escape") {
         setCatalog(false);
         setDatabases(false);
-        setWhatsapp(false);
         setRail(false);
         stopVoice();
       }
@@ -453,6 +455,26 @@ export default function App() {
     else setRailCollapsed(!railCollapsed);
   };
 
+  const configureService = async (
+    id: string,
+    action: "autostart" | "manual" | "port" | "boot" | "meta",
+    port?: number,
+    name?: string,
+    description?: string,
+  ) => {
+    setSvcBusy(id || "boot");
+    try {
+      const next = action === "boot" ? await startServices() : await setService(id, action, port, name, description);
+      setServices(next);
+      if (next.error) setBoot(next.error);
+      if (action === "port" && id === "postgres") await refresh();
+    } catch (e) {
+      setBoot(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSvcBusy(null);
+    }
+  };
+
   const toggleService = async (id: string, running: boolean) => {
     setSvcBusy(id);
     try {
@@ -486,6 +508,7 @@ export default function App() {
       setServices((prev) => ({
         ok: false,
         services: prev?.services ?? [],
+        gateway_port: prev?.gateway_port,
         error: msg,
       }));
     } finally {
@@ -494,6 +517,7 @@ export default function App() {
   };
 
   const useTools = snap?.tools_enabled ?? true;
+  const useMutate = snap?.tools_mutate ?? false;
   const model = snap?.models.find((m) => m.id === snap.active_model_id);
   const effort = model?.effort || "low";
   const thinking = effort !== "low";
@@ -510,11 +534,12 @@ export default function App() {
     onSend={() => void send()} onTalk={() => void talk()}
     onModel={(id) => { if (id) changeMode({ op: "activate_model", id }); }}
     onEffort={(id, effort) => changeMode({ op: "set_model_effort", id, effort })}
-    onTools={() => changeMode({ op: "set_tools_enabled", value: !useTools })} />;
+    onTools={() => changeMode({ op: "set_tools_enabled", value: !useTools })}
+    onMutate={() => changeMode({ op: "set_tools_mutate", value: !useMutate })} />;
 
   return (
     <MotionConfig reducedMotion="user" transition={{ type: "spring", stiffness: 380, damping: 36 }}>
-    <div style={{ "--rail-width": `${sidebar.width}px` } as CSSProperties} className={`app${rail ? " rail-open" : ""}${railCollapsed ? " rail-collapsed" : ""}${sidebar.dragging ? " rail-resizing" : ""}${catalog || databases || voiceOpen ? " sheet-open" : ""}`}>
+    <div style={{ "--rail-width": `${sidebar.width}px` } as CSSProperties} className={`app${rail ? " rail-open" : ""}${railCollapsed ? " rail-collapsed" : ""}${sidebar.dragging ? " rail-resizing" : ""}${catalog || databases || servicesOpen || voiceOpen ? " sheet-open" : ""}`}>
       <AnimatePresence>
       {rail && (
         <motion.button
@@ -529,7 +554,7 @@ export default function App() {
       )}
       </AnimatePresence>
 
-      <aside ref={railRef} className="rail" aria-label="navegación" role={isMobile && rail ? "dialog" : undefined} aria-modal={isMobile && rail ? true : undefined} inert={catalog || databases || voiceOpen}>
+      <aside ref={railRef} className="rail" aria-label="navegación" role={isMobile && rail ? "dialog" : undefined} aria-modal={isMobile && rail ? true : undefined} inert={catalog || databases || servicesOpen || voiceOpen}>
         <div className="rail-top">
           <p className="brand">
              <img src="/ira-cabeza-recortada.png" alt="" />
@@ -578,7 +603,7 @@ export default function App() {
             className={`nav-item${catalog ? " on" : ""}`}
             data-sheet-trigger={catalog ? "true" : undefined}
             title="Modelos y configuración" aria-label="Modelos y configuración"
-            onClick={() => { setCatalog(true); setDatabases(false); setRail(false); }}
+            onClick={() => { setCatalog(true); setDatabases(false); setServicesOpen(false); setRail(false); }}
           >
             <IconSliders />
             <span className="rail-label">Modelos y configuración</span>
@@ -588,19 +613,22 @@ export default function App() {
             className={`nav-item${databases ? " on" : ""}`}
             data-sheet-trigger={databases ? "true" : undefined}
             title="Bases de datos" aria-label="Bases de datos"
-            onClick={() => { setDatabases(true); setCatalog(false); setRail(false); }}
+            onClick={() => { setDatabases(true); setCatalog(false); setServicesOpen(false); setRail(false); }}
           >
             <IconDatabase />
             <span className="rail-label">Bases de datos</span>
           </button>
+          <button
+            type="button"
+            className={`nav-item${servicesOpen ? " on" : ""}`}
+            data-sheet-trigger={servicesOpen ? "true" : undefined}
+            title="Servicios" aria-label="Servicios"
+            onClick={() => { setServicesOpen(true); setCatalog(false); setDatabases(false); setRail(false); }}
+          >
+            <IconPower />
+            <span className="rail-label">Servicios</span>
+          </button>
         </nav>
-
-        <ServiceBoard
-          data={services}
-          busyId={svcBusy}
-          compact
-          onToggle={(id, running) => void toggleService(id, running)}
-        />
 
         <div className="rail-foot">
           <button type="button" className="btn-ghost theme-btn" onClick={toggleTheme} title={theme === "dark" ? "Modo claro" : "Modo oscuro"} aria-label={theme === "dark" ? "Modo claro" : "Modo oscuro"}>
@@ -611,7 +639,7 @@ export default function App() {
         {!railCollapsed && <div className="rail-resize" {...sidebar.resizeProps} />}
       </aside>
 
-      <div className="stage" inert={catalog || databases || voiceOpen || rail}>
+      <div className="stage" inert={catalog || databases || servicesOpen || voiceOpen || rail}>
         <header className="topbar">
           <button
             type="button"
@@ -647,13 +675,7 @@ export default function App() {
                   ? boot
                   : "Piensa, pregunta, conecta. Hagámoslo juntos."}
               </p>
-              {(boot || (services && !services.ok)) && (
-                <ServiceBoard
-                  data={services}
-                  busyId={svcBusy}
-                  onToggle={(id, running) => void toggleService(id, running)}
-                />
-              )}
+
             </div>
           ) : (
             <div className="log" ref={listRef} aria-label="Conversación" onScroll={(event) => {
@@ -730,6 +752,25 @@ export default function App() {
       <AnimatePresence>
       {databases && (
           <Databases onClose={() => setDatabases(false)} />
+      )}
+      </AnimatePresence>
+      <AnimatePresence>
+      {servicesOpen && (
+          <motion.button type="button" className="scrim settings" aria-label="cerrar servicios" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setServicesOpen(false)} />
+      )}
+      </AnimatePresence>
+      <AnimatePresence>
+      {servicesOpen && (
+          <ServicesSheet
+            data={services}
+            busyId={svcBusy}
+            onClose={() => setServicesOpen(false)}
+            onToggle={(id, running) => void toggleService(id, running)}
+            onBoot={(id, on) => void configureService(id, on ? "autostart" : "manual")}
+            onPort={(id, port) => void configureService(id, "port", port)}
+            onMeta={(id, name, description) => void configureService(id, "meta", undefined, name, description)}
+            onStartSelected={() => void configureService("", "boot")}
+          />
       )}
       </AnimatePresence>
       <AnimatePresence>

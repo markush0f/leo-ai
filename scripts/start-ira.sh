@@ -8,6 +8,18 @@ export IRA_UID="${IRA_UID:-$(id -u)}"
 export IRA_GID="${IRA_GID:-$(id -g)}"
 realtime_port="${IRA_REALTIME_PORT:-8765}"
 export IRA_REALTIME_MODE="${IRA_REALTIME_MODE:-ira}"
+ira_home="${HOME}/.ira"
+mkdir -p "$ira_home"
+token_file="$ira_home/http.token"
+if [[ -z "${IRA_HTTP_TOKEN:-}" ]]; then
+  if [[ ! -s "$token_file" ]]; then
+    umask 077
+    openssl rand -hex 32 >"$token_file"
+    chmod 600 "$token_file"
+  fi
+  IRA_HTTP_TOKEN="$(tr -d '[:space:]' <"$token_file")"
+  export IRA_HTTP_TOKEN
+fi
 
 for command in docker cargo npm curl; do
   if ! command -v "$command" >/dev/null 2>&1; then
@@ -21,9 +33,9 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-printf 'Arrancando Postgres, MCP Toolbox, Ira Realtime y Veritas Kanban...\n'
-docker compose --project-directory "$root" --profile kanban up -d --build \
-  postgres toolbox ira-realtime veritas-kanban veritas-mcp
+printf 'Arrancando Postgres, MCP Toolbox e Ira Realtime...\n'
+docker compose --project-directory "$root" up -d --build \
+  postgres toolbox ira-realtime
 
 deadline=$((SECONDS + 120))
 until docker compose --project-directory "$root" exec -T postgres \
@@ -46,37 +58,26 @@ until curl -fsS http://127.0.0.1:5000/healthz >/dev/null 2>&1; do
   sleep 1
 done
 
-deadline=$((SECONDS + 180))
-until curl -fsS http://127.0.0.1:3001/health >/dev/null 2>&1; do
-  if (( SECONDS >= deadline )); then
-    printf 'Veritas Kanban no respondió antes del timeout.\n' >&2
-    docker compose --project-directory "$root" --profile kanban ps
-    exit 1
-  fi
-  sleep 1
-done
+wait_healthy() {
+  local service="$1"
+  local label="$2"
+  local timeout="$3"
+  local deadline=$((SECONDS + timeout))
+  local cid status
+  until cid="$(docker compose --project-directory "$root" ps -q "$service")" \
+    && [[ -n "$cid" ]] \
+    && status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$cid")" \
+    && [[ "$status" == "healthy" ]]; do
+    if (( SECONDS >= deadline )); then
+      printf '%s no respondió antes del timeout.\n' "$label" >&2
+      docker compose --project-directory "$root" ps
+      exit 1
+    fi
+    sleep 1
+  done
+}
 
-deadline=$((SECONDS + 120))
-until curl -sS -o /dev/null -X POST http://127.0.0.1:3100/mcp \
-  -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' \
-  --data '{}'; do
-  if (( SECONDS >= deadline )); then
-    printf 'Veritas MCP no respondió antes del timeout.\n' >&2
-    docker compose --project-directory "$root" --profile kanban ps
-    exit 1
-  fi
-  sleep 1
-done
-
-deadline=$((SECONDS + 120))
-until curl -fsS "http://127.0.0.1:$realtime_port/healthz" >/dev/null 2>&1; do
-  if (( SECONDS >= deadline )); then
-    printf 'Ira Realtime no respondió antes del timeout.\n' >&2
-    docker compose --project-directory "$root" ps
-    exit 1
-  fi
-  sleep 1
-done
+wait_healthy ira-realtime "Ira Realtime" 120
 
 if [[ ! -d "$desktop/node_modules" ]]; then
   printf 'Instalando dependencias del frontend...\n'
@@ -84,7 +85,6 @@ if [[ ! -d "$desktop/node_modules" ]]; then
 fi
 
 export MCP_TOOLBOX_URL="${MCP_TOOLBOX_URL:-http://127.0.0.1:5000}"
-export VERITAS_MCP_URL="${VERITAS_MCP_URL:-http://127.0.0.1:3100}"
 api_port="${IRA_HTTP_PORT:-8787}"
 api_bind="${IRA_HTTP_BIND:-127.0.0.1:$api_port}"
 api_health="http://127.0.0.1:$api_port/api/health"

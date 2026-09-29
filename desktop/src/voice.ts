@@ -35,13 +35,14 @@ export type VoiceSession = {
 };
 
 function realtimeBase(): string {
-  return (import.meta.env.VITE_IRA_REALTIME ?? "http://127.0.0.1:8765").replace(/\/$/, "");
+  return (import.meta.env.VITE_IRA_REALTIME ?? "http://127.0.0.1:8790/realtime").replace(/\/$/, "");
 }
 
 export function realtimeSocketUrl(conversationId: string): string {
   const http = new URL(realtimeBase());
   const protocol = http.protocol === "https:" ? "wss:" : "ws:";
-  const url = new URL(`${protocol}//${http.host}/ws/audio`);
+  const prefix = http.pathname.replace(/\/$/, "");
+  const url = new URL(`${protocol}//${http.host}${prefix}/ws/audio`);
   url.searchParams.set("conversation_id", conversationId);
   return url.toString();
 }
@@ -83,7 +84,7 @@ async function requireIraMode(): Promise<void> {
   try {
     res = await fetch(`${realtimeBase()}/`);
   } catch {
-    throw new Error("no se pudo conectar a Ira Realtime en 127.0.0.1:8765");
+    throw new Error(`no se pudo conectar a Ira Realtime en ${realtimeBase()}`);
   }
   if (!res.ok) {
     throw new Error("Ira Realtime no responde");

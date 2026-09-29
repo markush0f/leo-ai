@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn prefixes_remote_tool_with_service_slug() {
-        assert_eq!(tool_name("veritas-mcp", "create_task"), "veritas_create_task");
-        assert_eq!(tool_name("veritas-mcp", "veritas_list"), "veritas_list");
+        assert_eq!(tool_name("projects-mcp", "create_task"), "projects_create_task");
+        assert_eq!(tool_name("projects-mcp", "projects_list"), "projects_list");
     }
 }

@@ -173,6 +173,7 @@ pub struct SettingsRow {
     pub stt_language: String,
     pub thinking: bool,
     pub tools_enabled: bool,
+    pub tools_mutate: bool,
     pub active_conversation_id: Option<Uuid>,
     pub telegram_token_set: bool,
     pub telegram_allow_users: Vec<i64>,
@@ -195,6 +196,7 @@ impl SettingsRow {
             stt_language: "es".into(),
             thinking: false,
             tools_enabled: true,
+            tools_mutate: false,
             active_conversation_id: None,
             telegram_token_set: false,
             telegram_allow_users: Vec::new(),
@@ -272,6 +274,7 @@ pub enum DbOp {
         effort: String,
     },
     SetToolsEnabled(bool),
+    SetToolsMutate(bool),
     SetTelegram {
         token: Option<String>,
         allow_users: Vec<i64>,
@@ -382,19 +385,31 @@ pub async fn connect(url: &str) -> Result<PgPool, sqlx::Error> {
 }
 
 pub async fn load(pool: &PgPool) -> Result<Snapshot, sqlx::Error> {
-    let providers =
-        sqlx::query("SELECT id, name, kind, base_url, api_key FROM providers ORDER BY name")
-            .fetch_all(pool)
-            .await?
-            .into_iter()
-            .map(|row| ProviderRow {
-                id: row.get("id"),
-                name: row.get("name"),
-                kind: row.get("kind"),
-                base_url: row.get("base_url"),
-                api_key: row.get("api_key"),
-            })
-            .collect();
+    let provider_rows =
+        sqlx::query(
+            "SELECT id, name, kind, base_url, api_key, api_key_ciphertext, api_key_nonce
+             FROM providers ORDER BY name",
+        )
+        .fetch_all(pool)
+        .await?;
+    let mut providers = Vec::with_capacity(provider_rows.len());
+    for row in provider_rows {
+        let id: Uuid = row.get("id");
+        let api_key = databases::open_provider_secret(
+            id,
+            row.get("api_key"),
+            row.get("api_key_ciphertext"),
+            row.get("api_key_nonce"),
+        )
+        .map_err(db_to_sqlx)?;
+        providers.push(ProviderRow {
+            id,
+            name: row.get("name"),
+            kind: row.get("kind"),
+            base_url: row.get("base_url"),
+            api_key,
+        });
+    }
 
     let models = sqlx::query("SELECT id, provider_id, name, effort FROM models ORDER BY name")
         .fetch_all(pool)
@@ -443,7 +458,7 @@ async fn load_settings(pool: &PgPool) -> Result<SettingsRow, sqlx::Error> {
         "SELECT active_model_id, system_prompt, voice_system_prompt,
                 stt_engine_id, tts_engine_id, wake_engine_id,
                 audio_source, audio_sink, vad_hangover_ms, barge_in, barge_in_rms,
-                stt_language, thinking, tools_enabled, active_conversation_id,
+                stt_language, thinking, tools_enabled, tools_mutate, active_conversation_id,
                 telegram_token, telegram_allow_users
          FROM settings WHERE id = 1",
     )
@@ -469,6 +484,7 @@ async fn load_settings(pool: &PgPool) -> Result<SettingsRow, sqlx::Error> {
         stt_language: row.get("stt_language"),
         thinking: row.get("thinking"),
         tools_enabled: row.get("tools_enabled"),
+        tools_mutate: row.get("tools_mutate"),
         active_conversation_id: row.get("active_conversation_id"),
         telegram_token_set: token.as_ref().is_some_and(|t| !t.trim().is_empty()),
         telegram_allow_users: row
@@ -520,12 +536,9 @@ pub async fn apply(pool: &PgPool, op: DbOp) -> Result<Snapshot, sqlx::Error> {
                 .await?;
         }
         DbOp::SetApiKey { id, api_key } => {
-            let value = empty_to_none(&api_key);
-            sqlx::query("UPDATE providers SET api_key = $2 WHERE id = $1")
-                .bind(id)
-                .bind(value)
-                .execute(pool)
-                .await?;
+            let _ = databases::write_provider_secret(pool, id, empty_to_none(&api_key))
+                .await
+                .map_err(db_to_sqlx)?;
         }
         DbOp::SetBaseUrl { id, base_url } => {
             let value = empty_to_none(&base_url);
@@ -643,6 +656,12 @@ pub async fn apply(pool: &PgPool, op: DbOp) -> Result<Snapshot, sqlx::Error> {
         }
         DbOp::SetToolsEnabled(value) => {
             sqlx::query("UPDATE settings SET tools_enabled = $1 WHERE id = 1")
+                .bind(value)
+                .execute(pool)
+                .await?;
+        }
+        DbOp::SetToolsMutate(value) => {
+            sqlx::query("UPDATE settings SET tools_mutate = $1 WHERE id = 1")
                 .bind(value)
                 .execute(pool)
                 .await?;
@@ -794,6 +813,13 @@ async fn set_active(pool: &PgPool, model_id: Option<Uuid>) -> Result<(), sqlx::E
 fn empty_to_none(s: &str) -> Option<&str> {
     let t = s.trim();
     if t.is_empty() { None } else { Some(t) }
+}
+
+fn db_to_sqlx(err: databases::DatabaseError) -> sqlx::Error {
+    match err {
+        databases::DatabaseError::Sql(err) => err,
+        other => sqlx::Error::Protocol(other.to_string()),
+    }
 }
 
 fn nonempty_owned(value: Option<String>) -> Option<String> {

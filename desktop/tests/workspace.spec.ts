@@ -6,7 +6,7 @@ const snapshot = {
   models: [{ id: "m1", provider_id: "p1", name: "qwen3:8b", effort: "low" }], engines: [],
   active_model_id: "m1", active_conversation_id: null, system: "Responde en español.",
   voice_system: "", stt_engine_id: null, tts_engine_id: null, wake_engine_id: null,
-  stt_language: "es", thinking: true, tools_enabled: true, tools: ["get_weather", "database_query"],
+  stt_language: "es", thinking: true, tools_enabled: true, tools_mutate: false, tools: ["get_weather", "database_query"],
 };
 
 async function mockWorkspace(page: Page, turns: { id: string; role: string; content: string }[] = []) {

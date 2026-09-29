@@ -3,19 +3,24 @@
 //! Browsers cannot call Ollama (CORS). This process does: it owns the catalog
 //! and provider HTTP, then returns the same DTOs as the Tauri bridge.
 
+mod token;
+
+pub use token::load_http_token;
+
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::body::Body;
 use axum::extract::{Path, State};
-use axum::http::{StatusCode, header};
+use axum::http::{HeaderValue, Method, StatusCode, header};
+use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use futures::stream;
 use ira_api::{App, ChatStreamEvent, DatabaseExportRequest, DatabaseInput, Op};
 use serde::{Deserialize, Serialize};
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
@@ -52,7 +57,8 @@ impl Drop for ChatStreamState {
     }
 }
 
-pub fn router(app: App, web_root: Option<PathBuf>) -> Router {
+pub fn router(app: App, web_root: Option<PathBuf>, token: impl Into<String>) -> Router {
+    let token = token.into();
     let api = Router::new()
         .route("/health", get(health))
         .route("/services", get(services).post(start_services))
@@ -74,11 +80,16 @@ pub fn router(app: App, web_root: Option<PathBuf>) -> Router {
         .route("/chats/{id}/messages/stream", post(chat_stream))
         .route("/chats/{id}/messages", post(chat));
 
+    let guard = token.clone();
     let mut router = Router::new()
         .nest("/api", api)
         .with_state(app)
+        .layer(middleware::from_fn(move |req, next| {
+            let token = guard.clone();
+            async move { authorize(token, req, next).await }
+        }))
         .layer(TraceLayer::new_for_http())
-        .layer(CorsLayer::very_permissive());
+        .layer(cors());
 
     if let Some(root) = web_root.filter(|p| p.join("index.html").is_file()) {
         let index = ServeFile::new(root.join("index.html"));
@@ -86,6 +97,83 @@ pub fn router(app: App, web_root: Option<PathBuf>) -> Router {
     }
 
     router
+}
+
+fn cors() -> CorsLayer {
+    CorsLayer::new()
+        .allow_origin(AllowOrigin::list([
+            HeaderValue::from_static("http://127.0.0.1:5179"),
+            HeaderValue::from_static("http://localhost:5179"),
+        ]))
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([
+            header::AUTHORIZATION,
+            header::CONTENT_TYPE,
+            header::ACCEPT,
+        ])
+}
+
+async fn authorize(token: String, req: axum::extract::Request, next: Next) -> Response {
+    let path = req.uri().path();
+    let api = path.starts_with("/api");
+    let health = req.method() == Method::GET && path == "/api/health";
+    if api && !health && !authorized(&req, &token) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorBody {
+                error: "no autorizado".into(),
+            }),
+        )
+            .into_response();
+    }
+    let mut response = next.run(req).await;
+    if !api
+        && let Ok(value) = HeaderValue::from_str(&format!(
+            "ira_token={token}; HttpOnly; SameSite=Strict; Path=/"
+        ))
+    {
+        response.headers_mut().insert(header::SET_COOKIE, value);
+    }
+    response
+}
+
+fn authorized(req: &axum::extract::Request, token: &str) -> bool {
+    if let Some(value) = req.headers().get(header::AUTHORIZATION)
+        && let Ok(value) = value.to_str()
+        && let Some(got) = value.strip_prefix("Bearer ")
+        && token_eq(got.trim(), token)
+    {
+        return true;
+    }
+    if let Some(value) = req.headers().get(header::COOKIE)
+        && let Ok(value) = value.to_str()
+    {
+        return value.split(';').any(|part| {
+            part.trim()
+                .strip_prefix("ira_token=")
+                .is_some_and(|got| token_eq(got.trim(), token))
+        });
+    }
+    false
+}
+
+fn token_eq(left: &str, right: &str) -> bool {
+    let left = left.as_bytes();
+    let right = right.as_bytes();
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (a, b) in left.iter().zip(right) {
+        diff |= a ^ b;
+    }
+    diff == 0
 }
 
 async fn health(State(app): State<App>) -> Json<Health> {
@@ -108,12 +196,21 @@ async fn set_service(
     Path(id): Path<String>,
     Json(body): Json<ServiceAction>,
 ) -> Response {
-    send(Ok(app.set_service(&id, &body.action).await))
+    send(Ok(
+        app.set_service(&id, &body.action, body.port, body.name.as_deref(), body.description.as_deref())
+            .await,
+    ))
 }
 
 #[derive(Deserialize)]
 struct ServiceAction {
     action: String,
+    #[serde(default)]
+    port: Option<u16>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
 }
 
 async fn snapshot(State(app): State<App>) -> Response {
@@ -288,8 +385,18 @@ mod tests {
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
+    const TOKEN: &str = "test-token";
+
     fn test_router() -> Router {
-        router(App::unavailable("sin postgres"), None)
+        router(App::unavailable("sin postgres"), None, TOKEN)
+    }
+
+    fn authed(mut req: Request<Body>) -> Request<Body> {
+        req.headers_mut().insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer test-token"),
+        );
+        req
     }
 
     async fn body_json(resp: axum::http::Response<Body>) -> serde_json::Value {
@@ -310,9 +417,34 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn snapshot_without_db_is_unavailable() {
+    async fn snapshot_without_token_is_unauthorized() {
         let resp = test_router()
             .oneshot(Request::get("/api/snapshot").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn cookie_authorizes_api() {
+        let resp = test_router()
+            .oneshot(
+                Request::get("/api/services")
+                    .header(header::COOKIE, "ira_token=test-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn snapshot_without_db_is_unavailable() {
+        let resp = test_router()
+            .oneshot(authed(
+                Request::get("/api/snapshot").body(Body::empty()).unwrap(),
+            ))
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
@@ -323,14 +455,14 @@ mod tests {
     #[tokio::test]
     async fn codex_login_uses_shared_app_surface() {
         let resp = test_router()
-            .oneshot(
+            .oneshot(authed(
                 Request::post("/api/codex/login")
                     .header(header::CONTENT_TYPE, "application/json")
                     .body(Body::from(
                         r#"{"provider_id":"00000000-0000-4000-8000-000000000003"}"#,
                     ))
                     .unwrap(),
-            )
+            ))
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
@@ -358,15 +490,39 @@ mod tests {
             .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
             .and_then(|v| v.to_str().ok());
         assert!(
-            allow == Some("*") || allow == Some("http://localhost:5179"),
+            allow == Some("http://localhost:5179"),
             "{allow:?}"
         );
     }
 
     #[tokio::test]
+    async fn cors_rejects_foreign_origin() {
+        let resp = test_router()
+            .oneshot(
+                Request::builder()
+                    .method("OPTIONS")
+                    .uri("/api/snapshot")
+                    .header(header::ORIGIN, "https://evil.example")
+                    .header(header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let allow = resp
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .and_then(|v| v.to_str().ok());
+        assert_ne!(allow, Some("https://evil.example"));
+        assert_ne!(allow, Some("*"));
+    }
+
+    #[tokio::test]
     async fn services_do_not_need_postgres() {
         let resp = test_router()
-            .oneshot(Request::get("/api/services").body(Body::empty()).unwrap())
+            .oneshot(authed(
+                Request::get("/api/services").body(Body::empty()).unwrap(),
+            ))
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -380,13 +536,13 @@ mod tests {
     async fn database_json_ignores_table_filters() {
         let id = Uuid::from_u128(1);
         let resp = test_router()
-            .oneshot(
+            .oneshot(authed(
                 Request::get(format!(
                     "/api/databases/{id}/json?table=messages&table=conversations"
                 ))
                 .body(Body::empty())
                 .unwrap(),
-            )
+            ))
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
@@ -398,11 +554,11 @@ mod tests {
     async fn database_schema_uses_shared_app_surface() {
         let id = Uuid::from_u128(1);
         let resp = test_router()
-            .oneshot(
+            .oneshot(authed(
                 Request::get(format!("/api/databases/{id}/schema"))
                     .body(Body::empty())
                     .unwrap(),
-            )
+            ))
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
@@ -414,12 +570,12 @@ mod tests {
     async fn empty_chat_is_rejected() {
         let id = Uuid::from_u128(1);
         let resp = test_router()
-            .oneshot(
+            .oneshot(authed(
                 Request::post(format!("/api/chats/{id}/messages"))
                     .header(header::CONTENT_TYPE, "application/json")
                     .body(Body::from(r#"{"text":"   "}"#))
                     .unwrap(),
-            )
+            ))
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
@@ -429,12 +585,12 @@ mod tests {
     async fn empty_streaming_chat_is_rejected_before_stream() {
         let id = Uuid::from_u128(1);
         let resp = test_router()
-            .oneshot(
+            .oneshot(authed(
                 Request::post(format!("/api/chats/{id}/messages/stream"))
                     .header(header::CONTENT_TYPE, "application/json")
                     .body(Body::from(r#"{"text":"   "}"#))
                     .unwrap(),
-            )
+            ))
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
@@ -448,12 +604,12 @@ mod tests {
     async fn streaming_chat_returns_ndjson_immediately() {
         let id = Uuid::from_u128(1);
         let resp = test_router()
-            .oneshot(
+            .oneshot(authed(
                 Request::post(format!("/api/chats/{id}/messages/stream"))
                     .header(header::CONTENT_TYPE, "application/json")
                     .body(Body::from(r#"{"text":"hola"}"#))
                     .unwrap(),
-            )
+            ))
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);

@@ -77,3 +77,20 @@ async def test_surfaces_server_error() -> None:
     with pytest.raises(IraHttpError, match="mensaje vacío"):
         await client.chat("   ")
     await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_sends_bearer_when_token_set() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["authorization"] == "Bearer secret"
+        return httpx.Response(200, json={"text": "ok"})
+
+    client = IraHttpClient(
+        "http://ira.test",
+        timeout=5,
+        conversation_id="abc",
+        token="secret",
+        http=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+    assert await client.chat("ping") == "ok"
+    await client.aclose()

@@ -110,6 +110,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let tools = ira_tools::Registry::from_env();
     let tools = ira_tools::attach_configured(tools, &ira_tools::file_servers()).await;
+    let readonly = tools.read_only();
     let tg = Telegram::new(&cfg.token)?;
     let me = tg.get_me().await?;
     tracing::info!(user = %me, "bot");
@@ -192,7 +193,12 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                         Outcome::AskLlm => {
-                            reply_llm(&tg, &pool, &snap, session, chat_id, &tools).await?;
+                            let active = if snap.settings.tools_mutate {
+                                &tools
+                            } else {
+                                &readonly
+                            };
+                            reply_llm(&tg, &pool, &snap, session, chat_id, active).await?;
                         }
                     }
                 }

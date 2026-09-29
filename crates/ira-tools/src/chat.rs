@@ -320,4 +320,14 @@ mod tests {
         assert!(names.contains(&"get_weather".into()));
         assert!(names.contains(&"list_processes".into()));
     }
+
+    #[test]
+    fn read_only_hides_shell_and_writes() {
+        let tools = Registry::from_env().read_only();
+        let names = tools.names();
+        assert!(names.contains(&"read_file".into()));
+        assert!(names.contains(&"get_weather".into()));
+        assert!(!names.contains(&"execute_command".into()));
+        assert!(!names.contains(&"write_file".into()));
+    }
 }

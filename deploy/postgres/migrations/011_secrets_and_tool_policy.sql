@@ -1,0 +1,8 @@
+ALTER TABLE settings
+    ADD COLUMN IF NOT EXISTS tools_mutate BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE providers
+    ADD COLUMN IF NOT EXISTS api_key_ciphertext BYTEA;
+
+ALTER TABLE providers
+    ADD COLUMN IF NOT EXISTS api_key_nonce BYTEA;

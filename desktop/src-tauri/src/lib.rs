@@ -113,8 +113,14 @@ async fn set_service(
     state: tauri::State<'_, AppState>,
     id: String,
     action: String,
+    port: Option<u16>,
+    name: Option<String>,
+    description: Option<String>,
 ) -> Result<ServicesDto, String> {
-    Ok(state.api.set_service(&id, &action).await)
+    Ok(state
+        .api
+        .set_service(&id, &action, port, name.as_deref(), description.as_deref())
+        .await)
 }
 
 #[tauri::command]
@@ -201,6 +207,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let api = tauri::async_runtime::block_on(App::boot());
+            let starter = api.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = starter.boot_services().await;
+            });
             app.manage(AppState { api });
             Ok(())
         })

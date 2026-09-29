@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS providers (
     kind TEXT NOT NULL,
     base_url TEXT,
     api_key TEXT,
+    api_key_ciphertext BYTEA,
+    api_key_nonce BYTEA,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -80,6 +82,7 @@ CREATE TABLE IF NOT EXISTS settings (
     stt_language TEXT NOT NULL DEFAULT 'es',
     thinking BOOLEAN NOT NULL DEFAULT FALSE,
     tools_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    tools_mutate BOOLEAN NOT NULL DEFAULT FALSE,
     active_conversation_id UUID REFERENCES conversations (id) ON DELETE SET NULL,
     telegram_token TEXT,
     telegram_allow_users BIGINT[] NOT NULL DEFAULT '{}'
@@ -141,9 +144,7 @@ INSERT INTO host_services (id, name, required, position) VALUES
     ('postgres', 'Postgres', TRUE, 0),
     ('toolbox', 'Toolbox', TRUE, 1),
     ('ira-realtime', 'Realtime', FALSE, 2),
-    ('colibri', 'Colibrì', FALSE, 3),
-    ('veritas-kanban', 'Veritas', FALSE, 4),
-    ('veritas-mcp', 'Veritas MCP', FALSE, 5)
+    ('colibri', 'Colibrì', FALSE, 3)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO providers (id, name, kind, base_url) VALUES
@@ -183,5 +184,5 @@ INSERT INTO settings (
 )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4)
+INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4), (11)
 ON CONFLICT (version) DO NOTHING;

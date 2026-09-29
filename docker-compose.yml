@@ -1,19 +1,21 @@
 include:
-  - path: services/veritas-kanban/docker-compose.yml
+  - path: services/projects-api/docker-compose.yml
 
 services:
   ira-realtime:
     build:
       context: ./services/ira-realtime
     image: ira-ai-realtime:0.1.0
-    network_mode: host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
-      IRA_REALTIME_HOST: 127.0.0.1
-      IRA_REALTIME_PORT: "${IRA_REALTIME_PORT:-8765}"
+      IRA_REALTIME_HOST: 0.0.0.0
+      IRA_REALTIME_PORT: "8765"
       IRA_REALTIME_MODE: ${IRA_REALTIME_MODE:-ira}
       IRA_REALTIME_SAMPLE_RATE: "16000"
       IRA_REALTIME_CHANNELS: "1"
-      IRA_REALTIME_IRA_URL: ${IRA_REALTIME_IRA_URL:-http://127.0.0.1:8787}
+      IRA_REALTIME_IRA_URL: ${IRA_REALTIME_IRA_URL:-http://host.docker.internal:8787}
+      IRA_HTTP_TOKEN: ${IRA_HTTP_TOKEN:-}
       IRA_REALTIME_CONVERSATION_ID: ${IRA_REALTIME_CONVERSATION_ID:-}
       IRA_REALTIME_IRA_TIMEOUT_SECS: ${IRA_REALTIME_IRA_TIMEOUT_SECS:-120}
       IRA_REALTIME_TTS: ${IRA_REALTIME_TTS:-pocket}
@@ -23,6 +25,29 @@ services:
       HF_HOME: /models/huggingface
     volumes:
       - ira-hf:/models/huggingface
+    restart: unless-stopped
+
+  ira-gateway:
+    image: caddy:2-alpine
+    labels:
+      ira.name: Services
+    ports:
+      - "127.0.0.1:${IRA_SERVICES_PORT:-8790}:8790"
+    volumes:
+      - ./services/gateway/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      projects-api:
+        condition: service_healthy
+      projects-mcp:
+        condition: service_healthy
+      ira-realtime:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8790/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
     restart: unless-stopped
 
   colibri:
@@ -56,7 +81,7 @@ services:
       POSTGRES_PASSWORD: ira
       POSTGRES_DB: ira
     ports:
-      - "127.0.0.1:5439:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5439}:5432"
     volumes:
       - ira-pg:/var/lib/postgresql/data
       - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
@@ -99,7 +124,7 @@ services:
       POSTGRES_USER: ira
       POSTGRES_PASSWORD: ira
     ports:
-      - "127.0.0.1:5000:5000"
+      - "127.0.0.1:${TOOLBOX_PORT:-5000}:5000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

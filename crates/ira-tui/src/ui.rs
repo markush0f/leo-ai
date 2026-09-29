@@ -219,6 +219,10 @@ fn row_line(row: &Row, selected: bool, width: usize) -> Line<'static> {
             field("tools", if *on { "sí" } else { "no" }),
             Style::new().fg(FG),
         ),
+        Row::ToolsMutate { on } => (
+            field("escritura", if *on { "sí" } else { "no" }),
+            Style::new().fg(FG),
+        ),
     };
     let style = if selected {
         style.add_modifier(Modifier::REVERSED)

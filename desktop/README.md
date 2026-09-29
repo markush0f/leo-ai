@@ -31,7 +31,8 @@ it) and `8787` for the API (`IRA_HTTP_PORT` / `IRA_HTTP_BIND`). It runs
 `fuser -k` against those ports before starting.
 
 Point another device at this machine with `IRA_HTTP_BIND=0.0.0.0:8787` after
-`npm run build` so `ira-server` also serves `desktop/dist`.
+`npm run build` so `ira-server` also serves `desktop/dist`. Requests still need
+the local token (`~/.ira/http.token` or `IRA_HTTP_TOKEN`).
 
 ## Code map
 

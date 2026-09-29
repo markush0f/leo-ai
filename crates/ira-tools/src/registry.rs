@@ -104,6 +104,27 @@ impl Registry {
     pub fn has(&self, name: &str) -> bool {
         self.tools.iter().any(|tool| tool.name() == name)
     }
+
+    /// Drops tools that write, delete, or run commands. MCP servers stay.
+    pub fn read_only(&self) -> Self {
+        let tools = self
+            .tools
+            .iter()
+            .filter(|tool| !crate::catalog::is_mutating(&tool.name()))
+            .cloned()
+            .collect();
+        let providers = self
+            .providers
+            .iter()
+            .filter(|(name, _)| !crate::catalog::is_mutating(name))
+            .map(|(name, provider)| (name.clone(), provider.clone()))
+            .collect();
+        Self {
+            ctx: self.ctx.clone(),
+            tools: Arc::new(tools),
+            providers: Arc::new(providers),
+        }
+    }
 }
 
 /// Incrementally constructs a [`Registry`] with one shared [`Context`].

@@ -46,6 +46,9 @@ pub enum Row {
     ToolsEnabled {
         on: bool,
     },
+    ToolsMutate {
+        on: bool,
+    },
 }
 
 impl Row {
@@ -134,6 +137,9 @@ impl SettingsState {
         }
         rows.push(Row::ToolsEnabled {
             on: snap.settings.tools_enabled,
+        });
+        rows.push(Row::ToolsMutate {
+            on: snap.settings.tools_mutate,
         });
         rows
     }
@@ -261,6 +267,7 @@ impl SettingsState {
                 effort: next_effort(effort).into(),
             }),
             Row::ToolsEnabled { on } => Some(DbOp::SetToolsEnabled(!on)),
+            Row::ToolsMutate { on } => Some(DbOp::SetToolsMutate(!on)),
             Row::NewProvider => {
                 self.edit = Some((EditTarget::NewProvider, LineEdit::default()));
                 None

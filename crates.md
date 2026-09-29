@@ -112,7 +112,6 @@ arguments, resolves paths, and registers these implementations.
 | `google` | Calendars and events | `GOOGLE_ACCESS_TOKEN` or `GOOGLE_API_KEY`. |
 | `home-assistant` | Entity states and service calls | Server URL and token. |
 | `db` | SQL and schema discovery through a local MCP Toolbox (`db_list_tools`, `db_invoke`, `db_execute_sql`, …) | Official container managed by Compose. `docker compose up -d postgres toolbox` and `MCP_TOOLBOX_URL=http://127.0.0.1:5000`. |
-| `kanban` | Veritas Kanban board via its MCP (`kanban_list_tasks`, `kanban_create_task`, `kanban_invoke`, …) | Compose file in `services/veritas-kanban`. `docker compose --profile kanban up -d --build veritas-kanban veritas-mcp` and `VERITAS_MCP_URL=http://127.0.0.1:3100`. |
 | `notion`, `spotify` | None | Placeholder crates, not registered. |
 
 ## Voice layer (deferred)

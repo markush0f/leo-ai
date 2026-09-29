@@ -58,17 +58,25 @@ async fn main() {
     if !addr.ip().is_loopback() {
         tracing::warn!(
             %addr,
-            "escuchando fuera de loopback: cualquiera en esa red puede chatear y usar tools"
+            "escuchando fuera de loopback; las peticiones siguen exigiendo el token local"
         );
     }
 
     let app = App::boot().await;
+    let starter = app.clone();
+    tokio::spawn(async move {
+        let _ = starter.boot_services().await;
+    });
     if app.db_ok().await {
         tracing::info!("postgres listo");
     } else {
         tracing::warn!("postgres no disponible; /api/snapshot fallará hasta que arranque");
     }
 
+    let token = ira_server::load_http_token().unwrap_or_else(|err| {
+        eprintln!("no se pudo preparar el token HTTP: {err}");
+        std::process::exit(1);
+    });
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .unwrap_or_else(|err| {
@@ -78,7 +86,7 @@ async fn main() {
     tracing::info!(%addr, web = ?web_root, "ira-server");
     axum::serve(
         listener,
-        ira_server::router(app, web_root).into_make_service_with_connect_info::<SocketAddr>(),
+        ira_server::router(app, web_root, token).into_make_service_with_connect_info::<SocketAddr>(),
     )
     .await
     .expect("server");

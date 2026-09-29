@@ -43,6 +43,7 @@ export type Snapshot = {
   stt_language: string;
   thinking: boolean;
   tools_enabled: boolean;
+  tools_mutate: boolean;
   tools: string[];
 };
 
@@ -52,11 +53,19 @@ export type Service = {
   running: boolean;
   healthy: boolean;
   detail: string;
+  autostart?: boolean;
+  host_port?: number | null;
+  container_port?: number | null;
+  via_gateway?: boolean;
+  kind?: "service" | "mcp" | string;
+  description?: string;
+  peer?: string | null;
 };
 
 export type Services = {
   ok: boolean;
   services: Service[];
+  gateway_port?: number;
   error?: string | null;
 };
 
@@ -140,4 +149,5 @@ export type Op =
   | { op: "set_stt_language"; text: string }
   | { op: "set_thinking"; value: boolean }
   | { op: "set_model_effort"; id: string; effort: string }
-  | { op: "set_tools_enabled"; value: boolean };
+  | { op: "set_tools_enabled"; value: boolean }
+  | { op: "set_tools_mutate"; value: boolean };

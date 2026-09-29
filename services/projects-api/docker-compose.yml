@@ -1,35 +1,43 @@
+# Projects API + MCP. Sin puerto de host: Ira entra por ira-gateway :8790/projects.
 services:
   projects-api:
     build: .
-    ports:
-      - "3200:3200"
+    labels:
+      ira.name: Projects
+      ira.description: Servicio local de proyectos y tareas. Los datos viven en este equipo.
+      ira.peer: projects-mcp
     volumes:
       - ./data:/app/data
     environment:
       - PORT=3200
       - DATABASE_PATH=./data/projects.db
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3200/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3200/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 6
       start_period: 5s
+    restart: unless-stopped
 
   projects-mcp:
     build:
       context: .
       dockerfile: Dockerfile.mcp
+    labels:
+      ira.name: Projects MCP
+      ira.description: MCP local de proyectos. Úsalo para listar, crear y editar proyectos y tareas de este equipo.
+      ira.peer: projects-api
+      ira.mcp: http://127.0.0.1:${IRA_SERVICES_PORT:-8790}/projects
     depends_on:
       projects-api:
         condition: service_healthy
     environment:
       - API_URL=http://projects-api:3200
       - PORT=3201
-    ports:
-      - "3201:3201"
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3201/mcp',{method:'POST',headers:{'content-type':'application/json','accept':'application/json, text/event-stream'},body:'{}'}).then(()=>process.exit(0)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3201/mcp',{method:'POST',headers:{'content-type':'application/json','accept':'application/json, text/event-stream'},body:'{}'}).then(()=>process.exit(0)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 6
       start_period: 10s
+    restart: unless-stopped
