@@ -9,8 +9,6 @@ use tokio::process::Command;
 use crate::error::{Error, clip};
 use crate::vars::{VarCtx, resolve_value, slug};
 
-const VERITAS: &str = include_str!("../../../resources/mcp-recipes/veritas-kanban.json");
-
 #[derive(Debug, Clone)]
 pub struct Recipe {
     pub name: String,
@@ -26,15 +24,6 @@ pub struct Recipe {
 
 pub fn find(name: &str) -> Option<Recipe> {
     let key = name.trim().to_ascii_lowercase();
-    let builtin = match key.as_str() {
-        "veritas-kanban" | "veritas" => Some(VERITAS),
-        _ => None,
-    };
-    if let Some(body) = builtin
-        && let Ok(recipe) = parse(body)
-    {
-        return Some(recipe);
-    }
     let path = recipes_dir().join(format!("{key}.json"));
     let body = std::fs::read_to_string(path).ok()?;
     parse(&body).ok()
@@ -198,15 +187,4 @@ fn string_map(value: Option<&Value>) -> HashMap<String, String> {
         .unwrap_or_default()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn parses_veritas_recipe() {
-        let recipe = find("veritas-kanban").unwrap();
-        assert_eq!(recipe.command, "node");
-        assert!(recipe.args[0].contains("${INSTALL_DIR}"));
-        assert!(!recipe.repository.is_empty());
-    }
-}

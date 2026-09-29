@@ -10,7 +10,5 @@ INSERT INTO host_services (id, name, required, position) VALUES
     ('postgres', 'Postgres', TRUE, 0),
     ('toolbox', 'Toolbox', TRUE, 1),
     ('ira-realtime', 'Realtime', FALSE, 2),
-    ('colibri', 'Colibrì', FALSE, 3),
-    ('veritas-kanban', 'Veritas', FALSE, 4),
-    ('veritas-mcp', 'Veritas MCP', FALSE, 5)
+    ('colibri', 'Colibrì', FALSE, 3)
 ON CONFLICT (id) DO NOTHING;

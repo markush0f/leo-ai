@@ -2636,6 +2636,7 @@ dependencies = [
  "futures",
  "http-body-util",
  "ira-api",
+ "ira-store",
  "serde",
  "serde_json",
  "tokio",
@@ -2705,7 +2706,6 @@ dependencies = [
  "ira-tools-github",
  "ira-tools-google",
  "ira-tools-home-assistant",
- "ira-tools-kanban",
  "ira-tools-shell",
  "ira-tools-system",
  "ira-tools-weather",
@@ -2784,18 +2784,6 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.20",
-]
-
-[[package]]
-name = "ira-tools-kanban"
-version = "0.1.0"
-dependencies = [
- "ira-llm",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "tokio",
 ]
 
 [[package]]
