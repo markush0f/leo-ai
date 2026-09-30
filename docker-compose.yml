@@ -19,6 +19,7 @@ services:
       IRA_WEB_ROOT: /app/desktop/dist
       DATABASE_URL: postgres://ira:ira@postgres:5432/ira?sslmode=disable
       IRA_DATABASE_URL: postgres://ira:ira@postgres:5432/ira?sslmode=disable
+      IRA_TOOLBOX_CONFIG_DIR: /home/ira/.ira/toolbox
       IRA_HTTP_TOKEN: ${IRA_HTTP_TOKEN:-}
       IRA_MASTER_KEY: ${IRA_MASTER_KEY:-}
       MCP_TOOLBOX_URL: http://toolbox:5000
@@ -140,8 +141,10 @@ services:
 
   toolbox:
     image: ${MCP_TOOLBOX_IMAGE:-us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:1.11.0}
-    user: "${IRA_UID:-1000}:${IRA_GID:-1000}"
+    user: "10001:10001"
     depends_on:
+      ira-data-permissions:
+        condition: service_completed_successfully
       postgres-migrate:
         condition: service_completed_successfully
     environment:
