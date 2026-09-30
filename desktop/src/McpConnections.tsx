@@ -20,7 +20,7 @@ function stringMap(raw: string): Record<string, string> {
   return value as Record<string, string>;
 }
 
-const control = "w-full rounded-[11px] border border-line bg-bg px-3 py-2 text-ink";
+const control = "min-h-11 w-full min-w-0 rounded-[11px] border border-line bg-bg px-3 py-2 text-ink";
 
 export function McpConnections() {
   const [servers, setServers] = useState<McpServer[]>([]);
@@ -52,7 +52,7 @@ export function McpConnections() {
   };
 
   return <section className="mt-5 border-t border-line pt-4" aria-label="MCP externos">
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h3 className="m-0 text-[1rem] font-semibold">MCP externos</h3><p className="m-0 text-sm text-muted">Servidores conectados a las conversaciones de Ira.</p></div>
       <button type="button" className={btn.secondary} disabled={busy !== null} onClick={() => { setDraft(empty()); setError(""); setResult(""); }}>Añadir MCP</button>
     </div>
@@ -100,7 +100,7 @@ export function McpConnections() {
       </>}
       <p className="m-0 text-xs text-muted">Usa ${"{SECRET:NOMBRE}"} para credenciales del entorno. Los valores guardados aparecen ocultos; déjalos vacíos para conservarlos.</p>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />Activo</label>
-      <div className="flex gap-2"><button type="submit" className={btn.primary} disabled={busy !== null}>Guardar</button><button type="button" className={btn.ghost} onClick={() => setDraft(null)}>Cancelar</button></div>
+       <div className="flex flex-wrap gap-2"><button type="submit" className={btn.primary} disabled={busy !== null}>Guardar</button><button type="button" className={btn.ghost} onClick={() => setDraft(null)}>Cancelar</button></div>
     </form>}
     {error && <p className="text-sm text-danger" role="alert">{error}</p>}
     {result && <p className="break-words text-sm text-muted" role="status">{result}</p>}

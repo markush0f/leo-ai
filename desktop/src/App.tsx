@@ -577,6 +577,7 @@ export default function App() {
   const thinking = effort !== "low";
   const provider = snap?.providers.find((p) => p.id === model?.provider_id);
   const chatting = bubbles.length > 0 || busy || listening;
+  const catalogOpen = catalog && snap !== null;
   const canSend = Boolean(snap) && Boolean(conversationId) && !busy && !listening && input.trim().length > 0;
   const canTalk = Boolean(snap) && Boolean(conversationId) && (listening || !busy);
 
@@ -593,7 +594,7 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion="user" transition={{ type: "spring", stiffness: 380, damping: 36 }}>
-    <div style={{ "--rail-width": `${sidebar.width}px` } as CSSProperties} className={cx("app flex h-full overflow-hidden bg-bg", rail && "rail-open", railCollapsed && "rail-collapsed", sidebar.dragging && "rail-resizing cursor-col-resize select-none", (catalog || databases || docs || servicesOpen || voiceOpen) && "sheet-open")}>
+    <div style={{ "--rail-width": `${sidebar.width}px` } as CSSProperties} className={cx("app flex h-full overflow-hidden bg-bg", rail && "rail-open", railCollapsed && "rail-collapsed", sidebar.dragging && "rail-resizing cursor-col-resize select-none", (catalogOpen || databases || docs || servicesOpen || voiceOpen) && "sheet-open")}>
       <AnimatePresence>
       {rail && (
         <motion.button
@@ -608,7 +609,7 @@ export default function App() {
       )}
       </AnimatePresence>
 
-      <aside ref={railRef} className={cx("rail relative z-[4] flex w-[var(--rail-width,272px)] shrink-0 flex-col gap-3 border-r border-line bg-sidebar px-[0.9rem] pt-[1.2rem] pb-4 transition-[width,padding] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!w-[76px] collapsed:!px-3 dragging:!transition-none mobile:fixed mobile:inset-y-0 mobile:left-0 mobile:z-[6] mobile:w-[min(310px,calc(100vw-48px))] mobile:-translate-x-[105%] mobile:transition-transform mobile:duration-200 mobile:ease-[ease]", isMobile && !rail && "invisible", isMobile && rail && "visible !translate-x-0")} aria-label="navegación" role={isMobile && rail ? "dialog" : undefined} aria-modal={isMobile && rail ? true : undefined} inert={catalog || databases || docs || servicesOpen || voiceOpen}>
+      <aside ref={railRef} className={cx("rail relative z-[4] flex w-[var(--rail-width,272px)] shrink-0 flex-col gap-3 border-r border-line bg-sidebar px-[0.9rem] pt-[1.2rem] pb-4 transition-[width,padding] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!w-[76px] collapsed:!px-3 dragging:!transition-none mobile:fixed mobile:inset-y-0 mobile:left-0 mobile:z-[6] mobile:w-[min(310px,calc(100vw-48px))] mobile:-translate-x-[105%] mobile:transition-transform mobile:duration-200 mobile:ease-[ease] mobile:pt-[max(1.2rem,env(safe-area-inset-top))] mobile:pb-[max(1rem,env(safe-area-inset-bottom))]", isMobile && !rail && "invisible", isMobile && rail && "visible !translate-x-0")} aria-label="navegación" role={isMobile && rail ? "dialog" : undefined} aria-modal={isMobile && rail ? true : undefined} inert={catalogOpen || databases || docs || servicesOpen || voiceOpen}>
         <div className="flex items-center justify-between gap-[0.3rem] px-1 pt-[0.15rem] pb-[0.35rem] desk:relative desk:h-[54px] desk:shrink-0 desk:p-0 desk:transition-[height] desk:duration-[420ms] desk:ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!h-[106px]">
           <p className="m-0 flex items-center gap-[0.65rem] text-[1.25rem] font-[650] tracking-[-0.03em] [&_img]:h-[3.2rem] [&_img]:w-[2.8rem] [&_img]:object-contain desk:absolute desk:top-1/2 desk:left-1 desk:-translate-y-1/2 desk:transition-[left,top,transform] desk:duration-[420ms] desk:ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!top-[26px] collapsed:!left-1/2 collapsed:!-translate-x-1/2 collapsed:!-translate-y-1/2">
              <img src="/ira-cabeza-recortada.png" alt="" />
@@ -635,29 +636,36 @@ export default function App() {
         <nav className="flex min-h-0 flex-1 flex-col gap-[0.15rem] overflow-auto pr-[0.1rem] transition-[flex-grow,opacity,visibility] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!grow-0 collapsed:!opacity-0 collapsed:!invisible collapsed:![transition:flex-grow_420ms_cubic-bezier(0.22,1,0.36,1),opacity_180ms_ease,visibility_0s_180ms]" aria-label="conversaciones">
           <div className="mt-[1.15rem] mb-[0.6rem] flex items-center justify-between px-[0.7rem] collapsed:!hidden">
             <p className="m-0 truncate text-[0.78rem] font-semibold text-muted">Conversaciones</p>
-            {chats.length > 0 && <button type="button" className="text-xs text-muted hover:text-ink" title="Eliminar todas las conversaciones" aria-label="Eliminar todas las conversaciones" onClick={() => void removeAllConversations()}>Eliminar todo</button>}
+             {chats.length > 0 && <button type="button" className="min-h-11 px-2 text-xs text-muted hover:text-ink" title="Eliminar todas las conversaciones" aria-label="Eliminar todas las conversaciones" onClick={() => void removeAllConversations()}>Eliminar todo</button>}
           </div>
           {chats.length === 0 && <p className="px-[0.7rem] text-[0.82rem] whitespace-normal text-muted collapsed:!hidden">Tu próxima idea empieza aquí.</p>}
           {chats.map((c) => (
-            <div key={c.id} className={cx("group relative flex min-h-[42px] w-full items-center rounded-[10px] hover:bg-elevated", c.id === conversationId && "bg-[color-mix(in_srgb,var(--color-accent)_12%,var(--color-sidebar))]")}>
-              <button type="button" className="flex min-w-0 flex-1 items-center gap-[0.65rem] overflow-hidden rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.45rem] text-left font-medium text-ink collapsed:!justify-center collapsed:!px-0" title={c.title?.trim() || "Nuevo chat"} aria-label={c.title?.trim() || "Nuevo chat"} aria-current={c.id === conversationId ? "page" : undefined} onClick={() => void open(c.id)}>
+             <div key={c.id} className={cx("group relative flex min-h-11 w-full items-center rounded-[10px] hover:bg-elevated", c.id === conversationId && "bg-[color-mix(in_srgb,var(--color-accent)_12%,var(--color-sidebar))]")}>
+               <button type="button" className="flex min-h-11 min-w-0 flex-1 items-center gap-[0.65rem] overflow-hidden rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.45rem] text-left font-medium text-ink collapsed:!justify-center collapsed:!px-0" title={c.title?.trim() || "Nuevo chat"} aria-label={c.title?.trim() || "Nuevo chat"} aria-current={c.id === conversationId ? "page" : undefined} onClick={() => void open(c.id)}>
                 <IconChat /><span className="min-w-0 truncate collapsed:!hidden">{c.title?.trim() || "Nuevo chat"}</span>
               </button>
               <div className="flex shrink-0 items-center pr-1 collapsed:!hidden">
-                <button type="button" className="rounded p-1 text-muted hover:text-ink" title="Editar nombre" aria-label={`Editar nombre: ${c.title || "Nuevo chat"}`} onClick={() => void renameConversation(c)}>✎</button>
-                <button type="button" className="rounded p-1 text-muted hover:text-red-500" title="Eliminar conversación" aria-label={`Eliminar: ${c.title || "Nuevo chat"}`} onClick={() => void removeConversation(c)}>×</button>
+                 <button type="button" className="flex size-11 items-center justify-center rounded text-muted hover:text-ink" title="Editar nombre" aria-label={`Editar nombre: ${c.title || "Nuevo chat"}`} onClick={() => void renameConversation(c)}>✎</button>
+                 <button type="button" className="flex size-11 items-center justify-center rounded text-muted hover:text-danger" title="Eliminar conversación" aria-label={`Eliminar: ${c.title || "Nuevo chat"}`} onClick={() => void removeConversation(c)}>×</button>
               </div>
             </div>
           ))}
         </nav>
 
-        <nav className="flex flex-col gap-1 border-t border-line pt-3">
+         <nav className="flex shrink-0 flex-col gap-1 overflow-y-auto border-t border-line pt-3 mobile:max-h-[min(45vh,19rem)]">
           <button
             type="button"
             className={cx("flex min-h-11 w-full items-center gap-[0.6rem] rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.55rem] text-left font-[550] text-ink hover:bg-elevated [&_svg]:size-[18px] collapsed:!justify-center collapsed:!px-0", catalog && "bg-elevated")}
             data-sheet-trigger={catalog ? "true" : undefined}
             title="Modelos y configuración" aria-label="Modelos y configuración"
-            onClick={() => { setCatalog(true); setDatabases(false); setServicesOpen(false); setDocs(false); setRail(false); }}
+            onClick={() => {
+              if (!snap) {
+                setBoot("No se pudo cargar la configuración. Comprueba la conexión e inténtalo de nuevo.");
+                setRail(false);
+                return;
+              }
+              setCatalog(true); setDatabases(false); setServicesOpen(false); setDocs(false); setRail(false);
+            }}
           >
             <IconSliders />
             <span className="min-w-0 truncate collapsed:!hidden">Modelos y configuración</span>
@@ -713,8 +721,8 @@ export default function App() {
         {!railCollapsed && <div className="absolute inset-y-0 -right-1 z-[5] w-[9px] cursor-col-resize touch-none after:absolute after:top-[42%] after:bottom-[42%] after:left-1 after:w-0.5 after:rounded-sm after:bg-transparent after:transition-colors after:duration-150 hover:after:bg-accent focus-visible:after:bg-accent dragging:after:bg-accent mobile:hidden" {...sidebar.resizeProps} />}
       </aside>
 
-      <div className="stage flex min-w-0 flex-1 flex-col bg-bg" inert={catalog || databases || docs || servicesOpen || voiceOpen || rail}>
-        <header className="flex min-h-[76px] items-center gap-2 border-b border-[color-mix(in_srgb,var(--color-line)_55%,transparent)] px-[1.8rem] py-4 mobile:min-h-16 mobile:px-4 mobile:py-3">
+      <div className="stage flex min-w-0 flex-1 flex-col bg-bg" inert={catalogOpen || databases || docs || servicesOpen || voiceOpen || rail}>
+         <header className="flex min-h-[76px] items-center gap-2 border-b border-[color-mix(in_srgb,var(--color-line)_55%,transparent)] px-[1.8rem] py-4 mobile:min-h-16 mobile:px-4 mobile:py-3 mobile:pt-[max(0.75rem,env(safe-area-inset-top))]">
           <button
             type="button"
             className={cx(btn.ghost, "!hidden mobile:!inline-flex")}
@@ -782,7 +790,7 @@ export default function App() {
             </div>
           )}
 
-          <motion.div className="relative mx-auto w-full max-w-[50rem] px-6 pb-4 welcome:max-w-[48rem] phone:px-4 phone:pb-[max(0.6rem,env(safe-area-inset-bottom))]" layout={reducedMotion ? false : "position"}>
+           <motion.div className="relative mx-auto w-full max-w-[50rem] px-6 pb-4 welcome:max-w-[48rem] phone:px-4 phone:pb-[max(0.6rem,env(safe-area-inset-bottom))]" layout={reducedMotion ? false : "position"}>
             {showLatest && chatting && <button type="button" className="absolute bottom-[calc(100%+12px)] left-1/2 flex -translate-x-1/2 items-center gap-[0.4rem] rounded-full border border-line bg-surface px-[0.9rem] py-[0.55rem] text-[0.8rem] whitespace-nowrap text-ink [&_svg]:size-4" onClick={() => {
               followReply.current = true;
               setShowLatest(false);
@@ -796,7 +804,7 @@ export default function App() {
 
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</div>
       <AnimatePresence>
-      {catalog && snap && (
+      {catalogOpen && snap && (
           <motion.button
             type="button"
             className={scrimSettings}
@@ -809,7 +817,7 @@ export default function App() {
       )}
       </AnimatePresence>
       <AnimatePresence>
-      {catalog && snap && (
+      {catalogOpen && snap && (
           <Catalog
             snap={snap}
             onOp={onOp}

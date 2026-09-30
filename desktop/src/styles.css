@@ -96,6 +96,11 @@
   #root {
     height: 100%;
   }
+  @supports (height: 100dvh) {
+    html, body, #root {
+      height: 100dvh;
+    }
+  }
   html,
   body {
     background: var(--color-bg);
@@ -146,6 +151,12 @@
   select optgroup {
     background: var(--color-surface);
     color: var(--color-ink);
+  }
+}
+
+@media (pointer: coarse) {
+  button, summary {
+    touch-action: manipulation;
   }
 }
 

@@ -103,10 +103,10 @@ export function ServicesSheet({ data, tab, onTab, busyId, onClose, onToggle, onB
         </button>
       </header>
       <div className="mt-[0.8rem] flex gap-[0.4rem]" role="tablist" aria-label="Tipo">
-        <button type="button" role="tab" aria-selected={tab === "service"} className={cx("min-h-8 rounded-full border border-line bg-transparent px-3 text-muted", tab === "service" && "bg-elevated text-ink")} onClick={() => onTab("service")}>Servicios</button>
-        <button type="button" role="tab" aria-selected={tab === "mcp"} className={cx("min-h-8 rounded-full border border-line bg-transparent px-3 text-muted", tab === "mcp" && "bg-elevated text-ink")} onClick={() => onTab("mcp")}>MCP</button>
+        <button type="button" role="tab" aria-selected={tab === "service"} className={cx("min-h-11 rounded-full border border-line bg-transparent px-3 text-muted", tab === "service" && "bg-elevated text-ink")} onClick={() => onTab("service")}>Servicios</button>
+        <button type="button" role="tab" aria-selected={tab === "mcp"} className={cx("min-h-11 rounded-full border border-line bg-transparent px-3 text-muted", tab === "mcp" && "bg-elevated text-ink")} onClick={() => onTab("mcp")}>MCP</button>
       </div>
-      {tab === "service" && <form className="mt-[0.4rem] flex items-center gap-2 [&_label]:text-[0.85rem] [&_label]:font-[550] [&_input]:h-8 [&_input]:w-[5.5rem] [&_input]:rounded-lg [&_input]:border [&_input]:border-line [&_input]:bg-elevated [&_input]:px-[0.45rem]" onSubmit={(event) => {
+      {tab === "service" && <form className="mt-[0.4rem] flex flex-wrap items-center gap-2 [&_label]:text-[0.85rem] [&_label]:font-[550] [&_input]:h-11 [&_input]:w-[5.5rem] [&_input]:rounded-lg [&_input]:border [&_input]:border-line [&_input]:bg-elevated [&_input]:px-[0.45rem]" onSubmit={(event) => {
         event.preventDefault();
         const port = Number(gateway);
         if (port >= 1 && port <= 65535) onPort("ira-gateway", port);
@@ -187,10 +187,10 @@ function ServiceRow({
     }
   };
   return (
-    <li className="flex flex-wrap items-center gap-[0.55rem] rounded-[10px] border border-line p-[0.7rem]">
+     <li className="flex min-w-0 flex-wrap items-center gap-[0.55rem] rounded-[10px] border border-line p-[0.7rem]">
       <span className={cx(dot, service.healthy && dotOn)} aria-hidden />
-      <div className="flex min-w-40 flex-1 flex-col gap-[0.15rem] [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:border-line [&_input]:bg-elevated [&_input]:px-2 [&_input]:py-[0.35rem] [&_textarea]:min-h-[2.6rem] [&_textarea]:w-full [&_textarea]:resize-y [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-line [&_textarea]:bg-elevated [&_textarea]:px-2 [&_textarea]:py-[0.35rem] [&_span]:text-xs [&_span]:text-muted">
-        <span className="flex items-center gap-[0.4rem] text-[0.7rem]"><span className="rounded-full border border-line px-[0.4rem] py-[0.05rem] text-[0.62rem] tracking-[0.04em] uppercase">Local</span>{service.id}</span>
+       <div className="flex min-w-40 flex-1 flex-col gap-[0.15rem] [&_input]:min-h-11 [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:border-line [&_input]:bg-elevated [&_input]:px-2 [&_input]:py-[0.35rem] [&_textarea]:min-h-[4rem] [&_textarea]:w-full [&_textarea]:resize-y [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-line [&_textarea]:bg-elevated [&_textarea]:px-2 [&_textarea]:py-[0.35rem] [&_span]:text-xs [&_span]:text-muted">
+         <span className="flex min-w-0 flex-wrap items-center gap-[0.4rem] break-all text-[0.7rem]"><span className="rounded-full border border-line px-[0.4rem] py-[0.05rem] text-[0.62rem] tracking-[0.04em] uppercase">Local</span>{service.id}</span>
         <label className="flex flex-col gap-[0.15rem]">
           <span className="text-[0.68rem] text-muted">Nombre</span>
           <input aria-label={`Nombre de ${service.id}`} placeholder="Nombre" value={name} disabled={busyId !== null} onChange={(event) => setName(event.target.value)} onBlur={save} />
@@ -199,7 +199,7 @@ function ServiceRow({
           <span className="text-[0.68rem] text-muted">Descripción</span>
           <textarea aria-label={`Descripción de ${service.id}`} placeholder="Descripción" rows={2} value={description} disabled={busyId !== null} onChange={(event) => setDescription(event.target.value)} onBlur={save} />
         </label>
-        <span>{service.detail}{peer ? ` · junto a ${peer}` : ""}</span>
+         <span className="break-words">{service.detail}{peer ? ` · junto a ${peer}` : ""}</span>
         <span>
           {service.via_gateway
             ? `interno :${service.container_port ?? "—"} · vía gateway`
@@ -208,12 +208,12 @@ function ServiceRow({
               : "sin puerto de host"}
         </span>
       </div>
-      <label className="flex items-center gap-[0.35rem] text-[0.8rem]">
+       <label className="flex min-h-11 items-center gap-[0.35rem] text-[0.8rem]">
         <input type="checkbox" checked={Boolean(service.autostart)} disabled={busyId !== null} onChange={(event) => onBoot(service.id, event.target.checked)} />
         Arranque
       </label>
       {!service.via_gateway && service.host_port ? (
-        <form className="flex items-center gap-2 [&_input]:h-8 [&_input]:w-[5.5rem] [&_input]:rounded-lg [&_input]:border [&_input]:border-line [&_input]:bg-elevated [&_input]:px-[0.45rem]" onSubmit={(event) => {
+         <form className="flex min-w-0 items-center gap-2 [&_input]:h-11 [&_input]:w-[5.5rem] [&_input]:rounded-lg [&_input]:border [&_input]:border-line [&_input]:bg-elevated [&_input]:px-[0.45rem]" onSubmit={(event) => {
           event.preventDefault();
           const next = Number(port);
           if (next >= 1 && next <= 65535) onPort(service.id, next);
@@ -222,7 +222,7 @@ function ServiceRow({
           <button type="submit" className={btn.ghost} disabled={busyId !== null}>Puerto</button>
         </form>
       ) : null}
-      <button type="button" className={cx(btn.ghost, "ml-auto min-h-7 bg-elevated px-2 text-xs")} disabled={busyId !== null} onClick={() => onToggle(service.id, service.running)}>
+       <button type="button" className={cx(btn.ghost, "ml-auto min-h-11 bg-elevated px-2 text-xs")} disabled={busyId !== null} onClick={() => onToggle(service.id, service.running)}>
         {label}
       </button>
     </li>

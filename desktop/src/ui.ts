@@ -2,7 +2,7 @@ export function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter((part): part is string => typeof part === "string" && part.length > 0).join(" ");
 }
 
-const press = "inline-flex items-center justify-center gap-[0.4rem] font-semibold leading-none transition-[background,color,border-color,opacity] duration-150 [&_svg]:size-4 in-catalog:min-h-11 in-catalog:leading-normal";
+const press = "inline-flex items-center justify-center gap-[0.4rem] font-semibold leading-none transition-[background,color,border-color,opacity] duration-150 [&_svg]:size-4 in-catalog:min-h-11 in-catalog:leading-normal max-[600px]:min-h-11";
 
 export const btn = {
   primary: `${press} rounded-[10px] border-0 bg-primary px-[0.85rem] py-2 text-[0.9rem] text-on-primary hover:brightness-[1.08]`,
@@ -10,9 +10,9 @@ export const btn = {
   danger: `${press} rounded-[10px] border border-danger bg-transparent px-[0.85rem] py-2 text-[0.9rem] text-danger hover:bg-danger hover:text-white`,
   ghost: `${press} rounded-[10px] border-0 bg-transparent px-[0.85rem] py-2 text-[0.9rem] text-muted hover:bg-elevated hover:text-ink`,
   sm: "!px-[0.6rem] !py-[0.32rem] !text-[0.8rem]",
-  icon: "inline-flex size-[42px] shrink-0 items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted hover:bg-elevated hover:text-ink [&_svg]:size-5 in-catalog:min-h-11",
-  send: "inline-flex size-10 shrink-0 items-center justify-center rounded-xl border-0 bg-primary p-0 text-on-primary transition-[background,color,opacity] duration-150 hover:brightness-[1.08] [&_svg]:size-5 [&_svg]:transition-transform [&_svg]:duration-[180ms] [&_svg]:ease-[cubic-bezier(0.16,1,0.3,1)] hover:[&_svg]:-translate-y-0.5",
-  mic: "inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-line bg-elevated p-0 text-ink transition-[background,color,border-color,opacity] duration-150 hover:border-muted [&_svg]:size-5",
+  icon: "inline-flex size-11 shrink-0 items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted hover:bg-elevated hover:text-ink [&_svg]:size-5",
+  send: "inline-flex size-10 shrink-0 items-center justify-center rounded-xl border-0 bg-primary p-0 text-on-primary transition-[background,color,opacity] duration-150 hover:brightness-[1.08] [&_svg]:size-5 [&_svg]:transition-transform [&_svg]:duration-[180ms] [&_svg]:ease-[cubic-bezier(0.16,1,0.3,1)] hover:[&_svg]:-translate-y-0.5 phone:size-11",
+  mic: "inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-line bg-elevated p-0 text-ink transition-[background,color,border-color,opacity] duration-150 hover:border-muted [&_svg]:size-5 phone:size-11",
   micOn: "border-listen bg-listen text-[#0c0c0d]",
 };
 
@@ -20,7 +20,7 @@ export const scrim = "fixed inset-0 z-[5] border-0 bg-black/45";
 export const scrimSettings = "fixed inset-0 z-[6] border-0 bg-black/45";
 export const scrimVoice = "fixed inset-0 z-[8] border-0 bg-black/45";
 
-export const sheet = "sheet catalog fixed inset-y-0 right-0 z-[7] w-[min(850px,100%)] overflow-auto border-l border-line bg-surface px-8 pt-[1.1rem] pb-8 shadow-[-18px_0_70px_rgba(9,4,18,0.22)] outline-none [scrollbar-width:thin] phone:px-4";
+export const sheet = "sheet catalog fixed inset-y-0 right-0 z-[7] w-[min(850px,100%)] overflow-auto border-l border-line bg-surface px-8 pt-[1.1rem] pb-8 shadow-[-18px_0_70px_rgba(9,4,18,0.22)] outline-none [scrollbar-width:thin] [overscroll-behavior:contain] mobile:pt-[max(1.1rem,env(safe-area-inset-top))] mobile:pb-[max(2rem,env(safe-area-inset-bottom))] phone:px-4";
 export const sheetHead = "sticky top-0 z-[1] mb-6 flex items-start justify-between gap-4 border-b border-line bg-surface py-6 phone:py-4 [&_h2]:m-0 [&_h2]:text-[1.6rem] [&_h2]:leading-[1.2] [&_h2]:font-[650] [&_h2]:tracking-[-0.03em] phone:[&_h2]:text-[1.4rem] [&_p]:mt-[0.4rem] [&_p]:text-[0.9rem] [&_p]:text-muted [&_button]:shrink-0";
 export const sheetErr = "text-[0.85rem] text-danger wrap-anywhere rounded-lg border border-danger px-4 py-3";
 
@@ -30,8 +30,8 @@ export const dotOn = "bg-listen";
 export const navItem = "flex min-h-11 w-full items-center gap-[0.6rem] rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.55rem] text-left font-[550] text-ink hover:bg-elevated [&_svg]:size-[18px] collapsed:!justify-center collapsed:!px-0";
 export const labelHide = "min-w-0 truncate collapsed:!hidden";
 
-export const sheetDocs = "sheet catalog docs-sheet fixed inset-y-0 right-0 z-[7] flex w-[min(850px,100%)] flex-col overflow-hidden border-l border-line bg-surface p-0 shadow-[-18px_0_70px_rgba(9,4,18,0.22)] outline-none";
-export const docsHead = "m-0 flex shrink-0 items-start justify-between gap-4 border-b border-line bg-surface px-8 py-[1.1rem] [&_h2]:m-0 [&_h2]:text-[1.6rem] [&_h2]:leading-[1.2] [&_h2]:font-[650] [&_h2]:tracking-[-0.03em] [&_p]:mt-[0.4rem] [&_p]:text-[0.9rem] [&_p]:text-muted";
+export const sheetDocs = "sheet catalog docs-sheet fixed inset-y-0 right-0 z-[7] flex w-[min(850px,100%)] flex-col overflow-hidden border-l border-line bg-surface p-0 shadow-[-18px_0_70px_rgba(9,4,18,0.22)] outline-none mobile:pt-[env(safe-area-inset-top)] mobile:pb-[env(safe-area-inset-bottom)]";
+export const docsHead = "m-0 flex shrink-0 items-start justify-between gap-4 border-b border-line bg-surface px-8 py-[1.1rem] phone:px-4 [&_h2]:m-0 [&_h2]:text-[1.6rem] phone:[&_h2]:text-[1.4rem] [&_h2]:leading-[1.2] [&_h2]:font-[650] [&_h2]:tracking-[-0.03em] [&_p]:mt-[0.4rem] [&_p]:text-[0.9rem] [&_p]:text-muted";
 export const docsFrame = "min-h-0 w-full flex-1 border-0 bg-bg [color-scheme:light_dark]";
 
 export const catalogCurrent = "flex items-center gap-3 rounded-xl bg-[color-mix(in_srgb,var(--color-brand)_12%,var(--color-bg))] p-4 phone:flex-wrap [&_strong]:block [&_strong]:font-semibold [&_strong]:wrap-anywhere";
@@ -73,11 +73,11 @@ export const bubbleLoad = "flex min-w-0 items-center gap-2 pl-0 leading-[1.7] te
 
 export const composer = "group relative flex flex-col gap-[0.85rem] rounded-2xl border border-line bg-surface p-4 pb-[0.8rem] transition-colors duration-[180ms] focus-within:border-accent after:pointer-events-none after:absolute after:-bottom-px after:left-[20%] after:right-[20%] after:h-0.5 after:origin-center after:scale-x-0 after:bg-accent after:transition-transform after:duration-[280ms] after:ease-[cubic-bezier(0.16,1,0.3,1)] focus-within:after:scale-x-100 phone:gap-2 phone:p-[0.8rem]";
 export const composerBox = "w-full resize-none border-0 bg-transparent px-1 py-[0.15rem] text-[1.06rem] outline-none placeholder:text-muted";
-export const composerBar = "flex items-center gap-[0.4rem] phone:gap-[0.15rem]";
-export const modelSelect = "max-w-[min(15rem,35%)] min-h-[34px] truncate rounded-lg border-0 bg-transparent p-[0.4rem] text-[0.82rem] font-semibold phone:!w-20 phone:!max-w-none phone:!min-w-0 phone:!flex-1 phone:!text-[0.78rem]";
-export const effortSelect = "max-w-[6.5rem] min-h-[34px] shrink-0 truncate rounded-lg border-0 bg-transparent p-[0.4rem] text-[0.82rem] font-semibold";
+export const composerBar = "flex min-w-0 items-center gap-[0.4rem] phone:flex-wrap phone:gap-1";
+export const modelSelect = "max-w-[min(15rem,35%)] min-h-[34px] truncate rounded-lg border-0 bg-transparent p-[0.4rem] text-[0.82rem] font-semibold phone:!min-h-11 phone:!max-w-none phone:!min-w-0 phone:!flex-1 phone:!text-[0.85rem]";
+export const effortSelect = "max-w-[6.5rem] min-h-[34px] shrink-0 truncate rounded-lg border-0 bg-transparent p-[0.4rem] text-[0.82rem] font-semibold phone:min-h-11";
 export const effortCatalog = "mr-[0.35rem] min-h-8 shrink-0 rounded-full border border-line bg-elevated px-[0.4rem] text-[0.82rem] font-semibold";
-export const chip = "inline-flex min-h-[34px] items-center justify-center gap-[0.35rem] rounded-lg border-0 px-[0.55rem] py-[0.4rem] text-[0.82rem] font-semibold text-muted hover:text-ink [&_svg]:size-[17px] phone:min-h-10 phone:px-[0.45rem] phone:py-[0.45rem] chip:[&_span]:hidden";
+export const chip = "inline-flex min-h-[34px] items-center justify-center gap-[0.35rem] rounded-lg border-0 px-[0.55rem] py-[0.4rem] text-[0.82rem] font-semibold text-muted hover:text-ink [&_svg]:size-[17px] phone:min-h-11 phone:px-[0.65rem] chip:[&_span]:hidden";
 export const chipOn = "bg-[color-mix(in_srgb,var(--color-accent)_12%,var(--color-surface))] text-accent";
 
 export const activity = "inline-flex h-5 w-[27px] shrink-0 items-center gap-[3px] text-accent in-primary:text-current";

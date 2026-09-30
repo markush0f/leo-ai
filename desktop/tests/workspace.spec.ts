@@ -3,7 +3,7 @@ import { parseDatabaseUrl } from "../src/database-url";
 
 const snapshot = {
   providers: [{ id: "p1", name: "Ollama", kind: "ollama", base_url: null, key: "none" }],
-  models: [{ id: "m1", provider_id: "p1", name: "qwen3:8b", effort: "low" }], engines: [],
+  models: [{ id: "m1", provider_id: "p1", name: "qwen3:8b", display_name: "qwen3:8b", effort: "low", effort_options: [], reasoning: false }], engines: [],
   active_model_id: "m1", active_conversation_id: null, system: "Responde en español.",
   voice_system: "", stt_engine_id: null, tts_engine_id: null, wake_engine_id: null,
   stt_language: "es", thinking: true, tools_enabled: true, tools_mutate: false, tools: ["get_weather", "database_query"],
@@ -150,7 +150,7 @@ test("stream completion respects reading position and renders every delta", asyn
   await page.goto("/");
   await page.getByRole("textbox", { name: "Mensaje para Ira" }).fill("Continúa");
   await page.getByRole("button", { name: "Enviar mensaje" }).click();
-  await expect(page.getByText("Razonando tu respuesta")).toBeVisible();
+  await expect(page.getByText("Preparando tu respuesta")).toBeVisible();
   await page.locator(".log").evaluate((el) => { el.scrollTop = 0; });
   await expect(page.getByRole("button", { name: "Ir al último mensaje" })).toBeVisible();
   release();
@@ -224,4 +224,26 @@ test("mobile drawer manages keyboard focus, close and desktop breakpoint", async
   await expect(page.locator(".app")).not.toHaveClass(/rail-open/);
   await expect(page.locator(".stage")).not.toHaveAttribute("inert");
   await expect(page.getByRole("button", { name: "Compactar barra lateral" })).toBeFocused();
+});
+
+test("phone and tablet keep composer, drawer and service controls usable without overflow", async ({ page }) => {
+  await mockWorkspace(page);
+  for (const width of [320, 390, 768]) {
+    await page.setViewportSize({ width, height: 640 });
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: "Permitir escritura" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Permitir escritura" })).toContainText("Escritura");
+    await expect(page.getByRole("button", { name: "Enviar mensaje" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Modelo activo" })).toBeVisible();
+    const bar = page.locator(".stage form").first();
+    expect(await bar.evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      return rect.left >= 0 && rect.right <= innerWidth && el.scrollWidth <= el.clientWidth + 1;
+    })).toBe(true);
+    await page.getByRole("button", { name: "mostrar barra lateral" }).click();
+    await expect(page.getByRole("button", { name: "Documentación" })).toBeVisible();
+    await page.getByRole("button", { name: "Servicios", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Arrancar selección" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
 });
