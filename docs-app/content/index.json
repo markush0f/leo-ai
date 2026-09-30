@@ -1,0 +1,221 @@
+{
+  "sections": [
+    {
+      "id": "start",
+      "title": {
+        "en": "Getting Started",
+        "es": "Primeros pasos"
+      },
+      "articles": [
+        {
+          "slug": "getting-started",
+          "title": {
+            "en": "Getting Started",
+            "es": "Primeros pasos"
+          },
+          "summary": {
+            "en": "Requirements, installation, and how to run every Ira surface.",
+            "es": "Requisitos, instalación y cómo arrancar cada superficie de Ira."
+          }
+        }
+      ]
+    },
+    {
+      "id": "architecture",
+      "title": {
+        "en": "Architecture",
+        "es": "Arquitectura"
+      },
+      "articles": [
+        {
+          "slug": "architecture",
+          "title": {
+            "en": "Architecture Overview",
+            "es": "Visión general de la arquitectura"
+          },
+          "summary": {
+            "en": "The two execution paths, crate map, and data flow.",
+            "es": "Los dos caminos de ejecución, mapa de crates y flujo de datos."
+          }
+        }
+      ]
+    },
+    {
+      "id": "chat",
+      "title": {
+        "en": "Chat Layer",
+        "es": "Capa de chat"
+      },
+      "articles": [
+        {
+          "slug": "store",
+          "title": {
+            "en": "ira-store: Catalog Persistence",
+            "es": "ira-store: persistencia del catálogo"
+          },
+          "summary": {
+            "en": "Snapshot, DbOp, conversations, secrets, and Ollama sync.",
+            "es": "Snapshot, DbOp, conversaciones, secretos y sincronización de Ollama."
+          }
+        },
+        {
+          "slug": "llm",
+          "title": {
+            "en": "ira-llm: Provider Transport",
+            "es": "ira-llm: transporte de proveedores"
+          },
+          "summary": {
+            "en": "Client, ChatRequest contract, and the protocol adapters.",
+            "es": "Client, contrato ChatRequest y los adaptadores de protocolo."
+          }
+        },
+        {
+          "slug": "tools",
+          "title": {
+            "en": "ira-tools: Tool Orchestration",
+            "es": "ira-tools: orquestación de herramientas"
+          },
+          "summary": {
+            "en": "Registry, the chat loop, error semantics, and execution context.",
+            "es": "Registry, el bucle de chat, semántica de errores y contexto de ejecución."
+          }
+        },
+        {
+          "slug": "integrations",
+          "title": {
+            "en": "Tool Integration Crates",
+            "es": "Crates de integración de herramientas"
+          },
+          "summary": {
+            "en": "files, shell, system, weather, github, google, home-assistant, appflowy, db.",
+            "es": "files, shell, system, weather, github, google, home-assistant, appflowy, db."
+          }
+        }
+      ]
+    },
+    {
+      "id": "voice",
+      "title": {
+        "en": "Voice Layer",
+        "es": "Capa de voz"
+      },
+      "articles": [
+        {
+          "slug": "voice",
+          "title": {
+            "en": "Voice: ira-core and Engines",
+            "es": "Voz: ira-core y motores"
+          },
+          "summary": {
+            "en": "Session state machine, audio, VAD, wake, STT, TTS.",
+            "es": "Máquina de estados de sesión, audio, VAD, wake, STT, TTS."
+          }
+        },
+        {
+          "slug": "ipc",
+          "title": {
+            "en": "ira-ipc: Daemon Control Protocol",
+            "es": "ira-ipc: protocolo de control del daemon"
+          },
+          "summary": {
+            "en": "Unix socket framing, requests, responses, and ira-ctl.",
+            "es": "Framing del socket Unix, peticiones, respuestas e ira-ctl."
+          }
+        }
+      ]
+    },
+    {
+      "id": "surfaces",
+      "title": {
+        "en": "Surfaces and Contracts",
+        "es": "Superficies y contratos"
+      },
+      "articles": [
+        {
+          "slug": "http-api",
+          "title": {
+            "en": "HTTP API Reference",
+            "es": "Referencia de la API HTTP"
+          },
+          "summary": {
+            "en": "Every ira-server endpoint, NDJSON streaming, and bearer auth.",
+            "es": "Cada endpoint de ira-server, streaming NDJSON y auth bearer."
+          }
+        },
+        {
+          "slug": "dto-contract",
+          "title": {
+            "en": "Shared DTO and Op Contract",
+            "es": "Contrato compartido de DTOs y Op"
+          },
+          "summary": {
+            "en": "How ira-api DTOs, DbOp, and desktop types.ts stay in sync.",
+            "es": "Cómo se sincronizan los DTOs de ira-api, DbOp y types.ts del escritorio."
+          }
+        },
+        {
+          "slug": "desktop-frontend",
+          "title": {
+            "en": "Desktop and Web Frontend",
+            "es": "Frontend de escritorio y web"
+          },
+          "summary": {
+            "en": "Tauri shell, sheets, api.ts transport split, theme, voice stage.",
+            "es": "Shell Tauri, sheets, split de transporte api.ts, tema, stage de voz."
+          }
+        }
+      ]
+    },
+    {
+      "id": "operations",
+      "title": {
+        "en": "Operations",
+        "es": "Operaciones"
+      },
+      "articles": [
+        {
+          "slug": "database",
+          "title": {
+            "en": "PostgreSQL Schema",
+            "es": "Esquema de PostgreSQL"
+          },
+          "summary": {
+            "en": "Tables, migrations, secrets encryption, and the toolbox bridge.",
+            "es": "Tablas, migraciones, cifrado de secretos y puente toolbox."
+          }
+        },
+        {
+          "slug": "deployment",
+          "title": {
+            "en": "Deployment and Services",
+            "es": "Despliegue y servicios"
+          },
+          "summary": {
+            "en": "docker-compose, launcher scripts, environment variables, ports.",
+            "es": "docker-compose, scripts de arranque, variables de entorno, puertos."
+          }
+        }
+      ]
+    },
+    {
+      "id": "extending",
+      "title": {
+        "en": "Extending",
+        "es": "Extender Ira"
+      },
+      "articles": [
+        {
+          "slug": "extending",
+          "title": {
+            "en": "Extending Ira",
+            "es": "Extender Ira"
+          },
+          "summary": {
+            "en": "New tools, providers, speech engines, and catalog operations.",
+            "es": "Nuevas herramientas, proveedores, motores de voz y operaciones de catálogo."
+          }
+        }
+      ]
+    }
+  ]
+}

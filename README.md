@@ -9,6 +9,8 @@ tool registry. Voice is in the workspace but not part of the product yet.
 - [Architecture and crate map](crates.md): responsibilities, data flow, and extension points.
 - [Environment template](.env.example): credentials and service configuration.
 - [Desktop design](DESIGN.md) and [product context](PRODUCT.md): interface conventions.
+- [Technical documentation app](#read-the-technical-documentation): full workspace
+  reference in a standalone bilingual reader.
 
 ## Requirements
 
@@ -113,6 +115,29 @@ cargo run -p ira-telegram
 The allowlist is required: an empty list allows nobody. Plain text reaches the
 model in private chats; groups accept commands only. `/help` lists commands.
 
+## Read the technical documentation
+
+`docs-app/` is a standalone Vite + React documentation reader (its own
+`package.json`, its own build). Articles are Markdown pairs under
+`docs-app/content/en/` and `docs-app/content/es/`, catalogued in
+`docs-app/content/index.json`; the app inlines them at build time and needs
+no backend. It carries its own language (EN/ES) and theme toggles.
+
+```sh
+cd docs-app
+npm install
+npm run dev      # standalone preview on http://127.0.0.1:5190
+npm run build    # emits desktop/public/docs/
+```
+
+The built bundle is served with the frontend: open **Documentación** from the
+desktop rail (sheet), or `/docs/` on any host that serves the built desktop
+(Vite dev, Tauri, or `ira-server` with its web root).
+
+To add an article: write `content/en/<slug>.md` and `content/es/<slug>.md`,
+then add one entry (slug, localized title and summary) to the matching
+section in `content/index.json`. No code changes required.
+
 ## Voice (later)
 
 `ira-daemon` and `ira-ctl` remain in the workspace. They are not wired into
@@ -126,11 +151,13 @@ cargo doc --workspace --no-deps
 cargo test -p ira-audio -p ira-vad -p ira-stt -p ira-core -p ira-llm -p ira-tools -p ira-tools-db -p ira-api -p ira-server
 ```
 
-Run `npm run build` from `desktop/` to type-check and bundle the frontend.
-Rustdoc output starts at `target/doc/`; each library documents its public entry
-points and operational contracts. Workspace-wide builds also require desktop
-native dependencies. Store integration tests may skip when PostgreSQL or Ollama
-is unavailable, so a passing run alone does not confirm those services work.
+Run `npm run build` from `desktop/` to type-check and bundle the frontend,
+and from `docs-app/` to rebuild the documentation reader (emits
+`desktop/public/docs/`). Rustdoc output starts at `target/doc/`; each library
+documents its public entry points and operational contracts. Workspace-wide
+builds also require desktop native dependencies. Store integration tests may
+skip when PostgreSQL or Ollama is unavailable, so a passing run alone does not
+confirm those services work.
 
 ## Documentation conventions
 

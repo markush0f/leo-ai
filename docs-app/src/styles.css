@@ -1,0 +1,55 @@
+@import "tailwindcss";
+@source "./**/*.{ts,tsx}";
+
+@theme {
+  --font-sans: "Source Sans 3 Variable", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+  --color-bg: #0d0f13;
+  --color-raised: #14171d;
+  --color-inset: #101318;
+  --color-line: #262b34;
+  --color-ink: #e8eaee;
+  --color-dim: #9aa2af;
+  --color-accent: #c65cff;
+  --color-accent-soft: rgba(198, 92, 255, 0.14);
+  --color-danger: #ff6a5e;
+  --color-code: #0a0c10;
+}
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #f7f6f3;
+  --color-raised: #ffffff;
+  --color-inset: #efece6;
+  --color-line: #ddd7cd;
+  --color-ink: #1c1e22;
+  --color-dim: #5f6672;
+  --color-accent: #8a2be2;
+  --color-accent-soft: rgba(138, 43, 226, 0.1);
+  --color-danger: #c0342b;
+  --color-code: #14171d;
+}
+
+@custom-variant narrow (@media (max-width: 900px));
+@custom-variant menu-open (&:is(.menu-open *));
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+  }
+  button {
+    cursor: pointer;
+  }
+}
