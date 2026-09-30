@@ -19,7 +19,14 @@ export type Model = {
   id: string;
   provider_id: string;
   name: string;
+  display_name: string;
   effort: string;
+  effort_options: string[];
+  reasoning: boolean;
+  context_window: number | null;
+  output_limit: number | null;
+  release_date: string | null;
+  last_updated: string | null;
 };
 
 export type Engine = {
@@ -36,6 +43,8 @@ export type Snapshot = {
   active_model_id: string | null;
   active_conversation_id: string | null;
   system: string;
+  web_search_enabled: boolean;
+  web_search_context_size: string;
   voice_system: string;
   stt_engine_id: string | null;
   tts_engine_id: string | null;
@@ -67,6 +76,24 @@ export type Services = {
   services: Service[];
   gateway_port?: number;
   error?: string | null;
+};
+
+export type McpServer = {
+  id: string;
+  name: string;
+  transport: "stdio" | "streamable_http" | "remote_bridge";
+  url: string | null;
+  command: string | null;
+  args: string[];
+  env: Record<string, string>;
+  headers: Record<string, string>;
+  enabled: boolean;
+  editable: boolean;
+};
+
+export type McpInput = Omit<McpServer, "id" | "editable" | "url" | "command"> & {
+  url?: string;
+  command?: string;
 };
 
 export type DatabaseConnection = {
@@ -128,6 +155,7 @@ export type Bubble = {
   id: string;
   kind: "user" | "ira" | "error";
   text: string;
+  mcps?: string[];
 };
 
 /** Catalog mutation serialized with the `op` discriminator expected by Tauri. */

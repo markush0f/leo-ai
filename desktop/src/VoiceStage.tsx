@@ -2,6 +2,7 @@ import { useEffect, useRef, type MutableRefObject } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { IconClose } from "./icons";
 import { useSheetFocus } from "./components/useSheetFocus";
+import { btn, cx, scrimVoice, voiceCard, voiceHalo, voiceOrb } from "./ui";
 
 export type VoicePhase = "connect" | "listen" | "wait" | "speak" | "error";
 
@@ -40,9 +41,9 @@ export function VoiceStage({ phase, userText, iraText, error, levelRef, onHangup
 
   return (
     <>
-      <motion.button type="button" className="scrim voice" aria-label="colgar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onHangup} />
+      <motion.button type="button" className={scrimVoice} aria-label="colgar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onHangup} />
       <motion.section ref={sheetRef} tabIndex={-1}
-        className="voice-card"
+        className={voiceCard}
         role="dialog"
         aria-modal="true"
         aria-labelledby="voice-status"
@@ -51,22 +52,22 @@ export function VoiceStage({ phase, userText, iraText, error, levelRef, onHangup
         exit={{ y: 16, scale: 0.94, opacity: 0 }}
         transition={{ type: "spring", stiffness: 350, damping: 30 }}
       >
-        <button type="button" className="btn-ghost voice-close" aria-label="colgar" onClick={onHangup}>
+        <button type="button" className={cx(btn.ghost, "absolute top-[0.55rem] right-[0.55rem] size-8 !p-0")} aria-label="colgar" onClick={onHangup}>
           <IconClose />
         </button>
-        <div className="voice-halo" data-phase={phase}>
-          <div ref={orbRef} className="voice-orb" data-phase={phase}><img src="/ira-cabeza-recortada.png" alt="" /></div>
+        <div className={voiceHalo} data-phase={phase}>
+          <div ref={orbRef} className={voiceOrb} data-phase={phase}><img src="/ira-cabeza-recortada.png" alt="" /></div>
         </div>
-        <p id="voice-status" className="voice-status" aria-live="polite">
+        <p id="voice-status" className="mb-[0.45rem] text-[1.05rem] font-[650] tracking-[-0.03em]" aria-live="polite">
           {error ?? STATUS[phase]}
         </p>
-        {userText ? <p className="voice-you">{userText}</p> : null}
+        {userText ? <p className="mx-auto mb-[0.35rem] max-w-[36ch] text-[0.92rem] leading-[1.45] text-muted">{userText}</p> : null}
         {iraText ? (
-          <p className="voice-ira" aria-live="polite">
+          <p className="mx-auto mb-[0.35rem] max-w-[36ch] text-[0.92rem] leading-[1.45] font-[450] text-ink" aria-live="polite">
             {iraText}
           </p>
         ) : null}
-        <button type="button" className="btn-danger voice-hangup" autoFocus onClick={onHangup}>
+        <button type="button" className={cx(btn.danger, "mt-[0.95rem] w-full")} autoFocus onClick={onHangup}>
           Colgar
         </button>
       </motion.section>

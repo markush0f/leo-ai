@@ -68,6 +68,15 @@ async fn apply(state: tauri::State<'_, AppState>, op: Op) -> Result<SnapshotDto,
 }
 
 #[tauri::command]
+async fn update_web_search(
+    state: tauri::State<'_, AppState>,
+    enabled: bool,
+    context_size: String,
+) -> Result<ira_api::AssistantPreferences, String> {
+    state.api.update_web_search(enabled, &context_size)
+}
+
+#[tauri::command]
 async fn begin_codex_login(
     state: tauri::State<'_, AppState>,
     provider_id: Uuid,
@@ -201,6 +210,35 @@ async fn test_database(
     serde_json::to_value(tested).map_err(|err| err.to_string())
 }
 
+#[tauri::command]
+async fn list_mcp(state: tauri::State<'_, AppState>) -> Result<Vec<ira_api::McpView>, String> {
+    state.api.list_mcp().await
+}
+
+#[tauri::command]
+async fn save_mcp(
+    state: tauri::State<'_, AppState>,
+    input: ira_api::McpInput,
+) -> Result<ira_api::McpView, String> {
+    state.api.save_mcp(input).await
+}
+
+#[tauri::command]
+async fn delete_mcp(
+    state: tauri::State<'_, AppState>,
+    id: String,
+) -> Result<ira_api::DeleteDto, String> {
+    state.api.delete_mcp(&id).await
+}
+
+#[tauri::command]
+async fn test_mcp(
+    state: tauri::State<'_, AppState>,
+    id: String,
+) -> Result<ira_api::McpTest, String> {
+    state.api.test_mcp(&id).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -217,6 +255,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             snapshot,
             apply,
+            update_web_search,
             begin_codex_login,
             finish_codex_login,
             list_chats,
@@ -232,6 +271,10 @@ pub fn run() {
             update_database,
             delete_database,
             test_database,
+            list_mcp,
+            save_mcp,
+            delete_mcp,
+            test_mcp,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

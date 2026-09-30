@@ -109,6 +109,35 @@ test("sheet traps focus and exposes shared input controls", async ({ page }) => 
   await expect(page.getByRole("button", { name: "Modelo en uso: qwen3:8b" })).toBeVisible();
 });
 
+test("external MCP can be registered, checked and disabled from the MCP sheet", async ({ page }) => {
+  await mockWorkspace(page);
+  let server: Record<string, unknown> | null = null;
+  await page.route("**/api/mcp**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/test")) return route.fulfill({ json: { tools: ["list_tasks"] } });
+    if (route.request().method() === "POST") {
+      server = { ...route.request().postDataJSON(), id: "tasks", editable: true };
+      return route.fulfill({ json: server });
+    }
+    return route.fulfill({ json: server ? [server] : [] });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "MCP", exact: true }).click();
+  await page.getByRole("button", { name: "Añadir MCP" }).click();
+  await page.getByRole("dialog", { name: "MCP" }).getByRole("textbox", { name: "Nombre" }).fill("tasks");
+  await page.getByRole("textbox", { name: "URL completa" }).fill("https://example.com/custom/mcp");
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  await expect(page.getByText("MCP guardado.", { exact: false })).toBeVisible();
+  expect(server).toMatchObject({ url: "https://example.com/custom/mcp", transport: "streamable_http" });
+  await page.getByRole("button", { name: "Comprobar" }).click();
+  await expect(page.getByRole("region", { name: "MCP externos" }).getByRole("status")).toContainText("list_tasks");
+  await page.screenshot({ path: "../.impeccable/review/mcp-desktop.png", animations: "disabled" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "../.impeccable/review/mcp-mobile.png", animations: "disabled" });
+  await page.getByRole("button", { name: "Desactivar" }).click();
+  await expect(page.getByText("Inactivo", { exact: false })).toBeVisible();
+});
+
 test("stream completion respects reading position and renders every delta", async ({ page }) => {
   const turns = Array.from({ length: 18 }, (_, index) => ({ id: `t${index}`, role: index % 2 ? "assistant" : "user", content: `Mensaje ${index}. ` + "Texto de prueba para una conversación larga. ".repeat(10) }));
   await mockWorkspace(page, turns);

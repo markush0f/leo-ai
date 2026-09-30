@@ -13,6 +13,7 @@ import {
   loadServices,
   setService,
   startServices,
+  updateWebSearch,
   loadSnapshot,
   newChat,
   openChat,
@@ -21,12 +22,14 @@ import {
 } from "./api";
 import { Catalog } from "./Catalog";
 import { Databases } from "./Databases";
+import { DocsSheet } from "./Docs";
 import { Message } from "./components/Message";
 import { Composer } from "./components/Composer";
 import { Activity } from "./components/Activity";
 import { useSidebar } from "./components/useSidebar";
 import { useSheetFocus } from "./components/useSheetFocus";
 import { ServicesSheet } from "./Services";
+import { btn, cx, scrim, scrimSettings } from "./ui";
 import {
   IconSidebar,
   IconChat,
@@ -38,6 +41,8 @@ import {
   IconPower,
   IconSliders,
   IconSun,
+  IconTools,
+  IconBook,
 } from "./icons";
 import { VoiceStage, type VoicePhase } from "./VoiceStage";
 import { startVoice, type VoiceSession } from "./voice";
@@ -84,7 +89,9 @@ export default function App() {
   const [receiving, setReceiving] = useState(false);
   const [catalog, setCatalog] = useState(false);
   const [databases, setDatabases] = useState(false);
+  const [docs, setDocs] = useState(false);
   const [servicesOpen, setServicesOpen] = useState(false);
+  const [servicesTab, setServicesTab] = useState<"service" | "mcp">("service");
   const [rail, setRail] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 860px)").matches);
   const railRef = useSheetFocus(rail && isMobile, '[data-mobile-menu="true"]');
@@ -220,6 +227,7 @@ export default function App() {
       if (e.key === "Escape") {
         setCatalog(false);
         setDatabases(false);
+        setDocs(false);
         setRail(false);
         stopVoice();
       }
@@ -230,6 +238,15 @@ export default function App() {
 
   const onOp = async (op: Op) => {
     setSnap(await applyOp(op));
+  };
+
+  const onWebSearchChange = async (enabled: boolean, contextSize: string) => {
+    const preferences = await updateWebSearch(enabled, contextSize);
+    setSnap((current) => current && ({
+      ...current,
+      web_search_enabled: preferences.web_search_enabled,
+      web_search_context_size: preferences.web_search_context_size,
+    }));
   };
 
   const onCodexLogin = async (
@@ -287,6 +304,15 @@ export default function App() {
           replyVisible = false;
           setReceiving(false);
           setBubbles((current) => current.filter((bubble) => bubble.id !== replyId));
+        } else if (event.type === "mcp_used") {
+          setBubbles((current) => {
+            const bubble = current.find((item) => item.id === replyId);
+            const names = new Set(bubble?.mcps ?? []);
+            names.add(event.tool_name);
+            return bubble
+              ? current.map((item) => item.id === replyId ? { ...item, mcps: [...names] } : item)
+              : [...current, { id: replyId, kind: "ira", text: "", mcps: [...names] }];
+          });
         }
       });
       if (frame !== null) cancelAnimationFrame(frame);
@@ -539,12 +565,12 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion="user" transition={{ type: "spring", stiffness: 380, damping: 36 }}>
-    <div style={{ "--rail-width": `${sidebar.width}px` } as CSSProperties} className={`app${rail ? " rail-open" : ""}${railCollapsed ? " rail-collapsed" : ""}${sidebar.dragging ? " rail-resizing" : ""}${catalog || databases || servicesOpen || voiceOpen ? " sheet-open" : ""}`}>
+    <div style={{ "--rail-width": `${sidebar.width}px` } as CSSProperties} className={cx("app flex h-full overflow-hidden bg-bg", rail && "rail-open", railCollapsed && "rail-collapsed", sidebar.dragging && "rail-resizing cursor-col-resize select-none", (catalog || databases || docs || servicesOpen || voiceOpen) && "sheet-open")}>
       <AnimatePresence>
       {rail && (
         <motion.button
           type="button"
-          className="scrim"
+          className={cx(scrim, "mobile:block")}
           aria-label="cerrar menú"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -554,15 +580,15 @@ export default function App() {
       )}
       </AnimatePresence>
 
-      <aside ref={railRef} className="rail" aria-label="navegación" role={isMobile && rail ? "dialog" : undefined} aria-modal={isMobile && rail ? true : undefined} inert={catalog || databases || servicesOpen || voiceOpen}>
-        <div className="rail-top">
-          <p className="brand">
+      <aside ref={railRef} className={cx("rail relative z-[4] flex w-[var(--rail-width,272px)] shrink-0 flex-col gap-3 border-r border-line bg-sidebar px-[0.9rem] pt-[1.2rem] pb-4 transition-[width,padding] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!w-[76px] collapsed:!px-3 dragging:!transition-none mobile:fixed mobile:inset-y-0 mobile:left-0 mobile:z-[6] mobile:w-[min(310px,calc(100vw-48px))] mobile:-translate-x-[105%] mobile:transition-transform mobile:duration-200 mobile:ease-[ease]", isMobile && !rail && "invisible", isMobile && rail && "visible !translate-x-0")} aria-label="navegación" role={isMobile && rail ? "dialog" : undefined} aria-modal={isMobile && rail ? true : undefined} inert={catalog || databases || docs || servicesOpen || voiceOpen}>
+        <div className="flex items-center justify-between gap-[0.3rem] px-1 pt-[0.15rem] pb-[0.35rem] desk:relative desk:h-[54px] desk:shrink-0 desk:p-0 desk:transition-[height] desk:duration-[420ms] desk:ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!h-[106px]">
+          <p className="m-0 flex items-center gap-[0.65rem] text-[1.25rem] font-[650] tracking-[-0.03em] [&_img]:h-[3.2rem] [&_img]:w-[2.8rem] [&_img]:object-contain desk:absolute desk:top-1/2 desk:left-1 desk:-translate-y-1/2 desk:transition-[left,top,transform] desk:duration-[420ms] desk:ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!top-[26px] collapsed:!left-1/2 collapsed:!-translate-x-1/2 collapsed:!-translate-y-1/2">
              <img src="/ira-cabeza-recortada.png" alt="" />
-            <span className="rail-label">Ira<span className="brand-caption">Tu espacio de inteligencia</span></span>
+            <span className="min-w-0 truncate collapsed:!hidden">Ira<span className="mt-[0.15rem] block text-[0.68rem] font-[450] tracking-normal text-muted">Tu espacio de inteligencia</span></span>
           </p>
           <button
             type="button"
-            className="btn-ghost rail-close"
+            className={cx(btn.ghost, "shrink-0 !p-2 desk:absolute desk:top-1/2 desk:right-1 desk:-translate-y-1/2 desk:transition-[right,top,transform] desk:duration-[420ms] desk:ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!top-[79px] collapsed:!right-1/2 collapsed:!translate-x-1/2 collapsed:!-translate-y-1/2")}
             data-desktop-menu="true"
             aria-label={isMobile ? "Cerrar menú" : railCollapsed ? "Ampliar barra lateral" : "Compactar barra lateral"}
             aria-expanded={isMobile ? rail : !railCollapsed}
@@ -573,77 +599,97 @@ export default function App() {
           </button>
         </div>
 
-        <button type="button" className="btn-primary new-chat" title="Nueva conversación" aria-label="Nueva conversación" onClick={() => void clear()}>
+        <button type="button" className={cx(btn.primary, "mt-[0.65rem] min-h-11 w-full justify-start px-[0.85rem] collapsed:!justify-center collapsed:!px-0")} title="Nueva conversación" aria-label="Nueva conversación" onClick={() => void clear()}>
           <IconPlus />
-          <span className="rail-label">Nueva conversación</span>
+          <span className="min-w-0 truncate collapsed:!hidden">Nueva conversación</span>
         </button>
 
-        <nav className="rail-chats" aria-label="conversaciones">
-          <p className="rail-section-label rail-label">Conversaciones</p>
-          {chats.length === 0 && <p className="rail-empty rail-label">Tu próxima idea empieza aquí.</p>}
+        <nav className="flex min-h-0 flex-1 flex-col gap-[0.15rem] overflow-auto pr-[0.1rem] transition-[flex-grow,opacity,visibility] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!grow-0 collapsed:!opacity-0 collapsed:!invisible collapsed:![transition:flex-grow_420ms_cubic-bezier(0.22,1,0.36,1),opacity_180ms_ease,visibility_0s_180ms]" aria-label="conversaciones">
+          <p className="mt-[1.15rem] mb-[0.6rem] truncate px-[0.7rem] text-[0.78rem] font-semibold text-muted collapsed:!hidden">Conversaciones</p>
+          {chats.length === 0 && <p className="px-[0.7rem] text-[0.82rem] whitespace-normal text-muted collapsed:!hidden">Tu próxima idea empieza aquí.</p>}
           {chats.map((c) => (
             <button
               key={c.id}
               type="button"
-              className={`chat-item${c.id === conversationId ? " on" : ""}`}
+              className={cx("relative isolate flex min-h-[42px] w-full items-center gap-[0.65rem] overflow-hidden rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.45rem] text-left font-medium text-ellipsis whitespace-nowrap text-ink hover:bg-elevated [&_svg]:size-[18px] [&_svg]:text-muted collapsed:!justify-center collapsed:!px-0", c.id === conversationId && "!bg-transparent [&_svg]:text-accent")}
               title={c.title?.trim() || "Nuevo chat"}
               aria-label={c.title?.trim() || "Nuevo chat"}
               aria-current={c.id === conversationId ? "page" : undefined}
               onClick={() => void open(c.id)}
             >
-              {c.id === conversationId && <motion.span className="nav-selection" layoutId="chat-selection" transition={{ type: "spring", stiffness: 420, damping: 38 }} />}
-              <IconChat /><span className="rail-label">{c.title?.trim() || "Nuevo chat"}</span>
+              {c.id === conversationId && <motion.span className="pointer-events-none absolute inset-0 -z-[1] rounded-[10px] bg-[color-mix(in_srgb,var(--color-accent)_12%,var(--color-sidebar))]" layoutId="chat-selection" transition={{ type: "spring", stiffness: 420, damping: 38 }} />}
+              <IconChat /><span className="min-w-0 truncate collapsed:!hidden">{c.title?.trim() || "Nuevo chat"}</span>
             </button>
           ))}
         </nav>
 
-        <nav className="rail-nav">
+        <nav className="flex flex-col gap-1 border-t border-line pt-3">
           <button
             type="button"
-            className={`nav-item${catalog ? " on" : ""}`}
+            className={cx("flex min-h-11 w-full items-center gap-[0.6rem] rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.55rem] text-left font-[550] text-ink hover:bg-elevated [&_svg]:size-[18px] collapsed:!justify-center collapsed:!px-0", catalog && "bg-elevated")}
             data-sheet-trigger={catalog ? "true" : undefined}
             title="Modelos y configuración" aria-label="Modelos y configuración"
-            onClick={() => { setCatalog(true); setDatabases(false); setServicesOpen(false); setRail(false); }}
+            onClick={() => { setCatalog(true); setDatabases(false); setServicesOpen(false); setDocs(false); setRail(false); }}
           >
             <IconSliders />
-            <span className="rail-label">Modelos y configuración</span>
+            <span className="min-w-0 truncate collapsed:!hidden">Modelos y configuración</span>
           </button>
           <button
             type="button"
-            className={`nav-item${databases ? " on" : ""}`}
+            className={cx("flex min-h-11 w-full items-center gap-[0.6rem] rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.55rem] text-left font-[550] text-ink hover:bg-elevated [&_svg]:size-[18px] collapsed:!justify-center collapsed:!px-0", databases && "bg-elevated")}
             data-sheet-trigger={databases ? "true" : undefined}
             title="Bases de datos" aria-label="Bases de datos"
-            onClick={() => { setDatabases(true); setCatalog(false); setServicesOpen(false); setRail(false); }}
+            onClick={() => { setDatabases(true); setCatalog(false); setServicesOpen(false); setDocs(false); setRail(false); }}
           >
             <IconDatabase />
-            <span className="rail-label">Bases de datos</span>
+            <span className="min-w-0 truncate collapsed:!hidden">Bases de datos</span>
           </button>
           <button
             type="button"
-            className={`nav-item${servicesOpen ? " on" : ""}`}
-            data-sheet-trigger={servicesOpen ? "true" : undefined}
+            className={cx("flex min-h-11 w-full items-center gap-[0.6rem] rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.55rem] text-left font-[550] text-ink hover:bg-elevated [&_svg]:size-[18px] collapsed:!justify-center collapsed:!px-0", servicesOpen && servicesTab === "service" && "bg-elevated")}
+            data-sheet-trigger={servicesOpen && servicesTab === "service" ? "true" : undefined}
             title="Servicios" aria-label="Servicios"
-            onClick={() => { setServicesOpen(true); setCatalog(false); setDatabases(false); setRail(false); }}
+            onClick={() => { setServicesTab("service"); setServicesOpen(true); setCatalog(false); setDatabases(false); setDocs(false); setRail(false); }}
           >
             <IconPower />
-            <span className="rail-label">Servicios</span>
+            <span className="min-w-0 truncate collapsed:!hidden">Servicios</span>
+          </button>
+          <button
+            type="button"
+            className={cx("flex min-h-11 w-full items-center gap-[0.6rem] rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.55rem] text-left font-[550] text-ink hover:bg-elevated [&_svg]:size-[18px] collapsed:!justify-center collapsed:!px-0", servicesOpen && servicesTab === "mcp" && "bg-elevated")}
+            data-sheet-trigger={servicesOpen && servicesTab === "mcp" ? "true" : undefined}
+            title="MCP" aria-label="MCP"
+            onClick={() => { setServicesTab("mcp"); setServicesOpen(true); setCatalog(false); setDatabases(false); setDocs(false); setRail(false); }}
+          >
+            <IconTools />
+            <span className="min-w-0 truncate collapsed:!hidden">MCP</span>
+          </button>
+          <button
+            type="button"
+            className={cx("flex min-h-11 w-full items-center gap-[0.6rem] rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.55rem] text-left font-[550] text-ink hover:bg-elevated [&_svg]:size-[18px] collapsed:!justify-center collapsed:!px-0", docs && "bg-elevated")}
+            data-sheet-trigger={docs ? "true" : undefined}
+            title="Documentación" aria-label="Documentación"
+            onClick={() => { setDocs(true); setCatalog(false); setDatabases(false); setServicesOpen(false); setRail(false); }}
+          >
+            <IconBook />
+            <span className="min-w-0 truncate collapsed:!hidden">Documentación</span>
           </button>
         </nav>
 
-        <div className="rail-foot">
-          <button type="button" className="btn-ghost theme-btn" onClick={toggleTheme} title={theme === "dark" ? "Modo claro" : "Modo oscuro"} aria-label={theme === "dark" ? "Modo claro" : "Modo oscuro"}>
+        <div className="mt-auto flex flex-col gap-[0.4rem] collapsed:!mt-0">
+          <button type="button" className={cx(btn.ghost, "w-full justify-start gap-[0.55rem] collapsed:!justify-center collapsed:!px-0")} onClick={toggleTheme} title={theme === "dark" ? "Modo claro" : "Modo oscuro"} aria-label={theme === "dark" ? "Modo claro" : "Modo oscuro"}>
             {theme === "dark" ? <IconSun /> : <IconMoon />}
-            <span className="rail-label">{theme === "dark" ? "Modo claro" : "Modo oscuro"}</span>
+            <span className="min-w-0 truncate collapsed:!hidden">{theme === "dark" ? "Modo claro" : "Modo oscuro"}</span>
           </button>
         </div>
-        {!railCollapsed && <div className="rail-resize" {...sidebar.resizeProps} />}
+        {!railCollapsed && <div className="absolute inset-y-0 -right-1 z-[5] w-[9px] cursor-col-resize touch-none after:absolute after:top-[42%] after:bottom-[42%] after:left-1 after:w-0.5 after:rounded-sm after:bg-transparent after:transition-colors after:duration-150 hover:after:bg-accent focus-visible:after:bg-accent dragging:after:bg-accent mobile:hidden" {...sidebar.resizeProps} />}
       </aside>
 
-      <div className="stage" inert={catalog || databases || servicesOpen || voiceOpen || rail}>
-        <header className="topbar">
+      <div className="stage flex min-w-0 flex-1 flex-col bg-bg" inert={catalog || databases || docs || servicesOpen || voiceOpen || rail}>
+        <header className="flex min-h-[76px] items-center gap-2 border-b border-[color-mix(in_srgb,var(--color-line)_55%,transparent)] px-[1.8rem] py-4 mobile:min-h-16 mobile:px-4 mobile:py-3">
           <button
             type="button"
-            className="btn-ghost menu-btn"
+            className={cx(btn.ghost, "!hidden mobile:!inline-flex")}
             data-mobile-menu="true"
             aria-label="mostrar barra lateral"
             title="Mostrar barra lateral"
@@ -651,13 +697,13 @@ export default function App() {
           >
             <IconMenu />
           </button>
-          <p className="top-model">
+          <p className="m-0 mr-auto ml-1 text-[0.95rem] font-semibold phone:min-w-0 phone:truncate [&_span]:text-[0.83rem] [&_span]:font-medium [&_span]:text-muted phone:[&_span]:hidden">
             {model ? `${model.name}` : "Ira"}
             {provider ? <span> · {provider.name}</span> : null}
           </p>
           <button
             type="button"
-            className="btn-ghost theme-btn compact"
+            className={cx(btn.ghost, "w-auto !p-[0.4rem]")}
             onClick={toggleTheme}
             aria-label={theme === "dark" ? "modo claro" : "modo oscuro"}
           >
@@ -665,12 +711,12 @@ export default function App() {
           </button>
         </header>
 
-        <div className={chatting ? "main chatting" : "main welcome"}>
+        <div className={chatting ? "relative flex min-h-0 flex-1 flex-col" : "welcome relative flex min-h-0 flex-1 flex-col items-center justify-center gap-8 px-5 pt-4 pb-[6vh] mobile:px-2 mobile:pt-4 mobile:pb-8 phone:justify-[safe_center] phone:gap-6 phone:overflow-y-auto short:justify-[safe_center] short:gap-[1.1rem] short:overflow-y-auto short:pb-4"}>
           {!chatting ? (
-            <div className="hero">
-               <img className="hero-logo" src="/ira-cabeza-recortada.png" alt="" />
-              <h1>Una idea. Infinitas posibilidades.</h1>
-              <p>
+            <div className="w-[min(38rem,100%)] text-center">
+               <img className="hero-logo mx-auto mb-[1.6rem] block size-[132px] animate-logo object-contain phone:mb-4 phone:size-[108px] short:mb-[0.8rem] short:h-[70px] short:w-16" src="/ira-cabeza-recortada.png" alt="" />
+              <h1 className="mx-auto m-0 max-w-[16ch] text-[clamp(1.9rem,3.2vw,2.9rem)] leading-[1.12] font-[620] tracking-[-0.035em] text-balance mobile:text-[clamp(1.9rem,5vw,2.6rem)]">Una idea. Infinitas posibilidades.</h1>
+              <p className="mt-4 text-base text-muted phone:px-4 phone:text-[0.95rem]">
                 {boot
                   ? boot
                   : "Piensa, pregunta, conecta. Hagámoslo juntos."}
@@ -678,27 +724,27 @@ export default function App() {
 
             </div>
           ) : (
-            <div className="log" ref={listRef} aria-label="Conversación" onScroll={(event) => {
+            <div className="log min-h-0 flex-1 overflow-auto pt-8 pb-6 [overflow-anchor:none] [overscroll-behavior:contain]" ref={listRef} aria-label="Conversación" onScroll={(event) => {
               const el = event.currentTarget;
               followReply.current = el.scrollHeight - el.scrollTop - el.clientHeight < 96;
               setShowLatest(!followReply.current);
             }}>
-              {demo && <p className="demo-notice" role="status">Conversación de ejemplo · datos simulados</p>}
-              {boot && <p className="bubble error" role="alert">{boot}</p>}
+              {demo && <p className="mx-auto mb-6 max-w-[47rem] px-6 text-[0.8rem] text-muted" role="status">Conversación de ejemplo · datos simulados</p>}
+              {boot && <p className="mx-6 rounded-xl border border-[color-mix(in_srgb,var(--color-danger)_45%,var(--color-line))] bg-[color-mix(in_srgb,var(--color-danger)_5%,var(--color-surface))] p-4 text-danger" role="alert">{boot}</p>}
               <AnimatePresence initial={false}>
               {bubbles.map((b, index) => <Message key={b.id} bubble={b} streaming={busy && receiving && b.kind === "ira" && index === bubbles.length - 1} />)}
               </AnimatePresence>
               <AnimatePresence>
               {busy && !receiving && (
                 <motion.article
-                  className="turn ira"
+                  className="turn ira mx-auto mb-8 grid w-full max-w-[50rem] grid-cols-[34px_minmax(0,1fr)] items-start gap-x-3 px-6 phone:px-4"
                   aria-live="polite"
                   initial={reducedMotion ? false : { y: 8 }}
                   animate={{ y: 0 }}
                   exit={{ opacity: 0, transition: { duration: 0.08 } }}
                 >
-                   <span className="who"><img src="/ira-cabeza-recortada.png" alt="" /></span>
-                  <div className="bubble ira load">
+                   <span className="m-0 flex items-center [&_img]:size-[34px] [&_img]:object-contain"><img src="/ira-cabeza-recortada.png" alt="" /></span>
+                  <div className="flex min-w-0 items-center gap-2 pl-0 leading-[1.7] text-muted">
                     <Activity />
                     {thinking ? `Razonando · ${effort}` : "Preparando tu respuesta"}
                   </div>
@@ -708,14 +754,14 @@ export default function App() {
             </div>
           )}
 
-          <motion.div className="dock" layout={reducedMotion ? false : "position"}>
-            {showLatest && chatting && <button type="button" className="latest-button" onClick={() => {
+          <motion.div className="relative mx-auto w-full max-w-[50rem] px-6 pb-4 welcome:max-w-[48rem] phone:px-4 phone:pb-[max(0.6rem,env(safe-area-inset-bottom))]" layout={reducedMotion ? false : "position"}>
+            {showLatest && chatting && <button type="button" className="absolute bottom-[calc(100%+12px)] left-1/2 flex -translate-x-1/2 items-center gap-[0.4rem] rounded-full border border-line bg-surface px-[0.9rem] py-[0.55rem] text-[0.8rem] whitespace-nowrap text-ink [&_svg]:size-4" onClick={() => {
               followReply.current = true;
               setShowLatest(false);
               listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "instant" });
             }}><IconDown />Ir al último mensaje</button>}
             {composer}
-            <p className="composer-hint">{chatting ? "Ira puede equivocarse. Comprueba la información importante." : "Enter para enviar · Shift + Enter para una nueva línea"}</p>
+            <p className="mt-[0.65rem] text-center text-[0.73rem] text-muted phone:px-1 phone:text-[0.67rem]">{chatting ? "Ira puede equivocarse. Comprueba la información importante." : "Enter para enviar · Shift + Enter para una nueva línea"}</p>
           </motion.div>
         </div>
       </div>
@@ -725,7 +771,7 @@ export default function App() {
       {catalog && snap && (
           <motion.button
             type="button"
-            className="scrim settings"
+            className={scrimSettings}
             aria-label="cerrar catálogo"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -739,6 +785,7 @@ export default function App() {
           <Catalog
             snap={snap}
             onOp={onOp}
+            onWebSearchChange={onWebSearchChange}
             onCodexLogin={onCodexLogin}
             onClose={() => setCatalog(false)}
           />
@@ -746,7 +793,7 @@ export default function App() {
       </AnimatePresence>
       <AnimatePresence>
       {databases && (
-          <motion.button type="button" className="scrim settings" aria-label="cerrar bases de datos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDatabases(false)} />
+          <motion.button type="button" className={scrimSettings} aria-label="cerrar bases de datos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDatabases(false)} />
       )}
       </AnimatePresence>
       <AnimatePresence>
@@ -755,13 +802,25 @@ export default function App() {
       )}
       </AnimatePresence>
       <AnimatePresence>
+      {docs && (
+          <motion.button type="button" className={scrimSettings} aria-label="cerrar documentación" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDocs(false)} />
+      )}
+      </AnimatePresence>
+      <AnimatePresence>
+      {docs && (
+          <DocsSheet onClose={() => setDocs(false)} />
+      )}
+      </AnimatePresence>
+      <AnimatePresence>
       {servicesOpen && (
-          <motion.button type="button" className="scrim settings" aria-label="cerrar servicios" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setServicesOpen(false)} />
+          <motion.button type="button" className={scrimSettings} aria-label="cerrar servicios" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setServicesOpen(false)} />
       )}
       </AnimatePresence>
       <AnimatePresence>
       {servicesOpen && (
           <ServicesSheet
+            tab={servicesTab}
+            onTab={setServicesTab}
             data={services}
             busyId={svcBusy}
             onClose={() => setServicesOpen(false)}

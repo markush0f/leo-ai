@@ -11,6 +11,8 @@ import type {
   DatabaseConnection,
   DatabaseInput,
   DatabaseTest,
+  McpInput,
+  McpServer,
   Op,
   Services,
   Snapshot,
@@ -76,6 +78,25 @@ export async function applyOp(op: Op): Promise<Snapshot> {
   return http<Snapshot>("/api/apply", { method: "POST", body: JSON.stringify(op) });
 }
 
+export async function updateWebSearch(enabled: boolean, contextSize: string): Promise<{
+  web_search_enabled: boolean;
+  web_search_context_size: string;
+}> {
+  if (inTauri) {
+    return invoke<{ web_search_enabled: boolean; web_search_context_size: string }>(
+      "update_web_search",
+      { enabled, contextSize },
+    );
+  }
+  return http<{ web_search_enabled: boolean; web_search_context_size: string }>(
+    "/api/preferences/web-search",
+    {
+    method: "PUT",
+    body: JSON.stringify({ enabled, context_size: contextSize }),
+    },
+  );
+}
+
 export async function beginCodexLogin(providerId: string): Promise<CodexLogin> {
   if (inTauri) return invoke<CodexLogin>("begin_codex_login", { providerId });
   return http<CodexLogin>("/api/codex/login", {
@@ -117,6 +138,26 @@ export async function loadServices(): Promise<Services> {
   return http<Services>("/api/services");
 }
 
+export async function listMcp(): Promise<McpServer[]> {
+  if (inTauri) return invoke<McpServer[]>("list_mcp");
+  return http<McpServer[]>("/api/mcp");
+}
+
+export async function saveMcp(input: McpInput): Promise<McpServer> {
+  if (inTauri) return invoke<McpServer>("save_mcp", { input });
+  return http<McpServer>("/api/mcp", { method: "POST", body: JSON.stringify(input) });
+}
+
+export async function deleteMcp(id: string): Promise<void> {
+  if (inTauri) await invoke("delete_mcp", { id });
+  else await http(`/api/mcp/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function testMcp(id: string): Promise<{ tools: string[] }> {
+  if (inTauri) return invoke<{ tools: string[] }>("test_mcp", { id });
+  return http<{ tools: string[] }>(`/api/mcp/${encodeURIComponent(id)}/test`, { method: "POST" });
+}
+
 export async function startServices(): Promise<Services> {
   if (inTauri) return invoke<Services>("start_services");
   return http<Services>("/api/services", { method: "POST" });
@@ -156,6 +197,7 @@ export async function sendChat(conversationId: string, text: string): Promise<st
 export type ChatStreamEvent =
   | { type: "delta"; text: string }
   | { type: "reset" }
+  | { type: "mcp_used"; server_id: string; tool_name: string }
   | { type: "done" }
   | { type: "error"; error: string };
 
