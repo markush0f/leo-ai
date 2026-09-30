@@ -30,13 +30,14 @@ futures = "0.3"
 ratatui = "0.29"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 toml = "0.8"
+toml_edit = "0.25.15"
 sqlx = { version = "0.8", default-features = false, features = [
     "runtime-tokio-rustls",
     "postgres",
     "uuid",
     "json",
 ] }
-uuid = { version = "1", features = ["v4", "serde"] }
+uuid = { version = "1", features = ["v4", "v5", "serde"] }
 webrtc-vad = "0.4"
 dirs = "6"
 dotenvy = "0.15"

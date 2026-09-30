@@ -36,7 +36,7 @@ impl HttpSession {
         Self {
             inner: Arc::new(Inner {
                 http,
-                url: rpc::mcp_endpoint(&url.into()),
+                url: url.into(),
                 headers,
                 next_id: AtomicU64::new(1),
                 session: Mutex::new(SessionState {
@@ -184,5 +184,16 @@ impl HttpSession {
             return Err(err);
         }
         Ok((headers, decoded.get("result").cloned()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keeps_remote_endpoint_path_exact() {
+        let session = HttpSession::new("https://example.com/api/v2/tools", HashMap::new());
+        assert_eq!(session.inner.url, "https://example.com/api/v2/tools");
     }
 }

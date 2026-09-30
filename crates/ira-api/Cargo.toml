@@ -7,6 +7,7 @@ description = "Chat y catálogo compartidos por Tauri y ira-server"
 
 [dependencies]
 ira-llm.workspace = true
+ira-mcp.workspace = true
 ira-pgjson.workspace = true
 ira-store.workspace = true
 ira-tools.workspace = true
@@ -17,6 +18,8 @@ serde_json.workspace = true
 serde_yaml.workspace = true
 sqlx.workspace = true
 tokio = { workspace = true, features = ["sync", "process", "time", "io-util"] }
+toml_edit.workspace = true
+tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]

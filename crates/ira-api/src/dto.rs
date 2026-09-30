@@ -14,6 +14,8 @@ pub struct SnapshotDto {
     pub active_model_id: Option<Uuid>,
     pub active_conversation_id: Option<Uuid>,
     pub system: String,
+    pub web_search_enabled: bool,
+    pub web_search_context_size: String,
     pub voice_system: String,
     pub stt_engine_id: Option<Uuid>,
     pub tts_engine_id: Option<Uuid>,
@@ -59,8 +61,16 @@ pub struct ProviderDto {
 pub struct ModelDto {
     pub id: Uuid,
     pub provider_id: Uuid,
+    /// Exact model identifier sent to the provider API.
     pub name: String,
+    pub display_name: String,
     pub effort: String,
+    pub effort_options: Vec<String>,
+    pub reasoning: bool,
+    pub context_window: Option<u64>,
+    pub output_limit: Option<u64>,
+    pub release_date: Option<String>,
+    pub last_updated: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -237,7 +247,14 @@ pub fn snapshot_dto(snap: Snapshot, tools: &[String]) -> SnapshotDto {
                 id: m.id,
                 provider_id: m.provider_id,
                 name: m.name.clone(),
+                display_name: m.name.clone(),
                 effort: m.effort.clone(),
+                effort_options: Vec::new(),
+                reasoning: false,
+                context_window: None,
+                output_limit: None,
+                release_date: None,
+                last_updated: None,
             })
             .collect(),
         engines: snap
@@ -253,6 +270,8 @@ pub fn snapshot_dto(snap: Snapshot, tools: &[String]) -> SnapshotDto {
         active_model_id: snap.active_model_id,
         active_conversation_id: snap.settings.active_conversation_id,
         system: snap.system,
+        web_search_enabled: true,
+        web_search_context_size: "high".into(),
         voice_system: snap.settings.voice_system_prompt.clone(),
         stt_engine_id: snap.settings.stt_engine_id,
         tts_engine_id: snap.settings.tts_engine_id,

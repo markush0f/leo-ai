@@ -15,6 +15,13 @@ pub enum StreamEvent {
     Delta(String),
     /// Discard provisional text because the model requested tools.
     Reset,
+    /// An MCP tool was consulted during this turn.
+    McpUsed {
+        /// Identifier of the connected MCP server.
+        server_id: String,
+        /// Tool name reported by that MCP server.
+        tool_name: String,
+    },
 }
 
 /// Callback invoked for streaming chat events.
@@ -56,7 +63,7 @@ where
     Fut: Future<Output = Result<ChatResponse, LlmError>>,
 {
     if !tools.is_empty() {
-        req.tools = tools.specs();
+        req.tools.extend(tools.specs());
     }
     if req.tools.is_empty() {
         let output = sink.clone();
@@ -94,6 +101,16 @@ where
         for call in &resp.tool_calls {
             let args = parse_args(&call.arguments);
             tracing::info!(tool = %call.name, "tool");
+            if let crate::registry::ToolProvider::Mcp {
+                server_id,
+                tool_name,
+            } = tools.provider(&call.name)
+            {
+                sink(StreamEvent::McpUsed {
+                    server_id: server_id.clone(),
+                    tool_name: tool_name.clone(),
+                });
+            }
             let result = tools.call(&call.name, args).await;
             req.messages
                 .push(ChatMessage::tool(&call.id, &call.name, result));
@@ -117,7 +134,7 @@ where
     Fut: Future<Output = Result<ChatResponse, LlmError>>,
 {
     if !tools.is_empty() {
-        req.tools = tools.specs();
+        req.tools.extend(tools.specs());
     }
     if req.tools.is_empty() {
         return chat(req).await;

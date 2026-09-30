@@ -16,7 +16,10 @@ mod rpc;
 mod stdio;
 mod vars;
 
-pub use config_file::{Scope, enabled_servers, global_path, load_all, project_file, remove, upsert};
+pub use config_file::{
+    Scope, enabled_servers, global_path, load_all, project_file, read_servers, remove,
+    remove_global, upsert,
+};
 pub use error::Error;
 pub use import::{from_add, load_file, parse_claude};
 pub use install::resolve;
@@ -24,4 +27,5 @@ pub use ira_store::{McpServerConfig, McpTransport};
 pub use manager::{McpManager, shared};
 pub use registry::McpRegistryClient;
 pub use rpc::RemoteTool;
+pub use rpc::mcp_endpoint;
 pub use vars::{resolve_config, slug};

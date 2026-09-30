@@ -7,6 +7,8 @@
 
 mod dto;
 mod host;
+mod models_dev;
+mod preferences;
 mod toolbox;
 
 use std::collections::HashMap;
@@ -17,7 +19,7 @@ use ira_llm::ChatRequest;
 use ira_llm::providers::codex::{DeviceLogin, OAuthClient, TokenStore};
 use ira_store::{self as db, CHANNEL_LOCAL, CONTEXT_LIMIT, NewMessage, PostgresCodexTokenStore};
 use ira_tools::Registry;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use tokio::sync::{Mutex, RwLock};
@@ -30,19 +32,110 @@ pub use dto::{
 };
 pub use host::{ServiceDto, ServicesDto};
 pub use ira_pgjson::Dump as DatabaseDump;
+pub use preferences::AssistantPreferences;
 
 /// Event produced while a chat turn is streamed to a transport.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ChatStreamEvent {
-    Delta { text: String },
+    Delta {
+        text: String,
+    },
     Reset,
+    McpUsed {
+        server_id: String,
+        tool_name: String,
+    },
     Done,
     Error { error: String },
 }
 
 /// Transport callback for [`App::chat_stream`].
 pub type ChatStreamSink = Arc<dyn Fn(ChatStreamEvent) + Send + Sync + 'static>;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct McpInput {
+    pub name: String,
+    pub transport: String,
+    pub url: Option<String>,
+    pub command: Option<String>,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub env: HashMap<String, String>,
+    #[serde(default)]
+    pub headers: HashMap<String, String>,
+    #[serde(default = "mcp_enabled")]
+    pub enabled: bool,
+}
+
+fn mcp_enabled() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct McpView {
+    pub id: String,
+    pub name: String,
+    pub transport: String,
+    pub url: Option<String>,
+    pub command: Option<String>,
+    pub args: Vec<String>,
+    pub env: HashMap<String, String>,
+    pub headers: HashMap<String, String>,
+    pub enabled: bool,
+    pub editable: bool,
+}
+
+impl McpView {
+    fn from_config(config: ira_mcp::McpServerConfig, editable: bool) -> Self {
+        // Keep literal secrets on disk. Environment references are safe to edit in the UI.
+        let redact = |values: HashMap<String, String>| {
+            values
+                .into_iter()
+                .map(|(key, value)| {
+                    (
+                        key,
+                        if value.contains("${SECRET:") || value.contains("{env:") {
+                            value
+                        } else {
+                            String::new()
+                        },
+                    )
+                })
+                .collect()
+        };
+        let bridge = config.transport == ira_mcp::McpTransport::Stdio
+            && config.command.as_deref() == Some("npx")
+            && config.args.get(1).is_some_and(|arg| arg == "mcp-remote");
+        Self {
+            id: config.id,
+            name: config.name,
+            transport: if bridge {
+                "remote_bridge"
+            } else {
+                config.transport.as_str()
+            }
+            .into(),
+            url: if bridge {
+                config.args.get(2).cloned()
+            } else {
+                config.url
+            },
+            command: if bridge { None } else { config.command },
+            args: if bridge { Vec::new() } else { config.args },
+            env: redact(config.env),
+            headers: redact(config.headers),
+            enabled: config.enabled,
+            editable,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct McpTest {
+    pub tools: Vec<String>,
+}
 
 #[derive(Clone)]
 pub struct App {
@@ -54,6 +147,7 @@ struct Inner {
     db_error: RwLock<Option<String>>,
     tools: Registry,
     toolbox_sync: Mutex<()>,
+    mcp_config: Mutex<()>,
     codex_logins: Mutex<HashMap<Uuid, PendingCodexLogin>>,
     conversation_locks: Mutex<HashMap<Uuid, Weak<Mutex<()>>>>,
 }
@@ -72,6 +166,7 @@ impl App {
                 db_error: RwLock::new(db_error),
                 tools,
                 toolbox_sync: Mutex::new(()),
+                mcp_config: Mutex::new(()),
                 codex_logins: Mutex::new(HashMap::new()),
                 conversation_locks: Mutex::new(HashMap::new()),
             }),
@@ -109,7 +204,11 @@ impl App {
         }
         let catalog = self.service_catalog().await;
         let mut out = host::start(&catalog).await;
-        if out.error.is_some() || !out.services.iter().any(|service| service.id == "postgres" && service.autostart)
+        if out.error.is_some()
+            || !out
+                .services
+                .iter()
+                .any(|service| service.id == "postgres" && service.autostart)
         {
             return out;
         }
@@ -136,7 +235,11 @@ impl App {
     pub async fn boot_services(&self) -> ServicesDto {
         let catalog = self.service_catalog().await;
         let out = host::start(&catalog).await;
-        if out.error.is_none() && out.services.iter().any(|service| service.id == "postgres" && service.autostart)
+        if out.error.is_none()
+            && out
+                .services
+                .iter()
+                .any(|service| service.id == "postgres" && service.autostart)
         {
             let _ = self.try_connect().await;
         }
@@ -165,20 +268,17 @@ impl App {
                     out
                 }
             },
-            "meta" => match host::set_meta(
-                id,
-                name.unwrap_or(""),
-                description.unwrap_or(""),
-                &catalog,
-            ) {
-                Ok(()) => host::status(&catalog).await,
-                Err(error) => {
-                    let mut out = host::status(&catalog).await;
-                    out.ok = false;
-                    out.error = Some(error);
-                    out
+            "meta" => {
+                match host::set_meta(id, name.unwrap_or(""), description.unwrap_or(""), &catalog) {
+                    Ok(()) => host::status(&catalog).await,
+                    Err(error) => {
+                        let mut out = host::status(&catalog).await;
+                        out.ok = false;
+                        out.error = Some(error);
+                        out
+                    }
                 }
-            },
+            }
             "port" => {
                 let Some(port) = port else {
                     let mut out = host::status(&catalog).await;
@@ -239,7 +339,11 @@ impl App {
             return rows
                 .into_iter()
                 .map(|row| {
-                    let kind = if row.id.ends_with("-mcp") { "mcp" } else { "service" };
+                    let kind = if row.id.ends_with("-mcp") {
+                        "mcp"
+                    } else {
+                        "service"
+                    };
                     host::CatalogEntry {
                         id: row.id,
                         name: row.name,
@@ -256,13 +360,18 @@ impl App {
         host::builtin_catalog()
     }
 
-    async fn system_text(&self, base: &str) -> String {
+    async fn system_text(&self, base: &str, model: &str) -> String {
         let note = host::catalog_note(&self.service_catalog().await);
-        if note.is_empty() {
-            base.to_string()
-        } else {
-            format!("{base}\n\n{note}")
-        }
+        let model_context = format!(
+            "El modelo de IA que estás usando actualmente es \"{model}\". Si te preguntan qué modelo eres o cuál estás usando, responde de forma natural y honesta con este nombre. No digas que eres el modelo; explica que es el modelo que te impulsa."
+        );
+        let tools_context = "Usa las herramientas disponibles cuando sean útiles para responder, incluidas herramientas MCP locales y externas. La lista de servicios locales no representa todos los MCP conectados: comprueba las herramientas disponibles en esta conversación y úsalas según su descripción. Para resultados deportivos actuales, consulta herramientas deportivas disponibles antes de responder. No afirmes que un MCP no está conectado si no lo verificaste intentando usar sus herramientas; si no hay herramienta pertinente o falla, explica esa limitación concreta.";
+        let web_search_context = "Cuando el usuario pida buscar en internet, consultar la web o información reciente, usa la herramienta web_search si está disponible. Para noticias o datos que cambian, prioriza páginas recién publicadas o actualizadas, comprueba su fecha y distingue fecha de publicación de fecha del evento. Si las fuentes no son suficientemente recientes, dilo claramente en vez de presentar datos antiguos como actuales. Haz la búsqueda en segundo plano: no abras ni controles el navegador local del usuario. Después, responde en este mismo turno con un resumen útil y menciona fuentes cuando estén disponibles; no te limites a iniciar una búsqueda ni dejes al usuario esperando.";
+        [base, &model_context, tools_context, web_search_context, &note]
+            .into_iter()
+            .filter(|text| !text.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n\n")
     }
 
     async fn host_status(&self) -> ServicesDto {
@@ -270,7 +379,13 @@ impl App {
     }
 
     async fn tools(&self) -> Registry {
-        let mut configs = ira_tools::file_servers();
+        let mut configs = match ira_mcp::load_all() {
+            Ok(configs) => configs,
+            Err(error) => {
+                tracing::warn!(%error, "mcp config");
+                Vec::new()
+            }
+        };
         let discovered = host::discover_mcp().await.unwrap_or_default();
         for endpoint in discovered {
             if configs
@@ -281,10 +396,119 @@ impl App {
             }
             configs.push(db::McpServerConfig::http(
                 endpoint.id.clone(),
-                endpoint.url.clone(),
+                ira_mcp::mcp_endpoint(&endpoint.url),
             ));
         }
         ira_tools::attach_configured(self.inner.tools.clone(), &configs).await
+    }
+
+    pub async fn list_mcp(&self) -> Result<Vec<McpView>, String> {
+        let _guard = self.inner.mcp_config.lock().await;
+        let global = ira_mcp::read_servers(&ira_mcp::global_path()).map_err(|e| e.to_string())?;
+        let mut views = Vec::new();
+        for config in ira_mcp::load_all().map_err(|e| e.to_string())? {
+            let editable = global.iter().any(|entry| entry.id == config.id)
+                && !ira_mcp::project_file().is_some_and(|path| {
+                    ira_mcp::read_servers(&path)
+                        .is_ok_and(|rows| rows.iter().any(|entry| entry.id == config.id))
+                });
+            views.push(McpView::from_config(config, editable));
+        }
+        Ok(views)
+    }
+
+    pub async fn save_mcp(&self, input: McpInput) -> Result<McpView, String> {
+        let _guard = self.inner.mcp_config.lock().await;
+        let name = input.name.trim();
+        let id = ira_mcp::slug(name);
+        if name.is_empty() || id.is_empty() || id.len() > 64 {
+            return Err("nombre MCP inválido".into());
+        }
+        if ira_mcp::project_file().is_some_and(|path| {
+            ira_mcp::read_servers(&path).is_ok_and(|rows| rows.iter().any(|entry| entry.id == id))
+        }) {
+            return Err("este MCP pertenece al proyecto; edita su ira.json".into());
+        }
+        let previous = ira_mcp::read_servers(&ira_mcp::global_path())
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .find(|entry| entry.id == id);
+        let mut config = match input.transport.as_str() {
+            "remote_bridge" => {
+                let url = input.url.unwrap_or_default();
+                if !url.starts_with("https://") && !url.starts_with("http://") {
+                    return Err("URL MCP inválida".into());
+                }
+                let allow_http = url.starts_with("http://");
+                let mut args = vec![
+                    "-y".into(),
+                    "mcp-remote".into(),
+                    url,
+                    "--protocol".into(),
+                    "auto".into(),
+                    "--auth-timeout".into(),
+                    "120".into(),
+                ];
+                if allow_http {
+                    args.push("--allow-http".into());
+                }
+                ira_mcp::McpServerConfig::stdio(id, name, "npx", args, input.env)
+            }
+            "stdio" => {
+                let command = input.command.unwrap_or_default();
+                ira_mcp::McpServerConfig::stdio(id, name, command, input.args, input.env)
+            }
+            "streamable_http" => {
+                let url = input.url.unwrap_or_default();
+                if !url.starts_with("https://") && !url.starts_with("http://") {
+                    return Err("URL MCP inválida".into());
+                }
+                let mut config = ira_mcp::McpServerConfig::http(id, url);
+                config.name = name.to_string();
+                config.headers = input.headers;
+                config
+            }
+            _ => return Err("transporte MCP desconocido".into()),
+        };
+        if let Some(previous) = previous.filter(|entry| entry.transport == config.transport) {
+            for (key, value) in &mut config.env {
+                if value.is_empty() {
+                    *value = previous.env.get(key).cloned().unwrap_or_default();
+                }
+            }
+            for (key, value) in &mut config.headers {
+                if value.is_empty() {
+                    *value = previous.headers.get(key).cloned().unwrap_or_default();
+                }
+            }
+        }
+        config.enabled = input.enabled;
+        config.validate()?;
+        ira_mcp::upsert(ira_mcp::Scope::Global, &config).map_err(|e| e.to_string())?;
+        ira_mcp::shared().disconnect(&config.id).await;
+        Ok(McpView::from_config(config, true))
+    }
+
+    pub async fn delete_mcp(&self, id: &str) -> Result<DeleteDto, String> {
+        let _guard = self.inner.mcp_config.lock().await;
+        ira_mcp::remove_global(id).map_err(|e| e.to_string())?;
+        ira_mcp::shared().disconnect(id).await;
+        Ok(DeleteDto { ok: true })
+    }
+
+    pub async fn test_mcp(&self, id: &str) -> Result<McpTest, String> {
+        let config = ira_mcp::load_all()
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .find(|config| config.id == id)
+            .ok_or_else(|| "MCP desconocido".to_string())?;
+        let manager = ira_mcp::shared();
+        manager.disconnect(id).await;
+        manager.connect(&config).await.map_err(|e| e.to_string())?;
+        let tools = manager.list_tools(id).await.map_err(|e| e.to_string())?;
+        Ok(McpTest {
+            tools: tools.into_iter().map(|tool| tool.name).collect(),
+        })
     }
 
     async fn try_connect(&self) -> Result<(), String> {
@@ -298,7 +522,6 @@ impl App {
                     return Err(msg);
                 }
                 let _ = db::apply_secrets_to_env(&pool).await;
-                let _ = db::sync_ollama_providers(&pool).await;
                 let _ = db::sync_codex_providers(&pool).await;
                 *self.inner.pool.write().await = Some(pool.clone());
                 *self.inner.db_error.write().await = None;
@@ -353,17 +576,123 @@ impl App {
 
     pub async fn snapshot(&self) -> Result<SnapshotDto, String> {
         let pool = self.pool().await?;
-        let _ = db::sync_ollama_providers(&pool).await;
-        let snap = db::load(&pool).await.map_err(|e| e.to_string())?;
-        Ok(dto::snapshot_dto(snap, &self.tools().await.names()))
+        let mut snap = db::load(&pool).await.map_err(|e| e.to_string())?;
+        let stored_preferences = preferences::load()?;
+        let catalog = models_dev::load().await?;
+        let (preferences, model_dtos) = apply_models_dev(&mut snap, stored_preferences, &catalog);
+        if preferences != preferences::load()? {
+            preferences::save(&preferences)?;
+        }
+        let mut snapshot = dto::snapshot_dto(snap, &self.inner.tools.names());
+        snapshot.models = model_dtos;
+        snapshot.web_search_enabled = preferences.web_search_enabled;
+        snapshot.web_search_context_size = preferences.web_search_context_size;
+        Ok(snapshot)
+    }
+
+    pub fn update_web_search(
+        &self,
+        enabled: bool,
+        context_size: &str,
+    ) -> Result<AssistantPreferences, String> {
+        preferences::save_web_search(enabled, context_size)
     }
 
     pub async fn apply(&self, op: Op) -> Result<SnapshotDto, String> {
         let pool = self.pool().await?;
-        let snap = db::apply(&pool, op.into())
+        if let Some(snapshot) = self.apply_model_preference(&pool, &op).await? {
+            return Ok(snapshot);
+        }
+        let mut snap = db::apply(&pool, op.clone().into())
             .await
             .map_err(|e| e.to_string())?;
-        Ok(dto::snapshot_dto(snap, &self.tools().await.names()))
+        let mut preferences = preferences::load()?;
+        let persist_preferences = match op {
+            Op::SetSystem { text } => {
+                preferences.system_prompt = Some(text);
+                true
+            }
+            Op::ActivateModel { .. } | Op::ActivateProvider { .. } => {
+                if let (Some(provider), Some(model)) = (snap.active_provider(), snap.active_model())
+                {
+                    preferences.active_provider = Some(provider.kind.clone());
+                    preferences.active_provider_id = Some(provider.id.to_string());
+                    preferences.active_model = Some(model.name.clone());
+                }
+                true
+            }
+            _ => false,
+        };
+        if persist_preferences {
+            preferences::save(&preferences)?;
+        }
+        let catalog = models_dev::load().await?;
+        let (preferences, model_dtos) = apply_models_dev(&mut snap, preferences, &catalog);
+        let mut snapshot = dto::snapshot_dto(snap, &self.inner.tools.names());
+        snapshot.models = model_dtos;
+        snapshot.web_search_enabled = preferences.web_search_enabled;
+        snapshot.web_search_context_size = preferences.web_search_context_size;
+        Ok(snapshot)
+    }
+
+    async fn apply_model_preference(
+        &self,
+        pool: &PgPool,
+        op: &Op,
+    ) -> Result<Option<SnapshotDto>, String> {
+        if !matches!(
+            op,
+            Op::ActivateModel { .. } | Op::ActivateProvider { .. } | Op::SetModelEffort { .. }
+        ) {
+            return Ok(None);
+        }
+        let mut snap = db::load(pool).await.map_err(|error| error.to_string())?;
+        let stored = preferences::load()?;
+        let catalog = models_dev::load().await?;
+        let (mut preferences, models) = apply_models_dev(&mut snap, stored, &catalog);
+        let selected = match op {
+            Op::ActivateModel { id } => models.iter().find(|model| model.id == *id),
+            Op::SetModelEffort { id, .. } => models.iter().find(|model| model.id == *id),
+            Op::ActivateProvider { id } => {
+                let provider = snap.providers.iter().find(|provider| provider.id == *id);
+                let Some(provider) = provider else {
+                    return Ok(None);
+                };
+                let first = models.iter().find(|model| model.provider_id == provider.id);
+                if let Some(model) = first {
+                    preferences.active_provider = Some(provider.kind.clone());
+                    preferences.active_provider_id = Some(provider.id.to_string());
+                    preferences.active_model = Some(model.name.clone());
+                    preferences.active_effort = model.effort_options.first().cloned();
+                    preferences::save(&preferences)?;
+                    return Ok(Some(self.snapshot().await?));
+                }
+                return Ok(None);
+            }
+            _ => return Ok(None),
+        };
+        let Some(model) = selected else {
+            return Ok(None);
+        };
+        let provider = snap
+            .providers
+            .iter()
+            .find(|provider| provider.id == model.provider_id)
+            .ok_or_else(|| "proveedor del modelo no encontrado".to_string())?;
+        preferences.active_provider = Some(provider.kind.clone());
+        preferences.active_provider_id = Some(provider.id.to_string());
+        preferences.active_model = Some(model.name.clone());
+        match op {
+            Op::SetModelEffort { effort, .. } => {
+                if !model.effort_options.iter().any(|value| value == effort) {
+                    return Err("potencia no compatible con este modelo".into());
+                }
+                preferences.active_effort = Some(effort.clone());
+            }
+            _ => preferences.active_effort = model.effort_options.first().cloned(),
+        }
+        preferences::save(&preferences)?;
+        Ok(Some(self.snapshot().await?))
     }
 
     pub async fn list_databases(&self) -> Result<Vec<DatabaseConnectionDto>, String> {
@@ -661,8 +990,11 @@ impl App {
             .await
             .map_err(|e| e.to_string())?;
         db::sync_codex_provider(&pool, pending.provider_id).await?;
-        let snap = db::load(&pool).await.map_err(|e| e.to_string())?;
-        Ok(dto::snapshot_dto(snap, &self.tools().await.names()))
+        let mut preferences = preferences::load()?;
+        preferences.active_provider = Some("codex".into());
+        preferences.active_provider_id = Some(pending.provider_id.to_string());
+        preferences::save(&preferences)?;
+        self.snapshot().await
     }
 
     pub async fn list_chats(&self) -> Result<Vec<ConversationDto>, String> {
@@ -694,10 +1026,10 @@ impl App {
         let conversation_lock = self.conversation_lock(conversation_id).await;
         let _turn = conversation_lock.lock().await;
         let pool = self.pool().await?;
-        if db::uses_ollama(&db::load(&pool).await.map_err(|e| e.to_string())?) {
-            let _ = db::sync_ollama_providers(&pool).await;
-        }
-        let snap = db::load(&pool).await.map_err(|e| e.to_string())?;
+        let mut snap = db::load(&pool).await.map_err(|e| e.to_string())?;
+        let preferences = preferences::load()?;
+        let catalog = models_dev::load().await?;
+        let (preferences, _) = apply_models_dev(&mut snap, preferences, &catalog);
         let client = db::client_with_pool(&snap, &pool).map_err(|e| match e {
             ira_llm::LlmError::MissingKey(var) => {
                 format!("falta api key ({var}): ábrelo en catálogo")
@@ -710,8 +1042,29 @@ impl App {
         let history = db::context_messages(&pool, conversation_id, CONTEXT_LIMIT)
             .await
             .map_err(|e| e.to_string())?;
-        let mut req = ChatRequest::with_history(&self.system_text(&snap.system).await, history);
-        snap.apply_reasoning(&mut req);
+        let model = snap
+            .active_model()
+            .map_or("desconocido", |model| model.name.as_str());
+        let mut req =
+            ChatRequest::with_history(&self.system_text(&snap.system, model).await, history);
+        if preferences.web_search_enabled
+            && snap
+                .active_provider()
+                .is_some_and(|provider| provider.kind.eq_ignore_ascii_case("codex"))
+        {
+            req.tools.push(ira_llm::ToolSpec {
+                name: "web_search".into(),
+                description:
+                    "Busca en internet cuando el usuario solicite información web o actualizada."
+                        .into(),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {},
+                    "search_context_size": preferences.web_search_context_size,
+                }),
+            });
+        }
+        req.reasoning_effort = preferences.active_effort.clone();
         let registry = chat_tools(self.tools().await, &snap);
         let mut result = ira_tools::chat(&client, req.clone(), &registry).await;
         if let Err(err) = &result
@@ -725,7 +1078,8 @@ impl App {
                 db::append_message(
                     &pool,
                     conversation_id,
-                    NewMessage::assistant(resp.text.clone(), snap.active_model_id),
+                    // models.dev IDs are virtual and are not rows in the database `models` table.
+                    NewMessage::assistant(resp.text.clone(), None),
                 )
                 .await
                 .map_err(|e| e.to_string())?;
@@ -750,18 +1104,7 @@ impl App {
                 return;
             }
         };
-        if db::uses_ollama(&match db::load(&pool).await {
-            Ok(snapshot) => snapshot,
-            Err(error) => {
-                sink(ChatStreamEvent::Error {
-                    error: error.to_string(),
-                });
-                return;
-            }
-        }) {
-            let _ = db::sync_ollama_providers(&pool).await;
-        }
-        let snap = match db::load(&pool).await {
+        let mut snap = match db::load(&pool).await {
             Ok(snapshot) => snapshot,
             Err(error) => {
                 sink(ChatStreamEvent::Error {
@@ -770,6 +1113,21 @@ impl App {
                 return;
             }
         };
+        let preferences = match preferences::load() {
+            Ok(preferences) => preferences,
+            Err(error) => {
+                sink(ChatStreamEvent::Error { error });
+                return;
+            }
+        };
+        let catalog = match models_dev::load().await {
+            Ok(catalog) => catalog,
+            Err(error) => {
+                sink(ChatStreamEvent::Error { error });
+                return;
+            }
+        };
+        let (preferences, _) = apply_models_dev(&mut snap, preferences, &catalog);
         let client = match db::client_with_pool(&snap, &pool) {
             Ok(client) => client,
             Err(error) => {
@@ -795,13 +1153,35 @@ impl App {
             let history = db::context_messages(&pool, conversation_id, CONTEXT_LIMIT)
                 .await
                 .map_err(|error| error.to_string())?;
-            let mut req = ChatRequest::with_history(&self.system_text(&snap.system).await, history);
-            snap.apply_reasoning(&mut req);
+            let model = snap
+                .active_model()
+                .map_or("desconocido", |model| model.name.as_str());
+            let mut req =
+                ChatRequest::with_history(&self.system_text(&snap.system, model).await, history);
+            if preferences.web_search_enabled
+                && snap
+                .active_provider()
+                .is_some_and(|provider| provider.kind.eq_ignore_ascii_case("codex"))
+            {
+                req.tools.push(ira_llm::ToolSpec {
+                    name: "web_search".into(),
+                    description: "Busca en internet cuando el usuario solicite información web o actualizada.".into(),
+                    parameters: serde_json::json!({
+                        "type": "object",
+                        "properties": {},
+                        "search_context_size": preferences.web_search_context_size,
+                    }),
+                });
+            }
+            req.reasoning_effort = preferences.active_effort.clone();
             let registry = chat_tools(self.tools().await, &snap);
             let event_sink = sink.clone();
             let tool_sink: ira_tools::StreamSink = Arc::new(move |event| match event {
                 ira_tools::StreamEvent::Delta(text) => event_sink(ChatStreamEvent::Delta { text }),
                 ira_tools::StreamEvent::Reset => event_sink(ChatStreamEvent::Reset),
+                ira_tools::StreamEvent::McpUsed { server_id, tool_name } => {
+                    event_sink(ChatStreamEvent::McpUsed { server_id, tool_name })
+                }
             });
             let mut response =
                 ira_tools::chat_stream(&client, req.clone(), &registry, tool_sink.clone()).await;
@@ -822,7 +1202,8 @@ impl App {
                 if let Err(error) = db::append_message(
                     &pool,
                     conversation_id,
-                    NewMessage::assistant(response.text, snap.active_model_id),
+                    // models.dev IDs are virtual and are not rows in the database `models` table.
+                    NewMessage::assistant(response.text, None),
                 )
                 .await
                 {
@@ -988,6 +1369,170 @@ fn chat_tools(registry: Registry, snap: &ira_store::Snapshot) -> Registry {
     }
 }
 
+fn apply_models_dev(
+    snap: &mut ira_store::Snapshot,
+    mut preferences: AssistantPreferences,
+    catalog: &[models_dev::CatalogModel],
+) -> (AssistantPreferences, Vec<ModelDto>) {
+    let fallback = snap.active_model().and_then(|model| {
+        snap.providers
+            .iter()
+            .find(|provider| provider.id == model.provider_id)
+            .map(|provider| (Some(provider.id), provider.kind.clone(), model.name.clone()))
+    });
+    let mut candidates = preferences
+        .active_provider
+        .clone()
+        .zip(preferences.active_model.clone())
+        .into_iter()
+        .map(|(kind, name)| {
+            (
+                preferences
+                    .active_provider_id
+                    .as_deref()
+                    .and_then(|id| Uuid::parse_str(id).ok()),
+                kind,
+                name,
+            )
+        })
+        .collect::<Vec<_>>();
+    if let Some(fallback) = fallback
+        && !candidates.contains(&fallback)
+    {
+        candidates.push(fallback);
+    }
+    let chosen = candidates
+        .into_iter()
+        .find_map(|(preferred_id, kind, name)| {
+            let providers = snap
+                .providers
+                .iter()
+                .filter(|provider| provider.kind.eq_ignore_ascii_case(&kind));
+            let provider = preferred_id
+                .and_then(|id| providers.clone().find(|provider| provider.id == id))
+                .or_else(|| {
+                    let matching = snap
+                        .providers
+                        .iter()
+                        .filter(|provider| provider.kind.eq_ignore_ascii_case(&kind));
+                    if kind.eq_ignore_ascii_case("codex") {
+                        matching
+                            .clone()
+                            .find(|provider| {
+                                provider
+                                    .api_key
+                                    .as_deref()
+                                    .is_some_and(|key| !key.trim().is_empty())
+                            })
+                            .or_else(|| matching.into_iter().next())
+                    } else {
+                        matching.into_iter().next()
+                    }
+                })?;
+            let source = models_dev::provider_id(&provider.kind)?;
+            models_dev::models_for(catalog, source)
+                .into_iter()
+                .find(|model| model.id == name)
+                .map(|model| (provider.id, provider.kind.clone(), model))
+        });
+    let chosen = chosen.or_else(|| {
+        snap.providers.iter().find_map(|provider| {
+            let source = models_dev::provider_id(&provider.kind)?;
+            models_dev::models_for(catalog, source)
+                .into_iter()
+                .next()
+                .map(|model| (provider.id, provider.kind.clone(), model))
+        })
+    });
+
+    let Some((provider_id, provider_kind, active)) = chosen else {
+        snap.models.clear();
+        snap.active_model_id = None;
+        snap.settings.active_model_id = None;
+        if let Some(system_prompt) = &preferences.system_prompt {
+            snap.system.clone_from(system_prompt);
+            snap.settings.system_prompt.clone_from(system_prompt);
+        }
+        return (preferences, Vec::new());
+    };
+
+    preferences.active_provider = Some(provider_kind);
+    preferences.active_provider_id = Some(provider_id.to_string());
+    preferences.active_model = Some(active.id.clone());
+    if !preferences
+        .active_effort
+        .as_ref()
+        .is_some_and(|effort| active.reasoning_options.contains(effort))
+    {
+        preferences.active_effort = active.reasoning_options.first().cloned();
+    }
+    let active_effort = preferences.active_effort.clone().unwrap_or_default();
+    let mut models = Vec::new();
+    for provider in &snap.providers {
+        let Some(source) = models_dev::provider_id(&provider.kind) else {
+            continue;
+        };
+        for model in models_dev::models_for(catalog, source) {
+            let id = Uuid::new_v5(&provider.id, model.id.as_bytes());
+            let effort = if provider.id == provider_id && model.id == active.id {
+                active_effort.clone()
+            } else {
+                model.reasoning_options.first().cloned().unwrap_or_default()
+            };
+            models.push(ira_store::ModelRow {
+                id,
+                provider_id: provider.id,
+                name: model.id.clone(),
+                effort,
+            });
+        }
+    }
+    let active_id = Uuid::new_v5(&provider_id, active.id.as_bytes());
+    snap.models = models;
+    snap.active_model_id = Some(active_id);
+    snap.settings.active_model_id = Some(active_id);
+    if let Some(system_prompt) = &preferences.system_prompt {
+        snap.system.clone_from(system_prompt);
+        snap.settings.system_prompt.clone_from(system_prompt);
+    }
+
+    let model_dtos = snap
+        .providers
+        .iter()
+        .flat_map(|provider| {
+            let Some(source) = models_dev::provider_id(&provider.kind) else {
+                return Vec::new();
+            };
+            models_dev::models_for(catalog, source)
+                .into_iter()
+                .map(|model| {
+                    let id = Uuid::new_v5(&provider.id, model.id.as_bytes());
+                    let effort = snap
+                        .models
+                        .iter()
+                        .find(|row| row.id == id)
+                        .map(|row| row.effort.clone())
+                        .unwrap_or_default();
+                    ModelDto {
+                        id,
+                        provider_id: provider.id,
+                        name: model.id.clone(),
+                        display_name: model.name.clone(),
+                        effort,
+                        effort_options: model.reasoning_options.clone(),
+                        reasoning: model.reasoning,
+                        context_window: model.context_window,
+                        output_limit: model.output_limit,
+                        release_date: model.release_date.clone(),
+                        last_updated: model.last_updated.clone(),
+                    }
+                })
+                .collect()
+        })
+        .collect();
+    (preferences, model_dtos)
+}
+
 fn tools_unsupported(err: &ira_llm::LlmError) -> bool {
     let text = err.to_string().to_ascii_lowercase();
     text.contains("does not support tools") || text.contains("does not support tool")
@@ -1057,6 +1602,70 @@ mod tests {
         assert!(json.get("providers").unwrap()[0].get("api_key").is_none());
         assert_eq!(json["tools_mutate"], false);
         assert_eq!(json["active_model_id"].as_str().unwrap().len(), 36);
+    }
+
+    #[test]
+    fn models_dev_catalog_sets_active_model_and_power_without_database_models() {
+        let mut snap = ira_store::stub_snapshot("codex", "old-model", "prompt");
+        let catalog = vec![models_dev::CatalogModel {
+            provider: "openai".into(),
+            id: "gpt-6-luna".into(),
+            name: "GPT-6 Luna".into(),
+            reasoning: true,
+            reasoning_options: vec!["none".into(), "high".into(), "xhigh".into()],
+            context_window: Some(1_050_000),
+            output_limit: Some(128_000),
+            release_date: Some("2026-09-22".into()),
+            last_updated: Some("2026-09-22".into()),
+        }];
+        let (preferences, models) =
+            apply_models_dev(&mut snap, AssistantPreferences::default(), &catalog);
+
+        assert_eq!(snap.active_model().unwrap().name, "gpt-6-luna");
+        assert_eq!(preferences.active_model.as_deref(), Some("gpt-6-luna"));
+        assert_eq!(preferences.active_effort.as_deref(), Some("none"));
+        assert_eq!(models[0].display_name, "GPT-6 Luna");
+        assert_eq!(models[0].effort_options, ["none", "high", "xhigh"]);
+        assert_eq!(models[0].context_window, Some(1_050_000));
+    }
+
+    #[test]
+    fn models_dev_keeps_selected_provider_id_when_kinds_are_duplicated() {
+        let mut snap = ira_store::stub_snapshot("codex", "old-model", "prompt");
+        let connected_id = Uuid::from_u128(2);
+        snap.providers.push(ProviderRow {
+            id: connected_id,
+            name: "codex conectado".into(),
+            kind: "codex".into(),
+            base_url: None,
+            api_key: Some("oauth-json".into()),
+        });
+        let catalog = vec![models_dev::CatalogModel {
+            provider: "openai".into(),
+            id: "gpt-6-luna".into(),
+            name: "GPT-6 Luna".into(),
+            reasoning: true,
+            reasoning_options: vec!["high".into()],
+            context_window: None,
+            output_limit: None,
+            release_date: None,
+            last_updated: None,
+        }];
+        let preferences = AssistantPreferences {
+            active_provider: Some("codex".into()),
+            active_provider_id: None,
+            active_model: Some("gpt-6-luna".into()),
+            ..AssistantPreferences::default()
+        };
+
+        let (preferences, _) = apply_models_dev(&mut snap, preferences, &catalog);
+
+        assert_eq!(snap.active_provider().unwrap().id, connected_id);
+        let connected_id = connected_id.to_string();
+        assert_eq!(
+            preferences.active_provider_id.as_deref(),
+            Some(connected_id.as_str())
+        );
     }
 
     #[test]

@@ -42,32 +42,80 @@ fn default_autostart() -> Vec<String> {
     vec!["postgres".into(), "toolbox".into(), "ira-gateway".into()]
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-struct HostFile {
-    gateway_port: u16,
-    ports: BTreeMap<String, u16>,
-    autostart: Vec<String>,
-    #[serde(default)]
-    meta: BTreeMap<String, ServiceMeta>,
-}
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-struct ServiceMeta {
+struct ItemFile {
     #[serde(default)]
     name: String,
     #[serde(default)]
     description: String,
+    #[serde(default)]
+    autostart: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    port: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    peer: Option<String>,
 }
 
-impl Default for HostFile {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ServicesFile {
+    #[serde(default = "default_gateway_port")]
+    gateway_port: u16,
+    #[serde(default)]
+    items: BTreeMap<String, ItemFile>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct McpFile {
+    #[serde(default)]
+    items: BTreeMap<String, ItemFile>,
+}
+
+#[derive(Debug, Clone)]
+struct HostConfig {
+    gateway_port: u16,
+    services: BTreeMap<String, ItemFile>,
+    mcps: BTreeMap<String, ItemFile>,
+}
+
+impl Default for HostConfig {
     fn default() -> Self {
+        let mut services = BTreeMap::new();
+        for id in default_autostart() {
+            services.insert(
+                id,
+                ItemFile {
+                    autostart: true,
+                    ..ItemFile::default()
+                },
+            );
+        }
         Self {
             gateway_port: default_gateway_port(),
-            ports: BTreeMap::new(),
-            autostart: default_autostart(),
-            meta: BTreeMap::new(),
+            services,
+            mcps: BTreeMap::new(),
         }
+    }
+}
+
+impl HostConfig {
+    fn item(&self, id: &str) -> Option<&ItemFile> {
+        self.services.get(id).or_else(|| self.mcps.get(id))
+    }
+
+    fn autostart_ids(&self) -> Vec<String> {
+        self.services
+            .iter()
+            .chain(self.mcps.iter())
+            .filter(|(_, item)| item.autostart)
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
+    fn ports(&self) -> BTreeMap<String, u16> {
+        self.services
+            .iter()
+            .filter_map(|(id, item)| item.port.map(|port| (id.clone(), port)))
+            .collect()
     }
 }
 
@@ -140,7 +188,11 @@ fn parse_catalog(body: &str) -> Result<Vec<CatalogEntry>, String> {
             .map(|(_, value)| matches!(value.as_str(), "true" | "1" | "yes"))
             .unwrap_or_else(|| REQUIRED.contains(&id.as_str()));
         let (host_port, container_port) = ports_of(service);
-        let kind = if is_mcp(id, service) { "mcp" } else { "service" };
+        let kind = if is_mcp(id, service) {
+            "mcp"
+        } else {
+            "service"
+        };
         let description = label(service, "ira.description")
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| default_description(id).to_string());
@@ -338,7 +390,12 @@ pub fn builtin_catalog() -> Vec<CatalogEntry> {
             required: *required,
             host_port: None,
             container_port: None,
-            kind: if id.ends_with("-mcp") { "mcp" } else { "service" }.into(),
+            kind: if id.ends_with("-mcp") {
+                "mcp"
+            } else {
+                "service"
+            }
+            .into(),
             description: default_description(id).into(),
             peer: default_peer(id).map(str::to_string),
         })
@@ -415,15 +472,15 @@ pub async fn status(catalog: &[CatalogEntry]) -> ServicesDto {
 }
 
 pub async fn start(catalog: &[CatalogEntry]) -> ServicesDto {
-    let cfg = load_host_file();
-    let marked: Vec<&str> = cfg
-        .autostart
+    let cfg = load_config();
+    let marked_ids = cfg.autostart_ids();
+    let marked: Vec<&str> = marked_ids
         .iter()
         .filter_map(|id| known(id, catalog).ok())
         .collect();
     let mut selected = Vec::new();
     for id in marked {
-        for item in unit(id, catalog) {
+        for item in unit(id, catalog, &cfg) {
             if !selected.contains(&item) {
                 selected.push(item);
             }
@@ -432,9 +489,9 @@ pub async fn start(catalog: &[CatalogEntry]) -> ServicesDto {
     if selected.is_empty() {
         return failed(catalog, "ningún servicio marcado para el arranque");
     }
-    let (slow, fast): (Vec<&str>, Vec<&str>) = selected.into_iter().partition(|id| {
-        id.starts_with("projects-") || *id == "ira-gateway"
-    });
+    let (slow, fast): (Vec<&str>, Vec<&str>) = selected
+        .into_iter()
+        .partition(|id| id.starts_with("projects-") || *id == "ira-gateway");
     if let Err(error) = compose_up(&fast, Duration::from_secs(180)).await {
         return finish(catalog, Err(error)).await;
     }
@@ -445,21 +502,27 @@ pub fn set_boot(id: &str, on: bool, catalog: &[CatalogEntry]) -> Result<(), Stri
     let id = known(id, catalog)
         .map_err(|()| "servicio desconocido".to_string())?
         .to_string();
-    let mut cfg = load_host_file();
-    let ids = unit(&id, catalog)
+    let mut cfg = load_config();
+    let ids = unit(&id, catalog, &cfg)
         .into_iter()
         .map(str::to_string)
         .collect::<Vec<_>>();
-    if on {
-        for item in ids {
-            if !cfg.autostart.iter().any(|saved| saved == &item) {
-                cfg.autostart.push(item);
-            }
+    for item in &ids {
+        let kind = catalog
+            .iter()
+            .find(|service| service.id == *item)
+            .map(|service| service.kind.as_str())
+            .unwrap_or("service");
+        let slot = slot_mut(&mut cfg, item, kind);
+        slot.autostart = on;
+        if slot.peer.is_none() {
+            slot.peer = catalog
+                .iter()
+                .find(|service| service.id == *item)
+                .and_then(|service| service.peer.clone());
         }
-    } else {
-        cfg.autostart.retain(|item| !ids.iter().any(|id| id == item));
     }
-    save_host_file(&cfg)
+    save_config(&cfg)
 }
 
 pub async fn set_port(id: &str, port: u16, catalog: &[CatalogEntry]) -> ServicesDto {
@@ -479,13 +542,13 @@ pub async fn set_port(id: &str, port: u16, catalog: &[CatalogEntry]) -> Services
     if !publishes {
         return failed(catalog, "ese servicio no publica puerto de host");
     }
-    let mut cfg = load_host_file();
+    let mut cfg = load_config();
     if id == "ira-gateway" {
         cfg.gateway_port = port;
     } else {
-        cfg.ports.insert(id.to_string(), port);
+        slot_mut(&mut cfg, id, "service").port = Some(port);
     }
-    if let Err(error) = save_host_file(&cfg) {
+    if let Err(error) = save_config(&cfg) {
         return failed(catalog, error);
     }
     publish_env(id, port);
@@ -496,8 +559,12 @@ pub async fn start_one(id: &str, catalog: &[CatalogEntry]) -> ServicesDto {
     let Ok(id) = known(id, catalog) else {
         return failed(catalog, "servicio desconocido");
     };
-    let ids = start_order(&unit(id, catalog), catalog);
-    let timeout = if ids.iter().any(|item| item.starts_with("projects-") || *item == "ira-gateway") {
+    let cfg = load_config();
+    let ids = start_order(&unit(id, catalog, &cfg), catalog);
+    let timeout = if ids
+        .iter()
+        .any(|item| item.starts_with("projects-") || *item == "ira-gateway")
+    {
         Duration::from_secs(900)
     } else {
         Duration::from_secs(180)
@@ -509,7 +576,8 @@ pub async fn stop_one(id: &str, catalog: &[CatalogEntry]) -> ServicesDto {
     let Ok(id) = known(id, catalog) else {
         return failed(catalog, "servicio desconocido");
     };
-    let mut ids = start_order(&unit(id, catalog), catalog);
+    let cfg = load_config();
+    let mut ids = start_order(&unit(id, catalog, &cfg), catalog);
     ids.reverse();
     let mut args = Vec::with_capacity(ids.len() + 2);
     args.push("compose");
@@ -518,7 +586,12 @@ pub async fn stop_one(id: &str, catalog: &[CatalogEntry]) -> ServicesDto {
     finish(catalog, compose(&args, Duration::from_secs(60)).await).await
 }
 
-pub fn set_meta(id: &str, name: &str, description: &str, catalog: &[CatalogEntry]) -> Result<(), String> {
+pub fn set_meta(
+    id: &str,
+    name: &str,
+    description: &str,
+    catalog: &[CatalogEntry],
+) -> Result<(), String> {
     let id = known(id, catalog)
         .map_err(|()| "servicio desconocido".to_string())?
         .to_string();
@@ -530,26 +603,38 @@ pub fn set_meta(id: &str, name: &str, description: &str, catalog: &[CatalogEntry
     if description.chars().count() > 400 {
         return Err("la descripción supera 400 caracteres".into());
     }
-    let mut cfg = load_host_file();
-    cfg.meta.insert(
-        id,
-        ServiceMeta {
-            name: name.to_string(),
-            description: description.to_string(),
-        },
-    );
-    save_host_file(&cfg)
+    let kind = catalog
+        .iter()
+        .find(|service| service.id == id)
+        .map(|service| service.kind.as_str())
+        .unwrap_or("service");
+    let mut cfg = load_config();
+    let slot = slot_mut(&mut cfg, &id, kind);
+    slot.name = name.to_string();
+    slot.description = description.to_string();
+    if slot.peer.is_none() {
+        slot.peer = catalog
+            .iter()
+            .find(|service| service.id == id)
+            .and_then(|service| service.peer.clone());
+    }
+    save_config(&cfg)
 }
 
 pub fn catalog_note(catalog: &[CatalogEntry]) -> String {
-    let cfg = load_host_file();
+    let cfg = load_config();
     let mut lines = Vec::new();
     for service in catalog {
-        let (name, description) = display_meta(&cfg, &service.id, &service.name, &service.description);
+        let (name, description) =
+            display_meta(&cfg, &service.id, &service.name, &service.description);
         if description.trim().is_empty() {
             continue;
         }
-        let kind = if service.kind == "mcp" { "MCP" } else { "servicio" };
+        let kind = if service.kind == "mcp" {
+            "MCP"
+        } else {
+            "servicio"
+        };
         lines.push(format!("- {name} ({kind}): {description}"));
     }
     if lines.is_empty() {
@@ -671,10 +756,10 @@ async fn compose_ps() -> Result<Vec<ComposeRow>, String> {
 
 fn docker_command() -> Command {
     let mut command = Command::new("docker");
-    let cfg = load_host_file();
+    let cfg = load_config();
     command.env("IRA_SERVICES_PORT", cfg.gateway_port.to_string());
-    for (id, port) in &cfg.ports {
-        if let Some(key) = port_env(id) {
+    for (id, port) in cfg.ports() {
+        if let Some(key) = port_env(&id) {
             command.env(key, port.to_string());
         }
     }
@@ -725,7 +810,7 @@ fn parse_ps(stdout: &str) -> Vec<ComposeRow> {
 }
 
 fn from_rows(catalog: &[CatalogEntry], rows: &[ComposeRow], error: Option<String>) -> ServicesDto {
-    let cfg = load_host_file();
+    let cfg = load_config();
     let services: Vec<ServiceDto> = catalog
         .iter()
         .map(|service| {
@@ -745,24 +830,31 @@ fn from_rows(catalog: &[CatalogEntry], rows: &[ComposeRow], error: Option<String
                 None => (false, false, "parado".into()),
             };
             let via_gateway = GATEWAY_UPSTREAMS.contains(&service.id.as_str());
-            let (name, description) = display_meta(&cfg, &service.id, &service.name, &service.description);
+            let (name, description) =
+                display_meta(&cfg, &service.id, &service.name, &service.description);
             ServiceDto {
                 id: service.id.clone(),
                 name,
                 running,
                 healthy,
                 detail,
-                autostart: cfg.autostart.iter().any(|id| id == &service.id),
+                autostart: cfg.item(&service.id).is_some_and(|item| item.autostart),
                 host_port: if via_gateway {
                     None
                 } else {
                     published_port(&service.id, service, &cfg)
                 },
-                container_port: service.container_port.or_else(|| internal_port(&service.id)),
+                container_port: service
+                    .container_port
+                    .or_else(|| internal_port(&service.id)),
                 via_gateway,
                 kind: service.kind.clone(),
                 description,
-                peer: service.peer.clone(),
+                peer: cfg
+                    .item(&service.id)
+                    .and_then(|item| item.peer.clone())
+                    .filter(|peer| !peer.is_empty())
+                    .or_else(|| service.peer.clone()),
             }
         })
         .collect();
@@ -783,16 +875,27 @@ fn from_rows(catalog: &[CatalogEntry], rows: &[ComposeRow], error: Option<String
     }
 }
 
-fn unit<'a>(id: &str, catalog: &'a [CatalogEntry]) -> Vec<&'a str> {
+fn unit<'a>(id: &str, catalog: &'a [CatalogEntry], cfg: &HostConfig) -> Vec<&'a str> {
     let Some(entry) = catalog.iter().find(|service| service.id == id) else {
         return Vec::new();
     };
     let mut ids = vec![entry.id.as_str()];
-    if let Some(peer) = entry.peer.as_deref()
+    let peer = cfg
+        .item(id)
+        .and_then(|item| item.peer.clone())
+        .filter(|peer| !peer.is_empty())
+        .or_else(|| entry.peer.clone());
+    if let Some(peer) = peer
         && catalog.iter().any(|service| service.id == peer)
-        && !ids.contains(&peer)
+        && !ids.iter().any(|saved| *saved == peer)
     {
-        ids.push(peer);
+        let peer = catalog
+            .iter()
+            .find(|service| service.id == peer)
+            .map(|service| service.id.as_str());
+        if let Some(peer) = peer {
+            ids.push(peer);
+        }
     }
     ids
 }
@@ -815,8 +918,8 @@ fn start_order<'a>(ids: &[&'a str], catalog: &[CatalogEntry]) -> Vec<&'a str> {
     services
 }
 
-fn display_meta(cfg: &HostFile, id: &str, name: &str, description: &str) -> (String, String) {
-    match cfg.meta.get(id) {
+fn display_meta(cfg: &HostConfig, id: &str, name: &str, description: &str) -> (String, String) {
+    match cfg.item(id) {
         Some(meta) if !meta.name.trim().is_empty() => (
             meta.name.trim().to_string(),
             if meta.description.trim().is_empty() {
@@ -825,8 +928,10 @@ fn display_meta(cfg: &HostFile, id: &str, name: &str, description: &str) -> (Str
                 meta.description.trim().to_string()
             },
         ),
-        Some(meta) => (name.to_string(), meta.description.trim().to_string()),
-        None => (name.to_string(), description.to_string()),
+        Some(meta) if !meta.description.trim().is_empty() => {
+            (name.to_string(), meta.description.trim().to_string())
+        }
+        _ => (name.to_string(), description.to_string()),
     }
 }
 
@@ -846,18 +951,19 @@ fn default_description(id: &str) -> &'static str {
         "colibri" => "Modelo local Colibrì.",
         "ira-gateway" => "Puerto único hacia los servicios locales que no publican el suyo.",
         "projects-api" => "Servicio local de proyectos y tareas. Los datos viven en este equipo.",
-        "projects-mcp" => "MCP local de proyectos. Úsalo para listar, crear y editar proyectos y tareas de este equipo.",
+        "projects-mcp" => {
+            "MCP local de proyectos. Úsalo para listar, crear y editar proyectos y tareas de este equipo."
+        }
         _ => "",
     }
 }
 
-fn published_port(id: &str, entry: &CatalogEntry, cfg: &HostFile) -> Option<u16> {
+fn published_port(id: &str, entry: &CatalogEntry, cfg: &HostConfig) -> Option<u16> {
     if id == "ira-gateway" {
         return Some(cfg.gateway_port);
     }
-    cfg.ports
-        .get(id)
-        .copied()
+    cfg.item(id)
+        .and_then(|item| item.port)
         .or(entry.host_port)
         .or_else(|| default_host_port(id))
 }
@@ -895,7 +1001,10 @@ fn port_env(id: &str) -> Option<&'static str> {
 }
 
 fn ports_of(service: &Value) -> (Option<u16>, Option<u16>) {
-    let Some(port) = service.get("ports").and_then(Value::as_array).and_then(|ports| ports.first())
+    let Some(port) = service
+        .get("ports")
+        .and_then(Value::as_array)
+        .and_then(|ports| ports.first())
     else {
         return (None, None);
     };
@@ -924,27 +1033,140 @@ fn parse_port_mapping(raw: &str) -> (Option<u16>, Option<u16>) {
     (host.or(container), container)
 }
 
-fn host_file_path() -> Option<PathBuf> {
-    workspace_root().map(|root| root.join(".ira").join("host.json"))
+fn config_dir() -> Option<PathBuf> {
+    workspace_root().map(|root| root.join(".ira").join("config"))
 }
 
-fn load_host_file() -> HostFile {
-    let Some(path) = host_file_path() else {
-        return HostFile::default();
+fn load_config() -> HostConfig {
+    let Some(dir) = config_dir() else {
+        return HostConfig::default();
     };
-    let Ok(text) = std::fs::read_to_string(path) else {
-        return HostFile::default();
-    };
-    serde_json::from_str(&text).unwrap_or_default()
-}
-
-fn save_host_file(cfg: &HostFile) -> Result<(), String> {
-    let path = host_file_path().ok_or_else(|| "no encuentro el raíz del repo".to_string())?;
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|err| format!("no se pudo crear .ira: {err}"))?;
+    let services_path = dir.join("services.json");
+    let mcp_path = dir.join("mcp.json");
+    if !services_path.is_file() && !mcp_path.is_file() {
+        if let Some(legacy) = load_legacy() {
+            let cfg = split_legacy(&legacy);
+            let _ = save_config(&cfg);
+            return cfg;
+        }
+        return HostConfig::default();
     }
-    let body = serde_json::to_string_pretty(cfg).map_err(|err| err.to_string())?;
-    std::fs::write(&path, body).map_err(|err| format!("no se pudo guardar el arranque: {err}"))
+    let services: ServicesFile = read_json(&services_path).unwrap_or(ServicesFile {
+        gateway_port: default_gateway_port(),
+        items: BTreeMap::new(),
+    });
+    let mcps: McpFile = read_json(&mcp_path).unwrap_or_default();
+    HostConfig {
+        gateway_port: services.gateway_port,
+        services: services.items,
+        mcps: mcps.items,
+    }
+}
+
+fn save_config(cfg: &HostConfig) -> Result<(), String> {
+    let dir = config_dir().ok_or_else(|| "no encuentro el raíz del repo".to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|err| format!("no se pudo crear .ira/config: {err}"))?;
+    write_json(
+        &dir.join("services.json"),
+        &ServicesFile {
+            gateway_port: cfg.gateway_port,
+            items: cfg.services.clone(),
+        },
+    )?;
+    write_json(
+        &dir.join("mcp.json"),
+        &McpFile {
+            items: cfg.mcps.clone(),
+        },
+    )?;
+    Ok(())
+}
+
+fn slot_mut<'a>(cfg: &'a mut HostConfig, id: &str, kind: &str) -> &'a mut ItemFile {
+    let map = if kind == "mcp" {
+        &mut cfg.mcps
+    } else {
+        &mut cfg.services
+    };
+    map.entry(id.to_string()).or_default()
+}
+
+#[derive(Debug, Deserialize)]
+struct LegacyHost {
+    #[serde(default = "default_gateway_port")]
+    gateway_port: u16,
+    #[serde(default)]
+    ports: BTreeMap<String, u16>,
+    #[serde(default)]
+    autostart: Vec<String>,
+    #[serde(default)]
+    meta: BTreeMap<String, LegacyMeta>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct LegacyMeta {
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    description: String,
+}
+
+fn load_legacy() -> Option<LegacyHost> {
+    let path = workspace_root()?.join(".ira").join("host.json");
+    let text = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+fn split_legacy(legacy: &LegacyHost) -> HostConfig {
+    let mut cfg = HostConfig {
+        gateway_port: legacy.gateway_port,
+        services: BTreeMap::new(),
+        mcps: BTreeMap::new(),
+    };
+    let mut ids: Vec<String> = legacy
+        .meta
+        .keys()
+        .cloned()
+        .chain(legacy.ports.keys().cloned())
+        .collect();
+    ids.extend(legacy.autostart.iter().cloned());
+    ids.sort();
+    ids.dedup();
+    for id in ids {
+        let mcp = id.ends_with("-mcp");
+        let item = ItemFile {
+            name: legacy
+                .meta
+                .get(&id)
+                .map(|meta| meta.name.clone())
+                .unwrap_or_default(),
+            description: legacy
+                .meta
+                .get(&id)
+                .map(|meta| meta.description.clone())
+                .unwrap_or_default(),
+            autostart: legacy.autostart.iter().any(|saved| saved == &id),
+            port: legacy.ports.get(&id).copied(),
+            peer: default_peer(&id).map(str::to_string),
+        };
+        if mcp {
+            cfg.mcps.insert(id, item);
+        } else {
+            cfg.services.insert(id, item);
+        }
+    }
+    cfg
+}
+
+fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Option<T> {
+    let text = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+fn write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
+    let body = serde_json::to_string_pretty(value).map_err(|err| err.to_string())?;
+    std::fs::write(path, body)
+        .map_err(|err| format!("no se pudo guardar {}: {err}", path.display()))
 }
 
 fn publish_env(id: &str, port: u16) {
@@ -987,8 +1209,7 @@ fn upsert_dotenv(key: &str, value: &str) {
         .lines()
         .map(|line| {
             let trimmed = line.trim_start();
-            if trimmed.starts_with(&format!("{key}=")) || trimmed.starts_with(&format!("#{key}="))
-            {
+            if trimmed.starts_with(&format!("{key}=")) || trimmed.starts_with(&format!("#{key}=")) {
                 found = true;
                 format!("{key}={value}")
             } else {
@@ -1044,7 +1265,10 @@ fn upsert_url_dotenv(key: &str, port: u16) {
 fn replace_port_in_url(url: &str, port: u16) -> Option<String> {
     let (scheme, rest) = url.split_once("://")?;
     let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
-    let hostport = authority.rsplit_once('@').map(|(_, host)| host).unwrap_or(authority);
+    let hostport = authority
+        .rsplit_once('@')
+        .map(|(_, host)| host)
+        .unwrap_or(authority);
     if hostport.contains(']') {
         return None;
     }
@@ -1143,11 +1367,7 @@ mod tests {
         assert!(dto.services[0].healthy);
         assert!(!dto.services[1].running);
         assert_eq!(dto.services[1].detail, "parado");
-        assert!(
-            dto.services
-                .iter()
-                .any(|s| s.id == "colibri" && !s.running)
-        );
+        assert!(dto.services.iter().any(|s| s.id == "colibri" && !s.running));
     }
 
     #[test]
@@ -1156,11 +1376,30 @@ mod tests {
 {"Service":"toolbox","State":"running","Health":"healthy","Status":"Up"}"#;
         let dto = from_rows(&builtin_catalog(), &parse_ps(raw), None);
         assert!(dto.ok);
-        assert!(
-            dto.services
-                .iter()
-                .any(|s| s.id == "colibri" && !s.healthy)
-        );
+        assert!(dto.services.iter().any(|s| s.id == "colibri" && !s.healthy));
+    }
+
+    #[test]
+    fn splits_legacy_host_file_into_services_and_mcp() {
+        let legacy = LegacyHost {
+            gateway_port: 8800,
+            ports: BTreeMap::from([("postgres".into(), 5440)]),
+            autostart: vec!["postgres".into(), "projects-mcp".into()],
+            meta: BTreeMap::from([(
+                "projects-mcp".into(),
+                LegacyMeta {
+                    name: "Proyectos".into(),
+                    description: "MCP local".into(),
+                },
+            )]),
+        };
+        let cfg = split_legacy(&legacy);
+        assert_eq!(cfg.gateway_port, 8800);
+        assert!(cfg.services["postgres"].autostart);
+        assert_eq!(cfg.services["postgres"].port, Some(5440));
+        assert!(cfg.mcps["projects-mcp"].autostart);
+        assert_eq!(cfg.mcps["projects-mcp"].name, "Proyectos");
+        assert!(cfg.services.get("projects-mcp").is_none());
     }
 
     #[test]
@@ -1172,8 +1411,14 @@ mod tests {
             }
         }"#;
         let entries = parse_catalog(raw).unwrap();
-        let api = entries.iter().find(|entry| entry.id == "projects-api").unwrap();
-        let mcp = entries.iter().find(|entry| entry.id == "projects-mcp").unwrap();
+        let api = entries
+            .iter()
+            .find(|entry| entry.id == "projects-api")
+            .unwrap();
+        let mcp = entries
+            .iter()
+            .find(|entry| entry.id == "projects-mcp")
+            .unwrap();
         assert_eq!(api.kind, "service");
         assert_eq!(api.peer.as_deref(), Some("projects-mcp"));
         assert_eq!(mcp.kind, "mcp");
@@ -1183,8 +1428,11 @@ mod tests {
     #[test]
     fn rewrites_host_port_in_url() {
         assert_eq!(
-            replace_port_in_url("postgres://ira:ira@127.0.0.1:5439/ira?sslmode=disable", 5440)
-                .as_deref(),
+            replace_port_in_url(
+                "postgres://ira:ira@127.0.0.1:5439/ira?sslmode=disable",
+                5440
+            )
+            .as_deref(),
             Some("postgres://ira:ira@127.0.0.1:5440/ira?sslmode=disable")
         );
         assert_eq!(

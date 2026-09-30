@@ -35,6 +35,9 @@ pub async fn attach_configured(base: Registry, configs: &[McpServerConfig]) -> R
             continue;
         }
         let timeout = match config.transport {
+            McpTransport::Stdio if config.args.iter().any(|arg| arg == "mcp-remote") => {
+                std::time::Duration::from_secs(155)
+            }
             McpTransport::Stdio => std::time::Duration::from_secs(30),
             McpTransport::StreamableHttp => std::time::Duration::from_secs(5),
         };
@@ -55,10 +58,21 @@ pub async fn attach_configured(base: Registry, configs: &[McpServerConfig]) -> R
         };
         tracing::info!("mcp {}: {} herramientas", config.id, remote.len());
         for tool in remote {
-            let name = tool_name(&config.id, &tool.name);
-            if base.has(&name) || added.iter().any(|seen| seen == &name) {
-                continue;
-            }
+            let root = tool_name(&config.id, &tool.name);
+            let mut ordinal = 1;
+            let name = loop {
+                let suffix = if ordinal == 1 {
+                    String::new()
+                } else {
+                    format!("_{ordinal}")
+                };
+                let prefix: String = root.chars().take(64 - suffix.len()).collect();
+                let candidate = format!("{prefix}{suffix}");
+                if !base.has(&candidate) && !added.contains(&candidate) {
+                    break candidate;
+                }
+                ordinal += 1;
+            };
             added.push(name.clone());
             let spec = ToolSpec {
                 name: name.clone(),
@@ -72,11 +86,16 @@ pub async fn attach_configured(base: Registry, configs: &[McpServerConfig]) -> R
                     let server_id = server_id.clone();
                     let remote_name = remote_name.clone();
                     async move {
-                        stringify(ira_mcp::shared().call_tool(&server_id, &remote_name, args).await)
+                        stringify(
+                            ira_mcp::shared()
+                                .call_tool(&server_id, &remote_name, args)
+                                .await,
+                        )
                     }
                 }),
                 &config.id,
                 tool.name,
+                tool.read_only,
             );
         }
     }
@@ -84,11 +103,20 @@ pub async fn attach_configured(base: Registry, configs: &[McpServerConfig]) -> R
 }
 
 fn tool_name(service_id: &str, remote: &str) -> String {
-    let slug = service_id
-        .trim_end_matches("-mcp")
-        .replace('-', "_")
-        .to_ascii_lowercase();
-    let remote = remote.replace('-', "_");
+    let normalize = |value: &str| {
+        value
+            .chars()
+            .map(|ch| {
+                if ch.is_ascii_alphanumeric() || ch == '_' {
+                    ch.to_ascii_lowercase()
+                } else {
+                    '_'
+                }
+            })
+            .collect::<String>()
+    };
+    let slug = normalize(service_id.trim_end_matches("-mcp"));
+    let remote = normalize(remote);
     if remote.starts_with(&format!("{slug}_")) {
         remote
     } else {
@@ -102,7 +130,14 @@ mod tests {
 
     #[test]
     fn prefixes_remote_tool_with_service_slug() {
-        assert_eq!(tool_name("projects-mcp", "create_task"), "projects_create_task");
+        assert_eq!(
+            tool_name("projects-mcp", "create_task"),
+            "projects_create_task"
+        );
         assert_eq!(tool_name("projects-mcp", "projects_list"), "projects_list");
+        assert_eq!(
+            tool_name("io.github/foo", "issues.create"),
+            "io_github_foo_issues_create"
+        );
     }
 }

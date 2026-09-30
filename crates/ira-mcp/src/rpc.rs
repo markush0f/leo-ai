@@ -9,6 +9,7 @@ pub struct RemoteTool {
     pub name: String,
     pub description: String,
     pub parameters: Value,
+    pub read_only: bool,
 }
 
 pub fn initialize_params() -> Value {
@@ -85,6 +86,10 @@ pub fn parse_tools_list(result: &Value) -> Result<Vec<RemoteTool>, Error> {
             name: name.to_string(),
             description,
             parameters,
+            read_only: tool
+                .pointer("/annotations/readOnlyHint")
+                .and_then(Value::as_bool)
+                == Some(true),
         });
     }
     out.sort_by(|a, b| a.name.cmp(&b.name));
@@ -154,7 +159,10 @@ mod tests {
 
     #[test]
     fn endpoint_appends_mcp_once() {
-        assert_eq!(mcp_endpoint("http://127.0.0.1:3100"), "http://127.0.0.1:3100/mcp");
+        assert_eq!(
+            mcp_endpoint("http://127.0.0.1:3100"),
+            "http://127.0.0.1:3100/mcp"
+        );
         assert_eq!(
             mcp_endpoint("https://example.com/mcp"),
             "https://example.com/mcp"
@@ -168,6 +176,12 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(tools[0].name, "list_tasks");
+        assert!(!tools[0].read_only);
+        let read = parse_tools_list(
+            &json!({"tools": [{"name": "list", "annotations": {"readOnlyHint": true}}]}),
+        )
+        .unwrap();
+        assert!(read[0].read_only);
         let value = parse_call_result(&json!({
             "content": [{ "type": "text", "text": "{\"ok\":true}" }]
         }))

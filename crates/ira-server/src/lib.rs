@@ -42,6 +42,12 @@ struct ChatIn {
 }
 
 #[derive(Deserialize)]
+struct WebSearchIn {
+    enabled: bool,
+    context_size: String,
+}
+
+#[derive(Deserialize)]
 struct CodexLoginIn {
     provider_id: Uuid,
 }
@@ -65,12 +71,19 @@ pub fn router(app: App, web_root: Option<PathBuf>, token: impl Into<String>) -> 
         .route("/services/{id}", post(set_service))
         .route("/snapshot", get(snapshot))
         .route("/apply", post(apply))
+        .route(
+            "/preferences/web-search",
+            axum::routing::put(update_web_search),
+        )
         .route("/databases", get(list_databases).post(create_database))
         .route(
             "/databases/{id}",
             put(update_database).delete(delete_database),
         )
         .route("/databases/{id}/test", post(test_database))
+        .route("/mcp", get(list_mcp).post(save_mcp))
+        .route("/mcp/{id}", axum::routing::delete(delete_mcp))
+        .route("/mcp/{id}/test", post(test_mcp))
         .route("/databases/{id}/json", get(export_database))
         .route("/databases/{id}/schema", get(export_database_schema))
         .route("/codex/login", post(begin_codex_login))
@@ -112,11 +125,7 @@ fn cors() -> CorsLayer {
             Method::DELETE,
             Method::OPTIONS,
         ])
-        .allow_headers([
-            header::AUTHORIZATION,
-            header::CONTENT_TYPE,
-            header::ACCEPT,
-        ])
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE, header::ACCEPT])
 }
 
 async fn authorize(token: String, req: axum::extract::Request, next: Next) -> Response {
@@ -196,10 +205,15 @@ async fn set_service(
     Path(id): Path<String>,
     Json(body): Json<ServiceAction>,
 ) -> Response {
-    send(Ok(
-        app.set_service(&id, &body.action, body.port, body.name.as_deref(), body.description.as_deref())
-            .await,
-    ))
+    send(Ok(app
+        .set_service(
+            &id,
+            &body.action,
+            body.port,
+            body.name.as_deref(),
+            body.description.as_deref(),
+        )
+        .await))
 }
 
 #[derive(Deserialize)]
@@ -217,8 +231,28 @@ async fn snapshot(State(app): State<App>) -> Response {
     send(app.snapshot().await)
 }
 
+async fn list_mcp(State(app): State<App>) -> Response {
+    send(app.list_mcp().await)
+}
+
+async fn save_mcp(State(app): State<App>, Json(input): Json<ira_api::McpInput>) -> Response {
+    send(app.save_mcp(input).await)
+}
+
+async fn delete_mcp(State(app): State<App>, Path(id): Path<String>) -> Response {
+    send(app.delete_mcp(&id).await)
+}
+
+async fn test_mcp(State(app): State<App>, Path(id): Path<String>) -> Response {
+    send(app.test_mcp(&id).await)
+}
+
 async fn apply(State(app): State<App>, Json(op): Json<Op>) -> Response {
     send(app.apply(op).await)
+}
+
+async fn update_web_search(State(app): State<App>, Json(input): Json<WebSearchIn>) -> Response {
+    send(app.update_web_search(input.enabled, &input.context_size))
 }
 
 async fn list_databases(State(app): State<App>) -> Response {
@@ -489,10 +523,7 @@ mod tests {
             .headers()
             .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
             .and_then(|v| v.to_str().ok());
-        assert!(
-            allow == Some("http://localhost:5179"),
-            "{allow:?}"
-        );
+        assert!(allow == Some("http://localhost:5179"), "{allow:?}");
     }
 
     #[tokio::test]

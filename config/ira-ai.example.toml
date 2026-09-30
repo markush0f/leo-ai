@@ -1,7 +1,6 @@
-# Legacy voice settings map. Runtime state lives in PostgreSQL (`settings` +
-# `engines`). If this file exists at ~/.ira/config.toml and the
-# database still has voice defaults, ira-daemon imports audio/VAD/STT language
-# and the spoken prompt once. It does not override the catalog model.
+# Voice device and engine settings. Audio/VAD/STT values are imported once by
+# ira-daemon when PostgreSQL still has defaults. Assistant preferences below
+# are read from ~/.ira/config.toml and can be edited in the desktop catalog.
 
 [audio]
 source = "@DEFAULT_SOURCE@"
@@ -25,11 +24,20 @@ rms_threshold = 0.035
 language = "es"
 
 [llm]
-# grok | gpt | ollama | claude. The code default is grok (XAI_API_KEY);
-# this template explicitly selects Ollama. Chat models are stored in PostgreSQL.
+# Legacy voice prompt import. Provider/model here do not override the catalog.
 provider = "ollama"
 # model = "grok-4.6"
 system = "Eres Ira, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta."
+
+[assistant]
+# Model choices come from Models.dev; its offline cache lives in ~/.ira/models-dev.json.
+# Provider catalog and credentials remain in PostgreSQL; active choice and power are preferences.
+# active_provider = "codex"
+# active_model = "gpt-6-luna"
+# active_effort = "high" # Levels are defined by Models.dev for selected model.
+# system_prompt = "Responde en español y cita fuentes recientes al buscar en internet."
+web_search_enabled = true
+web_search_context_size = "high" # low | medium | high
 
 [telegram]
 # Optional: the bot reads TELEGRAM_BOT_TOKEN and TELEGRAM_ALLOW_USERS from `.env`.

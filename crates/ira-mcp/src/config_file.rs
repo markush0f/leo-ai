@@ -106,6 +106,19 @@ pub fn remove(name: &str) -> Result<Vec<PathBuf>, Error> {
     Ok(touched)
 }
 
+pub fn remove_global(name: &str) -> Result<(), Error> {
+    let path = global_path();
+    let mut servers = read_servers(&path)?;
+    let before = servers.len();
+    servers.retain(|server| server.id != name);
+    if servers.len() == before {
+        return Err(Error::msg(format!(
+            "no existe {name} en configuración global"
+        )));
+    }
+    write_servers(&path, &servers)
+}
+
 pub fn read_servers(path: &Path) -> Result<Vec<McpServerConfig>, Error> {
     let doc = read_document(path)?;
     let Some(mcp) = doc.get("mcp") else {
@@ -126,7 +139,7 @@ fn write_servers(path: &Path, servers: &[McpServerConfig]) -> Result<(), Error> 
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let mut doc = read_document(path).unwrap_or_default();
+    let mut doc = read_document(path)?;
     let mut mcp = Map::new();
     let mut ordered = servers.to_vec();
     ordered.sort_by(|left, right| left.name.cmp(&right.name));
@@ -191,12 +204,11 @@ fn parse_server(name: &str, spec: &Value) -> Result<McpServerConfig, Error> {
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_ascii_lowercase();
-    let enabled = spec
-        .get("enabled")
-        .and_then(Value::as_bool)
-        .unwrap_or(true);
-    let remote = matches!(kind.as_str(), "remote" | "http" | "streamable-http" | "streamable_http")
-        || (kind.is_empty() && spec.get("url").is_some());
+    let enabled = spec.get("enabled").and_then(Value::as_bool).unwrap_or(true);
+    let remote = matches!(
+        kind.as_str(),
+        "remote" | "http" | "streamable-http" | "streamable_http"
+    ) || (kind.is_empty() && spec.get("url").is_some());
     if remote {
         let url = spec
             .get("url")
@@ -250,7 +262,9 @@ fn string_map(value: Option<&Value>) -> HashMap<String, String> {
         .and_then(Value::as_object)
         .map(|map| {
             map.iter()
-                .filter_map(|(key, item)| item.as_str().map(|value| (key.clone(), value.to_string())))
+                .filter_map(|(key, item)| {
+                    item.as_str().map(|value| (key.clone(), value.to_string()))
+                })
                 .collect()
         })
         .unwrap_or_default()
@@ -294,7 +308,10 @@ mod tests {
             "filesystem",
             "filesystem",
             "npx",
-            vec!["-y".into(), "@modelcontextprotocol/server-filesystem".into()],
+            vec![
+                "-y".into(),
+                "@modelcontextprotocol/server-filesystem".into(),
+            ],
             HashMap::from([("FOO".into(), "1".into())]),
         );
         let mut remote = McpServerConfig::http("docs", "https://example.com/mcp");
@@ -303,13 +320,19 @@ mod tests {
         write_servers(&path, &[local, remote]).unwrap();
         let servers = read_servers(&path).unwrap();
         assert_eq!(servers.len(), 2);
-        let filesystem = servers.iter().find(|server| server.name == "filesystem").unwrap();
+        let filesystem = servers
+            .iter()
+            .find(|server| server.name == "filesystem")
+            .unwrap();
         assert_eq!(filesystem.transport, McpTransport::Stdio);
         assert_eq!(filesystem.command.as_deref(), Some("npx"));
         assert_eq!(filesystem.env.get("FOO").map(String::as_str), Some("1"));
         let docs = servers.iter().find(|server| server.name == "docs").unwrap();
         assert_eq!(docs.transport, McpTransport::StreamableHttp);
-        assert_eq!(docs.headers.get("Authorization").map(String::as_str), Some("Bearer {env:TOKEN}"));
+        assert_eq!(
+            docs.headers.get("Authorization").map(String::as_str),
+            Some("Bearer {env:TOKEN}")
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 

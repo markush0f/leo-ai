@@ -234,13 +234,21 @@ fn request_body(model: &str, request: &ChatRequest) -> Value {
         .tools
         .iter()
         .map(|tool| {
-            json!({
-                "type": "function",
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": tool.parameters,
-                "strict": false,
-            })
+            if tool.name == "web_search" {
+                let context_size = tool.parameters["search_context_size"]
+                    .as_str()
+                    .filter(|value| matches!(*value, "low" | "medium" | "high"))
+                    .unwrap_or("high");
+                json!({"type": "web_search", "search_context_size": context_size})
+            } else {
+                json!({
+                    "type": "function",
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters,
+                    "strict": false,
+                })
+            }
         })
         .collect();
     let mut body = json!({
@@ -533,9 +541,16 @@ mod tests {
     fn builds_responses_payload() {
         let mut request = ChatRequest::user("hola").with_system("sé breve");
         request.max_tokens = Some(512);
+        request.tools.push(crate::ToolSpec {
+            name: "web_search".into(),
+            description: "Busca en internet".into(),
+            parameters: json!({"type": "object", "properties": {}}),
+        });
         let body = request_body("gpt-5.4", &request);
         assert_eq!(body["instructions"], "sé breve");
         assert_eq!(body["input"][0]["role"], "user");
+        assert_eq!(body["tools"][0]["type"], "web_search");
+        assert_eq!(body["tools"][0]["search_context_size"], "high");
         assert_eq!(body["store"], false);
         assert!(body.get("max_output_tokens").is_none());
     }

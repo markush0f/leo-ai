@@ -31,7 +31,12 @@ impl Session {
         }
     }
 
-    async fn request(&self, method: &str, params: Value, timeout: Duration) -> Result<Value, Error> {
+    async fn request(
+        &self,
+        method: &str,
+        params: Value,
+        timeout: Duration,
+    ) -> Result<Value, Error> {
         match self {
             Self::Stdio(session) => session.request(method, params, timeout).await,
             Self::Http(session) => session.request(method, params, timeout).await,
@@ -64,9 +69,7 @@ impl McpManager {
     }
 
     pub async fn connect(&self, config: &McpServerConfig) -> Result<(), Error> {
-        config
-            .validate()
-            .map_err(Error::msg)?;
+        config.validate().map_err(Error::msg)?;
         let resolved = resolve_config(config)?;
         let fingerprint = fingerprint(&resolved);
         let reuse = {
@@ -86,6 +89,9 @@ impl McpManager {
             return Err(Error::msg(message.clone()));
         }
         let timeout = match resolved.transport {
+            McpTransport::Stdio if resolved.args.iter().any(|arg| arg == "mcp-remote") => {
+                Duration::from_secs(150)
+            }
             McpTransport::Stdio => STDIO_TIMEOUT,
             McpTransport::StreamableHttp => HTTP_TIMEOUT,
         };
@@ -160,7 +166,8 @@ impl McpManager {
     }
 
     pub async fn list_resources(&self, id: &str) -> Result<Value, Error> {
-        self.rpc(id, "resources/list", json!({}), HTTP_TIMEOUT).await
+        self.rpc(id, "resources/list", json!({}), HTTP_TIMEOUT)
+            .await
     }
 
     pub async fn list_prompts(&self, id: &str) -> Result<Value, Error> {

@@ -28,6 +28,7 @@ pub struct Registry {
     ctx: Context,
     tools: Arc<Vec<DynTool>>,
     providers: Arc<HashMap<String, ToolProvider>>,
+    mcp_read_only: Arc<Vec<String>>,
 }
 
 impl Registry {
@@ -37,6 +38,7 @@ impl Registry {
             ctx,
             tools: Vec::new(),
             providers: HashMap::new(),
+            mcp_read_only: Vec::new(),
         }
     }
 
@@ -77,7 +79,10 @@ impl Registry {
             tool_name,
         } = self.provider(name)
         {
-            return match ira_mcp::shared().call_tool(&server_id, &tool_name, args).await {
+            return match ira_mcp::shared()
+                .call_tool(&server_id, &tool_name, args)
+                .await
+            {
                 Ok(value) => value.to_string(),
                 Err(err) => ToolError::from_display(err).to_json(),
             };
@@ -97,6 +102,7 @@ impl Registry {
             ctx: self.ctx.clone(),
             tools: (*self.tools).clone(),
             providers: (*self.providers).clone(),
+            mcp_read_only: (*self.mcp_read_only).clone(),
         }
     }
 
@@ -105,24 +111,29 @@ impl Registry {
         self.tools.iter().any(|tool| tool.name() == name)
     }
 
-    /// Drops tools that write, delete, or run commands. MCP servers stay.
+    /// Drops mutating native tools and MCP tools without an explicit readOnlyHint.
     pub fn read_only(&self) -> Self {
         let tools = self
             .tools
             .iter()
-            .filter(|tool| !crate::catalog::is_mutating(&tool.name()))
+            .filter(|tool| {
+                let name = tool.name();
+                !crate::catalog::is_mutating(&name)
+                    && (!self.providers.contains_key(&name) || self.mcp_read_only.contains(&name))
+            })
             .cloned()
             .collect();
         let providers = self
             .providers
             .iter()
-            .filter(|(name, _)| !crate::catalog::is_mutating(name))
+            .filter(|(name, _)| self.mcp_read_only.contains(name))
             .map(|(name, provider)| (name.clone(), provider.clone()))
             .collect();
         Self {
             ctx: self.ctx.clone(),
             tools: Arc::new(tools),
             providers: Arc::new(providers),
+            mcp_read_only: self.mcp_read_only.clone(),
         }
     }
 }
@@ -132,6 +143,7 @@ pub struct Builder {
     ctx: Context,
     tools: Vec<DynTool>,
     providers: HashMap<String, ToolProvider>,
+    mcp_read_only: Vec<String>,
 }
 
 impl Builder {
@@ -141,8 +153,17 @@ impl Builder {
     }
 
     /// Registers a tool and records which MCP server owns the remote name.
-    pub fn add_mcp(&mut self, tool: DynTool, server_id: impl Into<String>, tool_name: impl Into<String>) {
+    pub fn add_mcp(
+        &mut self,
+        tool: DynTool,
+        server_id: impl Into<String>,
+        tool_name: impl Into<String>,
+        read_only: bool,
+    ) {
         let name = tool.name();
+        if read_only {
+            self.mcp_read_only.push(name.clone());
+        }
         self.providers.insert(
             name,
             ToolProvider::Mcp {
@@ -168,6 +189,34 @@ impl Builder {
             ctx: self.ctx,
             tools: Arc::new(self.tools),
             providers: Arc::new(self.providers),
+            mcp_read_only: Arc::new(self.mcp_read_only),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn read_only_requires_explicit_mcp_annotation() {
+        let spec = |name: &str| ToolSpec {
+            name: name.into(),
+            description: "test".into(),
+            parameters: json!({"type": "object"}),
+        };
+        let mut builder = Registry::builder(Context::from_env());
+        for (name, read_only) in [("remote_list", true), ("remote_delete", false)] {
+            builder.add_mcp(
+                DynTool::new(spec(name), |_, _| async { Ok(String::new()) }),
+                "remote",
+                name,
+                read_only,
+            );
+        }
+        let registry = builder.build().read_only();
+        assert!(registry.has("remote_list"));
+        assert!(!registry.has("remote_delete"));
     }
 }
