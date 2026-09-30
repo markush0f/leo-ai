@@ -88,8 +88,14 @@ pub fn router(app: App, web_root: Option<PathBuf>, token: impl Into<String>) -> 
         .route("/databases/{id}/schema", get(export_database_schema))
         .route("/codex/login", post(begin_codex_login))
         .route("/codex/login/{id}/finish", post(finish_codex_login))
-        .route("/chats", get(list_chats).post(new_chat))
-        .route("/chats/{id}", get(open_chat))
+        .route(
+            "/chats",
+            get(list_chats).post(new_chat).delete(delete_all_chats),
+        )
+        .route(
+            "/chats/{id}",
+            get(open_chat).patch(rename_chat).delete(delete_chat),
+        )
         .route("/chats/{id}/messages/stream", post(chat_stream))
         .route("/chats/{id}/messages", post(chat));
 
@@ -313,6 +319,27 @@ async fn list_chats(State(app): State<App>) -> Response {
 
 async fn new_chat(State(app): State<App>) -> Response {
     send(app.new_chat().await)
+}
+
+#[derive(Deserialize)]
+struct RenameChat {
+    title: String,
+}
+
+async fn rename_chat(
+    State(app): State<App>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RenameChat>,
+) -> Response {
+    send(app.rename_chat(id, body.title).await)
+}
+
+async fn delete_chat(State(app): State<App>, Path(id): Path<Uuid>) -> Response {
+    send(app.delete_chat(id).await)
+}
+
+async fn delete_all_chats(State(app): State<App>) -> Response {
+    send(app.delete_all_chats().await)
 }
 
 async fn open_chat(State(app): State<App>, Path(id): Path<Uuid>) -> Response {

@@ -1022,6 +1022,47 @@ impl App {
         Ok(dto::conversation_dto(row))
     }
 
+    pub async fn rename_chat(
+        &self,
+        id: Uuid,
+        title: String,
+    ) -> Result<Vec<ConversationDto>, String> {
+        let title = title.trim();
+        if title.is_empty() {
+            return Err("el nombre no puede estar vacío".into());
+        }
+        let pool = self.pool().await?;
+        db::rename_conversation(&pool, id, title)
+            .await
+            .map_err(|e| e.to_string())?;
+        self.list_chats().await
+    }
+
+    pub async fn delete_chat(&self, id: Uuid) -> Result<Vec<ConversationDto>, String> {
+        let pool = self.pool().await?;
+        db::archive_conversation(&pool, id)
+            .await
+            .map_err(|e| e.to_string())?;
+        let chats = self.list_chats().await?;
+        if chats.is_empty() {
+            self.new_chat().await?;
+        } else {
+            db::set_active_conversation(&pool, Some(chats[0].id))
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+        self.list_chats().await
+    }
+
+    pub async fn delete_all_chats(&self) -> Result<Vec<ConversationDto>, String> {
+        let pool = self.pool().await?;
+        db::archive_local_conversations(&pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        self.new_chat().await?;
+        self.list_chats().await
+    }
+
     pub async fn chat(&self, conversation_id: Uuid, text: String) -> Result<ChatOut, String> {
         let conversation_lock = self.conversation_lock(conversation_id).await;
         let _turn = conversation_lock.lock().await;

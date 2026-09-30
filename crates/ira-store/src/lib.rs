@@ -23,9 +23,10 @@ pub use codex::{
 };
 pub use conversations::{
     CHANNEL_LOCAL, CHANNEL_TELEGRAM, CHANNEL_VOICE, CONTEXT_LIMIT, ConversationRow, MessageRow,
-    NewMessage, append_message, archive_conversation, context_messages, conversation_messages,
-    create_conversation, display_kind, ensure_local, ensure_telegram, ensure_voice,
-    get_conversation, list_conversations, new_local, new_telegram, set_active_conversation,
+    NewMessage, append_message, archive_conversation, archive_local_conversations,
+    context_messages, conversation_messages, create_conversation, display_kind, ensure_local,
+    ensure_telegram, ensure_voice, get_conversation, list_conversations, new_local, new_telegram,
+    rename_conversation, set_active_conversation,
 };
 pub use databases::{
     DatabaseCipher, DatabaseConnectionRow, DatabaseError, DatabaseWrite,

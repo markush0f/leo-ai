@@ -133,6 +133,21 @@ export async function newChat(): Promise<Conversation> {
   return http<Conversation>("/api/chats", { method: "POST" });
 }
 
+export async function renameChat(id: string, title: string): Promise<Conversation[]> {
+  if (inTauri) return invoke<Conversation[]>("rename_chat", { id, title });
+  return http<Conversation[]>(`/api/chats/${id}`, { method: "PATCH", body: JSON.stringify({ title }) });
+}
+
+export async function deleteChat(id: string): Promise<Conversation[]> {
+  if (inTauri) return invoke<Conversation[]>("delete_chat", { id });
+  return http<Conversation[]>(`/api/chats/${id}`, { method: "DELETE" });
+}
+
+export async function deleteAllChats(): Promise<Conversation[]> {
+  if (inTauri) return invoke<Conversation[]>("delete_all_chats");
+  return http<Conversation[]>("/api/chats", { method: "DELETE" });
+}
+
 export async function loadServices(): Promise<Services> {
   if (inTauri) return invoke<Services>("services");
   return http<Services>("/api/services");

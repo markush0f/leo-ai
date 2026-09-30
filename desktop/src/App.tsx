@@ -10,6 +10,9 @@ import {
   beginCodexLogin,
   finishCodexLogin,
   listChats,
+  renameChat,
+  deleteChat,
+  deleteAllChats,
   loadServices,
   setService,
   startServices,
@@ -465,6 +468,31 @@ export default function App() {
     }
   };
 
+  const renameConversation = async (chat: Conversation) => {
+    const title = window.prompt("Nombre de la conversación", chat.title?.trim() || "Nuevo chat");
+    if (title === null || !title.trim()) return;
+    try { setChats(await renameChat(chat.id, title)); }
+    catch (error) { setBoot(error instanceof Error ? error.message : String(error)); }
+  };
+
+  const removeConversation = async (chat: Conversation) => {
+    if (!window.confirm(`¿Eliminar «${chat.title?.trim() || "Nuevo chat"}»?`)) return;
+    try {
+      const next = await deleteChat(chat.id);
+      setChats(next);
+      if (chat.id === conversationId && next[0]) await open(next[0].id);
+    } catch (error) { setBoot(error instanceof Error ? error.message : String(error)); }
+  };
+
+  const removeAllConversations = async () => {
+    if (!window.confirm("¿Eliminar todas las conversaciones?")) return;
+    try {
+      const next = await deleteAllChats();
+      setChats(next);
+      if (next[0]) await open(next[0].id);
+    } catch (error) { setBoot(error instanceof Error ? error.message : String(error)); }
+  };
+
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
@@ -605,21 +633,21 @@ export default function App() {
         </button>
 
         <nav className="flex min-h-0 flex-1 flex-col gap-[0.15rem] overflow-auto pr-[0.1rem] transition-[flex-grow,opacity,visibility] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!grow-0 collapsed:!opacity-0 collapsed:!invisible collapsed:![transition:flex-grow_420ms_cubic-bezier(0.22,1,0.36,1),opacity_180ms_ease,visibility_0s_180ms]" aria-label="conversaciones">
-          <p className="mt-[1.15rem] mb-[0.6rem] truncate px-[0.7rem] text-[0.78rem] font-semibold text-muted collapsed:!hidden">Conversaciones</p>
+          <div className="mt-[1.15rem] mb-[0.6rem] flex items-center justify-between px-[0.7rem] collapsed:!hidden">
+            <p className="m-0 truncate text-[0.78rem] font-semibold text-muted">Conversaciones</p>
+            {chats.length > 0 && <button type="button" className="text-xs text-muted hover:text-ink" title="Eliminar todas las conversaciones" aria-label="Eliminar todas las conversaciones" onClick={() => void removeAllConversations()}>Eliminar todo</button>}
+          </div>
           {chats.length === 0 && <p className="px-[0.7rem] text-[0.82rem] whitespace-normal text-muted collapsed:!hidden">Tu próxima idea empieza aquí.</p>}
           {chats.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              className={cx("relative isolate flex min-h-[42px] w-full items-center gap-[0.65rem] overflow-hidden rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.45rem] text-left font-medium text-ellipsis whitespace-nowrap text-ink hover:bg-elevated [&_svg]:size-[18px] [&_svg]:text-muted collapsed:!justify-center collapsed:!px-0", c.id === conversationId && "!bg-transparent [&_svg]:text-accent")}
-              title={c.title?.trim() || "Nuevo chat"}
-              aria-label={c.title?.trim() || "Nuevo chat"}
-              aria-current={c.id === conversationId ? "page" : undefined}
-              onClick={() => void open(c.id)}
-            >
-              {c.id === conversationId && <motion.span className="pointer-events-none absolute inset-0 -z-[1] rounded-[10px] bg-[color-mix(in_srgb,var(--color-accent)_12%,var(--color-sidebar))]" layoutId="chat-selection" transition={{ type: "spring", stiffness: 420, damping: 38 }} />}
-              <IconChat /><span className="min-w-0 truncate collapsed:!hidden">{c.title?.trim() || "Nuevo chat"}</span>
-            </button>
+            <div key={c.id} className={cx("group relative flex min-h-[42px] w-full items-center rounded-[10px] hover:bg-elevated", c.id === conversationId && "bg-[color-mix(in_srgb,var(--color-accent)_12%,var(--color-sidebar))]")}>
+              <button type="button" className="flex min-w-0 flex-1 items-center gap-[0.65rem] overflow-hidden rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.45rem] text-left font-medium text-ink collapsed:!justify-center collapsed:!px-0" title={c.title?.trim() || "Nuevo chat"} aria-label={c.title?.trim() || "Nuevo chat"} aria-current={c.id === conversationId ? "page" : undefined} onClick={() => void open(c.id)}>
+                <IconChat /><span className="min-w-0 truncate collapsed:!hidden">{c.title?.trim() || "Nuevo chat"}</span>
+              </button>
+              <div className="flex shrink-0 items-center pr-1 collapsed:!hidden">
+                <button type="button" className="rounded p-1 text-muted hover:text-ink" title="Editar nombre" aria-label={`Editar nombre: ${c.title || "Nuevo chat"}`} onClick={() => void renameConversation(c)}>✎</button>
+                <button type="button" className="rounded p-1 text-muted hover:text-red-500" title="Eliminar conversación" aria-label={`Eliminar: ${c.title || "Nuevo chat"}`} onClick={() => void removeConversation(c)}>×</button>
+              </div>
+            </div>
           ))}
         </nav>
 

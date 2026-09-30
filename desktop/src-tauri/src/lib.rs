@@ -108,6 +108,30 @@ async fn new_chat(state: tauri::State<'_, AppState>) -> Result<ConversationDto, 
 }
 
 #[tauri::command]
+async fn rename_chat(
+    state: tauri::State<'_, AppState>,
+    id: Uuid,
+    title: String,
+) -> Result<Vec<ConversationDto>, String> {
+    state.api.rename_chat(id, title).await
+}
+
+#[tauri::command]
+async fn delete_chat(
+    state: tauri::State<'_, AppState>,
+    id: Uuid,
+) -> Result<Vec<ConversationDto>, String> {
+    state.api.delete_chat(id).await
+}
+
+#[tauri::command]
+async fn delete_all_chats(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<ConversationDto>, String> {
+    state.api.delete_all_chats().await
+}
+
+#[tauri::command]
 async fn services(state: tauri::State<'_, AppState>) -> Result<ServicesDto, String> {
     Ok(state.api.services().await)
 }
@@ -261,6 +285,9 @@ pub fn run() {
             list_chats,
             open_chat,
             new_chat,
+            rename_chat,
+            delete_chat,
+            delete_all_chats,
             chat,
             chat_stream,
             services,

@@ -177,6 +177,28 @@ pub async fn archive_conversation(pool: &PgPool, id: Uuid) -> Result<(), sqlx::E
     Ok(())
 }
 
+pub async fn archive_local_conversations(pool: &PgPool) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE conversations SET archived_at = now(), updated_at = now()
+         WHERE channel = 'local' AND archived_at IS NULL",
+    )
+        .execute(pool)
+        .await?;
+    set_active_conversation(pool, None).await
+}
+
+pub async fn rename_conversation(pool: &PgPool, id: Uuid, title: &str) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE conversations SET title = $2, updated_at = now()
+         WHERE id = $1 AND channel = 'local' AND archived_at IS NULL",
+    )
+        .bind(id)
+        .bind(title)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 pub async fn set_active_conversation(pool: &PgPool, id: Option<Uuid>) -> Result<(), sqlx::Error> {
     sqlx::query("UPDATE settings SET active_conversation_id = $1 WHERE id = 1")
         .bind(id)
