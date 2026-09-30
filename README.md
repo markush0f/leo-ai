@@ -36,6 +36,40 @@ Set credentials in `.env` or the provider catalog. Use the TUI's settings to
 select a provider and model. PostgreSQL stores providers, models, engines,
 settings, secrets, and conversation history.
 
+## Run the full stack with Docker Compose
+
+Compose builds and starts the browser app/API, PostgreSQL, Toolbox, Projects,
+Realtime, and gateway:
+
+```sh
+cp .env.example .env
+docker compose up --build -d
+```
+
+Open `http://127.0.0.1:8787` for Ira's web app. Services gateway listens on
+`http://127.0.0.1:8790`; logs and shutdown:
+
+```sh
+docker compose logs -f ira-server
+docker compose down
+```
+
+Set `XAI_API_KEY` or another provider credential in `.env` before starting.
+Persistent database, model cache, and Ira configuration live in Docker volumes
+or `.ira/`.
+
+For private access from outside your home network, install Tailscale on the
+Linux host and phone. From the repository root, run:
+
+```sh
+./scripts/setup-tailscale.sh
+```
+
+The script installs Tailscale if needed, connects the host to your tailnet, and
+configures HTTPS access to Ira through Tailscale Serve. Sign in on the phone
+with the same Tailscale account, then open the URL printed by `tailscale serve
+status`. Ira remains bound to localhost; no router ports are opened.
+
 Database URL precedence is `IRA_DATABASE_URL`, then `DATABASE_URL`, then
 `postgres://ira:ira@127.0.0.1:5439/ira?sslmode=disable`.
 

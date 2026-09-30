@@ -2,6 +2,42 @@ include:
   - path: services/projects-api/docker-compose.yml
 
 services:
+  ira-server:
+    build:
+      context: .
+    image: ira-ai:0.1.0
+    environment:
+      IRA_HTTP_BIND: 0.0.0.0:8787
+      IRA_WEB_ROOT: /app/desktop/dist
+      DATABASE_URL: postgres://ira:ira@postgres:5432/ira?sslmode=disable
+      IRA_DATABASE_URL: postgres://ira:ira@postgres:5432/ira?sslmode=disable
+      IRA_HTTP_TOKEN: ${IRA_HTTP_TOKEN:-}
+      IRA_MASTER_KEY: ${IRA_MASTER_KEY:-}
+      MCP_TOOLBOX_URL: http://toolbox:5000
+      IRA_SERVICES_PORT: "8790"
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${IRA_HTTP_PORT:-8787}:8787"
+    volumes:
+      - ./.ira:/home/ira/.ira
+    depends_on:
+      postgres-migrate:
+        condition: service_completed_successfully
+      toolbox:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8787/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
   ira-realtime:
     build:
       context: ./services/ira-realtime
@@ -14,7 +50,7 @@ services:
       IRA_REALTIME_MODE: ${IRA_REALTIME_MODE:-ira}
       IRA_REALTIME_SAMPLE_RATE: "16000"
       IRA_REALTIME_CHANNELS: "1"
-      IRA_REALTIME_IRA_URL: ${IRA_REALTIME_IRA_URL:-http://host.docker.internal:8787}
+      IRA_REALTIME_IRA_URL: ${IRA_REALTIME_IRA_URL:-http://ira-server:8787}
       IRA_HTTP_TOKEN: ${IRA_HTTP_TOKEN:-}
       IRA_REALTIME_CONVERSATION_ID: ${IRA_REALTIME_CONVERSATION_ID:-}
       IRA_REALTIME_IRA_TIMEOUT_SECS: ${IRA_REALTIME_IRA_TIMEOUT_SECS:-120}
@@ -25,6 +61,9 @@ services:
       HF_HOME: /models/huggingface
     volumes:
       - ira-hf:/models/huggingface
+    depends_on:
+      ira-server:
+        condition: service_healthy
     restart: unless-stopped
 
   ira-gateway:
@@ -40,6 +79,8 @@ services:
         condition: service_healthy
       projects-mcp:
         condition: service_healthy
+      ira-server:
+        condition: service_healthy
       ira-realtime:
         condition: service_healthy
     healthcheck:
@@ -48,30 +89,6 @@ services:
       timeout: 3s
       retries: 6
       start_period: 5s
-    restart: unless-stopped
-
-  colibri:
-    build:
-      context: ./deploy/colibri
-    image: ira-ai-colibri:1.11.0
-    environment:
-      COLI_ALLOW_INSECURE_BIND: "1"
-      COLI_RAM: "${COLIBRI_RAM:-16}"
-    ports:
-      - "127.0.0.1:${COLIBRI_PORT:-8081}:5000"
-    volumes:
-      - "${COLIBRI_MODEL_DIR:-${HOME}/models/olmoe-colibri}:/model"
-    command:
-      - serve
-      - --host
-      - 0.0.0.0
-      - --port
-      - "5000"
-      - --model-id
-      - "${COLIBRI_MODEL_ID:-olmoe}"
-      - --ram
-      - "${COLIBRI_RAM:-16}"
-    shm_size: "2gb"
     restart: unless-stopped
 
   postgres:

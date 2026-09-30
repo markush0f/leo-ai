@@ -1,7 +1,13 @@
 .git
 .codegraph
 .impeccable
+.ira
+.env
 target
 desktop/node_modules
 desktop/dist
+docs-app/node_modules
+docs-app/dist
+services/projects-api/node_modules
+services/projects-api/data
 *.log
