@@ -5,8 +5,10 @@ RUN apk add --no-cache git ca-certificates \
 
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev
-COPY dist/ ./dist/
+RUN npm ci
+COPY src/ ./src/
+COPY tsconfig.json ./
+RUN npm run build && npm prune --omit=dev
 
 ENV NODE_ENV=production
 ENV API_URL=http://projects-api:3200

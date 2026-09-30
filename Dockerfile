@@ -37,5 +37,5 @@ ENV IRA_HTTP_BIND=0.0.0.0:8787 \
 USER ira
 EXPOSE 8787
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
-  CMD ["curl", "-fsS", "http://127.0.0.1:8787/healthz"]
+  CMD ["curl", "-fsS", "http://127.0.0.1:8787/api/health"]
 CMD ["ira-server"]
