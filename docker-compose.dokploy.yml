@@ -1,33 +1,49 @@
-include:
-  - path: services/projects-api/docker-compose.yml
+# Dokploy: Compose type Docker Compose, path ./docker-compose.dokploy.yml
+# Advanced → Isolated Deployments: ON
+# Domains → service ira-gateway, container port 8790, HTTPS
+# Environment (antes del primer deploy):
+#   VITE_IRA_REALTIME=https://tu-dominio/realtime
+#   IRA_HTTP_TOKEN=<secreto largo>
+#   POSTGRES_PASSWORD=<secreto>
+#   XAI_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY
+# Password de la UI: archivo ../files/ira/password.hash (Argon2id) antes de arrancar.
+#   printf '%s' "$IRA_PASSWORD" | cargo run --quiet -p ira-server --bin ira-password-hash
+# Cambiar el dominio obliga a redeploy: VITE_IRA_REALTIME se hornea en el build.
+
+configs:
+  caddyfile:
+    file: ./deploy/Caddyfile.dokploy
+  postgres-init:
+    file: ./deploy/postgres/init.sql
 
 services:
   ira-data-permissions:
     image: alpine:3.22
     user: "0:0"
-    command: ["sh", "-c", "chown -R 10001:10001 /data"]
+    command: ["sh", "-c", "mkdir -p /data/toolbox && chown -R 10001:10001 /data"]
     volumes:
-      - ./.ira:/data
+      - ../files/ira:/data
+      - ../files/projects:/projects
     restart: "no"
 
   ira-server:
     build:
       context: .
+      args:
+        VITE_IRA_REALTIME: ${VITE_IRA_REALTIME:?Set VITE_IRA_REALTIME=https://tu-dominio/realtime}
     image: ira-ai:0.1.0
     environment:
       IRA_HTTP_BIND: 0.0.0.0:8787
       IRA_WEB_ROOT: /app/desktop/dist
-      DATABASE_URL: postgres://ira:ira@postgres:5432/ira?sslmode=disable
-      IRA_DATABASE_URL: postgres://ira:ira@postgres:5432/ira?sslmode=disable
+      DATABASE_URL: postgres://ira:${POSTGRES_PASSWORD}@postgres:5432/ira?sslmode=disable
+      IRA_DATABASE_URL: postgres://ira:${POSTGRES_PASSWORD}@postgres:5432/ira?sslmode=disable
       IRA_TOOLBOX_CONFIG_DIR: /home/ira/.ira/toolbox
-      IRA_HTTP_TOKEN: ${IRA_HTTP_TOKEN:-}
+      IRA_HTTP_TOKEN: ${IRA_HTTP_TOKEN:?Set IRA_HTTP_TOKEN}
       IRA_PASSWORD_HASH_FILE: /home/ira/.ira/password.hash
       IRA_MASTER_KEY: ${IRA_MASTER_KEY:-}
+      IRA_COOKIE_SECURE: "true"
       MCP_TOOLBOX_URL: http://toolbox:5000
       IRA_SERVICES_PORT: "8790"
-      IRA_ROOT: ${PWD}
-      PWD: ${PWD}
-      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-leo-ai}
       LEO_MASTER_KEY: ${LEO_MASTER_KEY:-}
       XAI_API_KEY: ${XAI_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -35,17 +51,8 @@ services:
       OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    ports:
-      - "127.0.0.1:${IRA_HTTP_PORT:-8787}:8787"
-    group_add:
-      - "${DOCKER_GID:-964}"
     volumes:
-      - ./.ira:/home/ira/.ira
-      - ${PWD}:${PWD}:ro
-      - ${DOCKER_BIN:-/usr/bin/docker}:/usr/bin/docker.bin:ro
-      - ./deploy/docker-wrap.sh:/usr/bin/docker:ro
-      - ${DOCKER_CLI_PLUGINS:-/usr/libexec/docker/cli-plugins}:/usr/libexec/docker/cli-plugins:ro
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ../files/ira:/home/ira/.ira
     depends_on:
       ira-data-permissions:
         condition: service_completed_successfully
@@ -58,7 +65,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 6
-      start_period: 10s
+      start_period: 15s
     restart: unless-stopped
 
   ira-realtime:
@@ -73,8 +80,8 @@ services:
       IRA_REALTIME_MODE: ${IRA_REALTIME_MODE:-ira}
       IRA_REALTIME_SAMPLE_RATE: "16000"
       IRA_REALTIME_CHANNELS: "1"
-      IRA_REALTIME_IRA_URL: ${IRA_REALTIME_IRA_URL:-http://ira-server:8787}
-      IRA_HTTP_TOKEN: ${IRA_HTTP_TOKEN:-}
+      IRA_REALTIME_IRA_URL: http://ira-server:8787
+      IRA_HTTP_TOKEN: ${IRA_HTTP_TOKEN:?Set IRA_HTTP_TOKEN}
       IRA_REALTIME_CONVERSATION_ID: ${IRA_REALTIME_CONVERSATION_ID:-}
       IRA_REALTIME_IRA_TIMEOUT_SECS: ${IRA_REALTIME_IRA_TIMEOUT_SECS:-120}
       IRA_REALTIME_TTS: ${IRA_REALTIME_TTS:-pocket}
@@ -91,12 +98,9 @@ services:
 
   ira-gateway:
     image: caddy:2-alpine
-    labels:
-      ira.name: Services
-    ports:
-      - "127.0.0.1:${IRA_SERVICES_PORT:-8790}:8790"
-    volumes:
-      - ./services/gateway/Caddyfile:/etc/caddy/Caddyfile:ro
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
     depends_on:
       projects-api:
         condition: service_healthy
@@ -119,28 +123,30 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ira
-      POSTGRES_PASSWORD: ira
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
       POSTGRES_DB: ira
-    ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5439}:5432"
     volumes:
       - ira-pg:/var/lib/postgresql/data
-      - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    configs:
+      - source: postgres-init
+        target: /docker-entrypoint-initdb.d/01-init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ira -d ira || pg_isready -U leo -d leo"]
+      test: ["CMD-SHELL", "pg_isready -U ira -d ira"]
       interval: 2s
       timeout: 5s
       retries: 20
 
   postgres-migrate:
     image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
-        if PGPASSWORD=ira psql -h postgres -U ira -d ira -c 'SELECT 1' >/dev/null 2>&1; then
+        if PGPASSWORD="$$POSTGRES_PASSWORD" psql -h postgres -U ira -d ira -c 'SELECT 1' >/dev/null 2>&1; then
           exit 0
         fi
         export PGPASSWORD=leo
@@ -165,19 +171,18 @@ services:
       POSTGRES_PORT: "5432"
       POSTGRES_DATABASE: ira
       POSTGRES_USER: ira
-      POSTGRES_PASSWORD: ira
-    ports:
-      - "127.0.0.1:${TOOLBOX_PORT:-5000}:5000"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./.ira/toolbox:/config:ro
+      - ../files/ira/toolbox:/config:ro
     command:
       - --config-folder=/config
       - --poll-interval=2
       - --address=0.0.0.0
       - --allowed-hosts=127.0.0.1
       - --allowed-hosts=localhost
+      - --allowed-hosts=toolbox
     healthcheck:
       test: ["CMD", "/toolbox", "--version"]
       interval: 5s
@@ -186,8 +191,39 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  projects-api:
+    build: ./services/projects-api
+    volumes:
+      - ../files/projects:/app/data
+    environment:
+      PORT: "3200"
+      DATABASE_PATH: ./data/projects.db
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3200/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
+    restart: unless-stopped
+
+  projects-mcp:
+    build:
+      context: ./services/projects-api
+      dockerfile: Dockerfile.mcp
+    depends_on:
+      projects-api:
+        condition: service_healthy
+    environment:
+      API_URL: http://projects-api:3200
+      PORT: "3201"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3201/mcp',{method:'POST',headers:{'content-type':'application/json','accept':'application/json, text/event-stream'},body:'{}'}).then(()=>process.exit(0)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
 volumes:
   ira-pg:
-    name: "${IRA_POSTGRES_VOLUME:-leo-ai_leo-pg}"
   ira-hf:
-    name: "${IRA_HF_VOLUME:-leo-ai_leo-hf}"

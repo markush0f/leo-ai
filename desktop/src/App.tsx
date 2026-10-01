@@ -81,7 +81,7 @@ function turnsToBubbles(turns: Turn[]): Bubble[] {
   return out;
 }
 
-export default function App() {
+export default function App({ onLogout }: { onLogout?: () => void }) {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [boot, setBoot] = useState<string | null>(null);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
@@ -713,6 +713,10 @@ export default function App() {
         </nav>
 
         <div className="mt-auto flex flex-col gap-[0.4rem] collapsed:!mt-0">
+          {onLogout && <button type="button" className={cx(btn.ghost, "w-full justify-start collapsed:!justify-center")} onClick={onLogout} title="Cerrar sesión" aria-label="Cerrar sesión">
+            <span className="collapsed:!hidden">Cerrar sesión</span>
+            <span className="hidden collapsed:!inline">Salir</span>
+          </button>}
           <button type="button" className={cx(btn.ghost, "w-full justify-start gap-[0.55rem] collapsed:!justify-center collapsed:!px-0")} onClick={toggleTheme} title={theme === "dark" ? "Modo claro" : "Modo oscuro"} aria-label={theme === "dark" ? "Modo claro" : "Modo oscuro"}>
             {theme === "dark" ? <IconSun /> : <IconMoon />}
             <span className="min-w-0 truncate collapsed:!hidden">{theme === "dark" ? "Modo claro" : "Modo oscuro"}</span>

@@ -8,6 +8,8 @@ use chacha20poly1305::{XChaCha20Poly1305, XNonce};
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
+use crate::ira_home;
+
 const MASTER_KEY_ENV: &str = "IRA_MASTER_KEY";
 const LEGACY_MASTER_KEY_ENV: &str = "LEO_MASTER_KEY";
 
@@ -407,7 +409,7 @@ fn master_key_path() -> PathBuf {
             break;
         }
     }
-    start.join(".ira/master.key")
+    ira_home().join("master.key")
 }
 
 fn ensure_master_key(path: &Path) -> Result<(DatabaseCipher, String), DatabaseError> {

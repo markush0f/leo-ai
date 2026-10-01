@@ -1,0 +1,5 @@
+# Public HTTPS tunnel terminating TLS outside Docker; no router ports opened.
+services:
+  ira-server:
+    environment:
+      IRA_COOKIE_SECURE: "true"

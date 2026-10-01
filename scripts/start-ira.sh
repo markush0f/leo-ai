@@ -2,14 +2,34 @@
 # Start Ira's local services, HTTP API, and web frontend.
 set -euo pipefail
 
+if [[ "${EUID}" -eq 0 ]]; then
+  printf 'No uses sudo. Tu usuario ya está en el grupo docker.\n' >&2
+  exit 1
+fi
+
 root="$(cd "$(dirname "$0")/.." && pwd)"
 desktop="$root/desktop"
+export PATH="${HOME}/.cargo/bin:${PATH}"
 export IRA_UID="${IRA_UID:-$(id -u)}"
 export IRA_GID="${IRA_GID:-$(id -g)}"
 realtime_port="${IRA_REALTIME_PORT:-8765}"
 export IRA_REALTIME_MODE="${IRA_REALTIME_MODE:-ira}"
 ira_home="${HOME}/.ira"
-mkdir -p "$ira_home"
+mkdir -p "$ira_home" "$root/.ira"
+hash_file="$root/.ira/password.hash"
+if [[ ! -s "$hash_file" ]]; then
+  ira_password="$(openssl rand -base64 24 | tr -d '/+=' | head -c 20)"
+  tmp="$(mktemp)"
+  printf '%s' "$ira_password" | cargo run --quiet --manifest-path "$root/Cargo.toml" -p ira-server --bin ira-password-hash >"$tmp"
+  if [[ -w "$hash_file" ]] || { [[ ! -e "$hash_file" ]] && [[ -w "$root/.ira" ]]; }; then
+    install -m 600 "$tmp" "$hash_file"
+  else
+    docker run --rm -v "$root/.ira:/data" -v "$tmp:/hash:ro" alpine:3.22 \
+      sh -c 'cp /hash /data/password.hash && chown 10001:10001 /data/password.hash && chmod 600 /data/password.hash'
+  fi
+  rm -f "$tmp"
+  printf 'Contraseña web nueva (guárdala; no se vuelve a mostrar): %s\n' "$ira_password"
+fi
 token_file="$ira_home/http.token"
 if [[ -z "${IRA_HTTP_TOKEN:-}" ]]; then
   if [[ ! -s "$token_file" ]]; then
@@ -20,6 +40,7 @@ if [[ -z "${IRA_HTTP_TOKEN:-}" ]]; then
   IRA_HTTP_TOKEN="$(tr -d '[:space:]' <"$token_file")"
   export IRA_HTTP_TOKEN
 fi
+export IRA_ROOT="$root"
 
 for command in docker cargo npm curl; do
   if ! command -v "$command" >/dev/null 2>&1; then

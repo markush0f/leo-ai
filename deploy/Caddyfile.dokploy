@@ -1,0 +1,26 @@
+:8790 {
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	handle /projects/mcp* {
+		uri strip_prefix /projects
+		reverse_proxy projects-mcp:3201
+	}
+
+	handle /projects* {
+		reverse_proxy projects-api:3200
+	}
+
+	handle /realtime {
+		redir * /realtime/ 308
+	}
+
+	handle_path /realtime/* {
+		reverse_proxy ira-realtime:8765
+	}
+
+	handle {
+		reverse_proxy ira-server:8787
+	}
+}

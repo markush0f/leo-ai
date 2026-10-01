@@ -1,0 +1,4 @@
+ira.markus.dev {
+    encode zstd gzip
+    reverse_proxy ira-server:8787
+}

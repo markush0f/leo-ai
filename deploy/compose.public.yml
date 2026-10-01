@@ -1,0 +1,36 @@
+# Use only after confirming public IPv4 and forwarded TCP 80/443 on the router.
+# docker compose -f docker-compose.yml -f deploy/compose.public.yml up -d --build
+services:
+  ira-server:
+    environment:
+      IRA_COOKIE_SECURE: "true"
+      IRA_PASSWORD_HASH_FILE: /home/ira/.ira/password.hash
+
+  ira-public:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile.public:/etc/caddy/Caddyfile:ro
+      - ira-caddy-data:/data
+      - ira-caddy-config:/config
+    depends_on:
+      ira-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ira-dns:
+    profiles: [dynamic-dns]
+    image: python:3.13-alpine
+    environment:
+      PYTHONUNBUFFERED: "1"
+    command: ["python", "-u", "/app/porkbun-ddns.py"]
+    volumes:
+      - ./deploy/porkbun-ddns.py:/app/porkbun-ddns.py:ro
+      - ./.ira/porkbun-dns.json:/run/secrets/porkbun-dns.json:ro
+    restart: unless-stopped
+
+volumes:
+  ira-caddy-data:
+  ira-caddy-config:

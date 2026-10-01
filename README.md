@@ -58,17 +58,35 @@ Set `XAI_API_KEY` or another provider credential in `.env` before starting.
 Persistent database, model cache, and Ira configuration live in Docker volumes
 or `.ira/`.
 
-For private access from outside your home network, install Tailscale on the
-Linux host and phone. From the repository root, run:
+### Access from other devices over the Internet
+
+Use a Cloudflare-managed domain and a **remotely managed Cloudflare Tunnel**.
+In Cloudflare Zero Trust, create a tunnel with Docker as connector, add a public
+hostname (for example `ira.example.com`) pointing to `http://ira-server:8787`,
+and create an Access self-hosted application for that **same hostname**. Add an
+Allow policy restricted to your email identity; verify that Access prompts for
+login once the connector is running. Do not publish `/projects`, the services
+gateway (`8790`), Toolbox, or Postgres as separate public hostnames.
+
+Set `CLOUDFLARE_TUNNEL_TOKEN` and `IRA_HTTP_TOKEN` in `.env`; generate the latter
+with `openssl rand -hex 32` and keep both values private. Start with:
 
 ```sh
-./scripts/setup-tailscale.sh
+docker compose -f docker-compose.yml -f deploy/compose.remote.yml up --build -d
 ```
 
-The script installs Tailscale if needed, connects the host to your tailnet, and
-configures HTTPS access to Ira through Tailscale Serve. Sign in on the phone
-with the same Tailscale account, then open the URL printed by `tailscale serve
-status`. Ira remains bound to localhost; no router ports are opened.
+Open `https://ira.example.com` from a phone using mobile data: after Cloudflare
+Access, enter your `IRA_HTTP_TOKEN` once per browser (session lasts 24 hours or
+until server restart). The remote override enables `Secure` session cookies;
+neither app nor gateway gets a public host port. Local Docker ports remain
+bound to `127.0.0.1`; no router port forwarding is needed. HTTPS terminates at
+Cloudflare, and the tunnel connects privately to the Compose service. To stop:
+`docker compose -f docker-compose.yml -f deploy/compose.remote.yml down`.
+
+Back up the `ira-pg` volume, `.ira/master.key`, and `services/projects-api/data/`
+together. Keep `.env` and `.ira/http.token` out of backups shared publicly.
+Voice from remote browsers is not routed through this tunnel: its current web
+client points to localhost on each device.
 
 Database URL precedence is `IRA_DATABASE_URL`, then `DATABASE_URL`, then
 `postgres://ira:ira@127.0.0.1:5439/ira?sslmode=disable`.
@@ -134,8 +152,8 @@ npm run build
 IRA_HTTP_BIND=0.0.0.0:8787 cargo run -p ira-server
 ```
 
-Then open `http://<esta-máquina>:8787`. Binding off loopback lets anyone on that
-network chat and run tools; keep it on a trusted LAN.
+Then open `http://<esta-máquina>:8787`. Other devices must sign in with the HTTP
+token; use HTTPS/Tunnel outside a trusted LAN.
 
 ## Run Telegram
 

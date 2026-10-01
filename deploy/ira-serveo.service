@@ -1,0 +1,13 @@
+[Unit]
+Description=Ira public SSH tunnel via Serveo
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ssh -N -i %h/.ssh/ira_serveo -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -R ira.markus.dev:80:localhost:8787 serveo.net
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

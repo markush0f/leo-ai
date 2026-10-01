@@ -35,6 +35,36 @@ test("PostgreSQL URLs preserve encoded credentials, IPv6 and SSL; unsupported va
   }
 });
 
+test("browser login gates workspace, does not persist password, and logs out", async ({ page }) => {
+  await mockWorkspace(page);
+  let signedIn = false;
+  await page.route("**/api/auth/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/auth/status") {
+      await route.fulfill({ status: signedIn ? 200 : 401, json: signedIn ? { authenticated: true } : { error: "no autorizado" } });
+    } else if (path === "/api/auth/logout") {
+      signedIn = false;
+      await route.fulfill({ json: { ok: true } });
+    } else {
+      const valid = route.request().postDataJSON().password === "secret-password";
+      signedIn = valid;
+      await route.fulfill({ status: valid ? 200 : 401, json: valid ? { ok: true } : { error: "no autorizado" } });
+    }
+  });
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Entra en Ira" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Nueva conversación" })).toHaveCount(0);
+  await page.getByLabel("Contraseña", { exact: true }).fill("wrong");
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page.getByText("Contraseña incorrecta.")).toBeVisible();
+  await page.getByLabel("Contraseña", { exact: true }).fill("secret-password");
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page.getByRole("button", { name: "Nueva conversación" })).toBeVisible();
+  expect(await page.evaluate(() => JSON.stringify(localStorage) + JSON.stringify(sessionStorage))).not.toContain("secret-password");
+  await page.getByRole("button", { name: "Cerrar sesión" }).click();
+  await expect(page.getByLabel("Contraseña", { exact: true })).toBeVisible();
+});
+
 test("sidebar resizes, compacts and restores preferences", async ({ page }) => {
   await mockWorkspace(page);
   await page.goto("/");

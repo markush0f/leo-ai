@@ -77,6 +77,21 @@ async fn main() {
         eprintln!("no se pudo preparar el token HTTP: {err}");
         std::process::exit(1);
     });
+    let password_hash = std::env::var("IRA_PASSWORD_HASH_FILE")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(|path| {
+            let hash = std::fs::read_to_string(&path).unwrap_or_else(|err| {
+                eprintln!("no se pudo leer IRA_PASSWORD_HASH_FILE: {err}");
+                std::process::exit(1);
+            });
+            let hash = hash.trim().to_string();
+            if !hash.starts_with("$argon2id$") {
+                eprintln!("IRA_PASSWORD_HASH_FILE debe contener un hash Argon2id");
+                std::process::exit(1);
+            }
+            hash
+        });
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .unwrap_or_else(|err| {
@@ -86,7 +101,8 @@ async fn main() {
     tracing::info!(%addr, web = ?web_root, "ira-server");
     axum::serve(
         listener,
-        ira_server::router(app, web_root, token).into_make_service_with_connect_info::<SocketAddr>(),
+        ira_server::router(app, web_root, token, password_hash)
+            .into_make_service_with_connect_info::<SocketAddr>(),
     )
     .await
     .expect("server");

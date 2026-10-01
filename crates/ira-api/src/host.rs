@@ -689,6 +689,7 @@ async fn compose_up(ids: &[&str], timeout: Duration) -> Result<(), String> {
     args.push("compose");
     args.push("up");
     args.push("-d");
+    args.push("--no-recreate");
     args.extend(ids.iter().copied());
     compose(&args, timeout).await
 }

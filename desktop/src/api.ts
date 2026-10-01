@@ -23,7 +23,6 @@ export const inTauri =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 const apiBase = (import.meta.env.VITE_IRA_API as string | undefined)?.replace(/\/$/, "") ?? "";
-const httpToken = (import.meta.env.VITE_IRA_HTTP_TOKEN as string | undefined)?.trim() ?? "";
 
 function url(path: string): string {
   return `${apiBase}${path}`;
@@ -36,7 +35,6 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
       headers: {
         Accept: "application/json",
-        ...(httpToken ? { Authorization: `Bearer ${httpToken}` } : {}),
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
         ...(init?.headers ?? {}),
       },
@@ -246,7 +244,6 @@ export async function streamChat(
       headers: {
         Accept: "application/x-ndjson",
         "Content-Type": "application/json",
-        ...(httpToken ? { Authorization: `Bearer ${httpToken}` } : {}),
       },
       body: JSON.stringify({ text }),
     });
