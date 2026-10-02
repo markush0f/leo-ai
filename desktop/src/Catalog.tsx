@@ -1,362 +1,171 @@
-/**
- * Catalog editor. Local state holds form drafts; `onOp` persists changes and the
- * parent supplies the refreshed snapshot. Key fields accept replacements without
- * exposing stored secrets.
- */
-import { useState } from "react";
-import { motion } from "motion/react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { openExternal } from "./api";
-import { type CodexLogin, type Model, type Op, type Provider, type Snapshot } from "./types";
+import type { CodexLogin, Instruction, Op, Provider, Snapshot } from "./types";
 import { Input, Select, TextArea } from "./components/Field";
-import { useSheetFocus } from "./components/useSheetFocus";
-import { IconClose, IconSearch } from "./icons";
-import { btn, catalogCurrent, catalogDetail, catalogEmpty, catalogLayout, catalogProvider, catalogProviderOn, catalogProviders, confirm, cx, dot, dotOn, effortCatalog, modelPick, sectionHead, settings, settingsBody, sheet, sheetErr, sheetHead } from "./ui";
+import { Workspace } from "./components/Workspace";
+import { Activity } from "./components/Activity";
+import { Status } from "./components/Status";
+import { IconPlus, IconCheck } from "./icons";
+import { btn } from "./ui";
+import type { Theme } from "./theme";
 
 const KINDS = ["grok", "gpt", "ollama", "claude", "codex"] as const;
-
-const KEY_LABEL: Record<string, string> = {
-  db: "Clave guardada",
-  env: "Configurada en el entorno",
-  falta: "Sin configurar",
-  none: "No requiere clave",
-};
-
-const KIND_LABEL: Record<string, string> = {
-  grok: "xAI", gpt: "OpenAI", ollama: "Ollama", claude: "Anthropic", codex: "ChatGPT / Codex",
-};
-
+const KIND_LABEL: Record<string, string> = { grok: "xAI", gpt: "OpenAI", ollama: "Ollama", claude: "Anthropic", codex: "ChatGPT / Codex" };
+const KEY_LABEL: Record<string, string> = { db: "Clave guardada", env: "Clave del entorno", falta: "Necesita configuración", none: "No requiere clave" };
 type Props = {
-  snap: Snapshot;
-  onOp: (op: Op) => Promise<void>;
+  snap: Snapshot; onOp: (op: Op) => Promise<void>;
   onWebSearchChange: (enabled: boolean, contextSize: string) => Promise<void>;
-  onCodexLogin: (
-    providerId: string,
-    onReady: (login: CodexLogin) => void,
-  ) => Promise<void>;
-  onClose: () => void;
+  onInstruction: (input: { key: string; channel: string; content: string; active: boolean }) => Promise<void>;
+  onInstructionReset: (key: string, channel: string) => Promise<void>;
+  onCodexLogin: (providerId: string, onReady: (login: CodexLogin) => void) => Promise<void>;
+  theme: Theme; onTheme: () => void; onClose: () => void;
 };
 
-export function Catalog({ snap, onOp, onWebSearchChange, onCodexLogin, onClose }: Props) {
-  const sheetRef = useSheetFocus();
-  const active = snap.providers.find((p) =>
-    snap.models.some((m) => m.id === snap.active_model_id && m.provider_id === p.id),
-  );
-  const [openId, setOpenId] = useState<string | null>(active?.id ?? snap.providers[0]?.id ?? null);
-  const [system, setSystem] = useState(snap.system);
-  const [webSearchEnabled, setWebSearchEnabled] = useState(snap.web_search_enabled);
-  const [webSearchContextSize, setWebSearchContextSize] = useState(snap.web_search_context_size);
+export function Catalog({ snap, onOp, onWebSearchChange, onInstruction, onInstructionReset, onCodexLogin, theme, onTheme, onClose }: Props) {
+  const [tab, setTab] = useState("providers");
+  const contentRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => { if (contentRef.current) contentRef.current.scrollTop = 0; }, [tab]);
+  const [providerId, setProviderId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const run = async (op: Op) => {
-    setBusy(true);
-    setErr(null);
-    try {
-      await onOp(op);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const provider = snap.providers.find((item) => item.id === providerId);
+  const run = async (action: () => Promise<void>) => {
+    setBusy(true); setError(""); setNotice("");
+    try { await action(); setNotice("Cambio guardado."); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
   };
-
-  const open = snap.providers.find((p) => p.id === openId) ?? active ?? snap.providers[0];
-  const activeModel = snap.models.find((m) => m.id === snap.active_model_id);
-
-  return (
-    <motion.aside
-      ref={sheetRef} role="dialog" aria-modal="true" tabIndex={-1}
-      className={sheet}
-      aria-label="Catálogo"
-      initial={{ x: "100%" }}
-      animate={{ x: 0 }}
-      exit={{ x: "100%" }}
-      transition={{ type: "spring", stiffness: 360, damping: 38 }}
-    >
-      <header className={sheetHead}>
-        <div>
-          <h2>Modelos y configuración</h2>
-          <p>Elige el modelo con el que quieres conversar.</p>
+  return <Workspace title="Ajustes" description="Configura cómo responde Ira y qué puede hacer." onClose={onClose}>
+    <div className="settings-layout">
+      <nav className="task-nav settings-nav" aria-label="Secciones de ajustes">{([["providers", "Proveedores"], ["behavior", "Comportamiento"], ["tools", "Herramientas"], ["appearance", "Apariencia"]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={tab === value} disabled={busy} onClick={() => { setTab(value); setError(""); setNotice(""); }}>{label}</button>)}</nav>
+      <div ref={contentRef} className="settings-content">
+        <div hidden={tab !== "providers"}>
+          <header className="resource-heading"><div><h2>Proveedores</h2><p>Conecta una cuenta o configura una clave. El modelo se elige desde el chat.</p></div><button type="button" className={btn.secondary} disabled={busy || creating} onClick={() => { setCreating(true); setProviderId(null); }}><IconPlus />Añadir proveedor</button></header>
+          <ul className="resource-list">{snap.providers.map((p) => <li key={p.id} className="resource-row"><div className="resource-top"><div className="resource-info"><strong>{p.name}</strong><p className="resource-description">{KIND_LABEL[p.kind] ?? p.kind} · {snap.models.filter((m) => m.provider_id === p.id).length} modelos</p><Status>{p.kind === "codex" ? p.key === "db" ? "Cuenta conectada" : "Necesita autorización" : KEY_LABEL[p.key]}</Status></div><button type="button" className={btn.secondary} disabled={busy} aria-expanded={providerId === p.id} onClick={() => { setProviderId(providerId === p.id ? null : p.id); setCreating(false); }}>{p.key === "falta" ? "Conectar" : "Configurar"}</button></div></li>)}</ul>
+          {snap.providers.length === 0 && <div className="empty-state"><h3>Conecta tu primer proveedor</h3><p>Añade OpenAI, Anthropic, xAI, Ollama o una cuenta de ChatGPT para elegir un modelo.</p></div>}
+          {creating && <form className="resource-editor" onSubmit={(e) => { e.preventDefault(); void run(async () => { await onOp({ op: "new_provider", name: name.trim() }); setCreating(false); setName(""); }); }}><h3>Nuevo proveedor</h3><Input label="Nombre del proveedor" autoFocus required value={name} disabled={busy} placeholder="Por ejemplo, OpenAI personal" onChange={(e) => setName(e.target.value)} /><p className="resource-description">Después de añadirlo, configura tipo de conexión y credenciales.</p><div className="form-actions"><button type="submit" className={btn.primary} disabled={busy || !name.trim()}>Añadir proveedor</button><button type="button" className={btn.ghost} disabled={busy} onClick={() => setCreating(false)}>Cancelar</button></div></form>}
+          {provider && <ProviderEditor key={provider.id} provider={provider} onOp={onOp} onCodexLogin={onCodexLogin} canDelete={snap.providers.length > 1} onClose={() => setProviderId(null)} />}
         </div>
-        <button type="button" className={btn.icon} aria-label="Cerrar catálogo" title="Cerrar" onClick={onClose}>
-          <IconClose />
-        </button>
-      </header>
-
-      <div className={catalogCurrent}>
-        <span className={cx(dot, activeModel && dotOn)} aria-hidden />
-        <div className="min-w-0 phone:flex-1"><span className="text-[0.8rem] text-muted">Modelo en uso</span><strong>{activeModel?.display_name ?? "Ningún modelo seleccionado"}</strong></div>
-        {active && <span className="ml-auto text-[0.85rem] wrap-anywhere text-muted phone:ml-5 phone:w-full">{active.name}</span>}
-      </div>
-
-      <div className={catalogLayout}>
-      <nav aria-label="Proveedores del catálogo">
-      <h3 className="flex justify-between px-3 text-[0.9rem] font-semibold">Proveedores <span className="text-[0.8rem] font-[450] text-muted tabular-nums">{snap.providers.length}</span></h3>
-      <ul className={catalogProviders}>
-        {snap.providers.map((p) => {
-          const isActive =
-            snap.models.find((m) => m.id === snap.active_model_id)?.provider_id === p.id;
-          return (
-            <li key={p.id}>
-              <button
-                type="button"
-                className={cx(catalogProvider, open?.id === p.id && catalogProviderOn)}
-                aria-pressed={open?.id === p.id}
-                aria-controls="catalog-provider-detail"
-                onClick={() => setOpenId(p.id)}
-              >
-                <span className={cx("font-semibold", open?.id === p.id && "text-accent")}>{p.name}</span>
-                <span className="text-[0.8rem] text-muted">{snap.models.filter((m) => m.provider_id === p.id).length} modelos{isActive ? " · En uso" : ""}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      </nav>
-
-      <div id="catalog-provider-detail" className={catalogDetail}>
-      {open ? (
-        <ProviderEditor
-          key={open.id}
-          provider={open}
-          models={snap.models.filter((m) => m.provider_id === open.id)}
-          activeModelId={snap.active_model_id}
-          canDelete={snap.providers.length > 1}
-          busy={busy}
-          onOp={run}
-          onCodexLogin={onCodexLogin}
-        />
-      ) : <p className={catalogEmpty}>No hay proveedores configurados.</p>}
-      </div>
-      </div>
-
-      {err && <p className={sheetErr} role="alert">{err}</p>}
-      <details className={cx(settings, "mt-8")}>
-        <summary>Instrucciones de Ira <span>Para todos los modelos</span></summary>
-        <div className={settingsBody}>
-            <TextArea label="Instrucciones del sistema" hint="Se guardan al salir del campo." value={system} rows={4} onChange={(e) => setSystem(e.target.value)}
-              onBlur={() => {
-                if (system !== snap.system) void run({ op: "set_system", text: system });
-              }} />
-          <div className="grid gap-3 border-t border-line pt-4">
-            <label className="flex items-center gap-3 text-sm">
-              <input
-                type="checkbox"
-                checked={webSearchEnabled}
-                onChange={(event) => {
-                  const enabled = event.target.checked;
-                  setWebSearchEnabled(enabled);
-                  void onWebSearchChange(enabled, webSearchContextSize).catch((error) => {
-                    setWebSearchEnabled(!enabled);
-                    setErr(error instanceof Error ? error.message : String(error));
-                  });
-                }}
-              />
-              Permitir búsqueda web con proveedores compatibles
-            </label>
-            <label className="grid gap-1 text-sm">
-              Profundidad de búsqueda
-              <select
-                className="w-full rounded-[11px] border border-line bg-bg px-3 py-2 text-ink"
-                value={webSearchContextSize}
-                onChange={(event) => {
-                  const contextSize = event.target.value;
-                  setWebSearchContextSize(contextSize);
-                  void onWebSearchChange(webSearchEnabled, contextSize).catch((error) => {
-                    setErr(error instanceof Error ? error.message : String(error));
-                  });
-                }}
-              >
-                <option value="low">Breve</option>
-                <option value="medium">Equilibrada</option>
-                <option value="high">Amplia</option>
-              </select>
-            </label>
-            <p className="m-0 text-xs text-muted">Se guarda en ~/.ira/config.toml. La disponibilidad depende del proveedor activo.</p>
-          </div>
-          {snap.tools.length > 0 && <div><h4 className="m-0 text-[0.9rem] font-semibold">Herramientas disponibles</h4><ul className="mt-2 flex list-none flex-wrap gap-x-4 gap-y-2 p-0 text-[0.85rem] wrap-anywhere text-muted">{snap.tools.map((tool) => <li key={tool}>{tool}</li>)}</ul></div>}
+        <div hidden={tab !== "behavior"}>
+          <header className="mb-6"><h2>Comportamiento</h2><p className="resource-description">Instrucciones compartidas entre modelos. Edita y guarda cada bloque.</p></header>
+          {(snap.instructions ?? []).length > 0 ? snap.instructions?.map((block) => <InstructionField key={`${block.key}:${block.channel}`} block={block} onSave={onInstruction} onReset={onInstructionReset} />) : <>
+            <PromptField label="Instrucciones del sistema" value={snap.system} onSave={(text) => onOp({ op: "set_system", text })} />
+            <PromptField label="Instrucciones de voz" value={snap.voice_system} onSave={(text) => onOp({ op: "set_voice_system", text })} />
+          </>}
+          <section className="mt-8 border-t border-line pt-5"><h3 className="mb-3 font-semibold">Búsqueda web</h3>
+            <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" disabled={busy} checked={snap.web_search_enabled} onChange={(e) => void run(() => onWebSearchChange(e.target.checked, snap.web_search_context_size))} />Permitir búsqueda con proveedores compatibles</label>
+            <Select label="Profundidad de búsqueda" disabled={busy || !snap.web_search_enabled} value={snap.web_search_context_size} onChange={(e) => void run(() => onWebSearchChange(snap.web_search_enabled, e.target.value))}><option value="low">Breve</option><option value="medium">Equilibrada</option><option value="high">Amplia</option></Select>
+            <p className="resource-description">Disponibilidad según proveedor activo. Cambios guardados en la configuración local de Ira.</p>
+          </section>
         </div>
-      </details>
-    </motion.aside>
-  );
+        <div hidden={tab !== "tools"}>
+          <header className="mb-6"><h2>Herramientas</h2><p className="resource-description">Controla acceso a herramientas y permiso para modificar datos.</p></header>
+          <label className="flex min-h-14 items-center gap-3 border-b border-line py-3"><input type="checkbox" disabled={busy} checked={snap.tools_enabled} onChange={(e) => void run(() => onOp({ op: "set_tools_enabled", value: e.target.checked }))} /><span><strong className="block text-sm font-semibold">Permitir herramientas</strong><small className="text-muted">Ira puede consultar recursos conectados.</small></span></label>
+          <label className="flex min-h-14 items-center gap-3 border-b border-line py-3"><input type="checkbox" disabled={busy || !snap.tools_enabled} checked={snap.tools_mutate} onChange={(e) => void run(() => onOp({ op: "set_tools_mutate", value: e.target.checked }))} /><span><strong className="block text-sm font-semibold">Permitir escritura</strong><small className="text-muted">Permite herramientas que modifican datos, archivos o ejecutan comandos.</small></span></label>
+          <details className="advanced"><summary>{snap.tools.length} herramientas registradas</summary><ul className="advanced-body text-sm text-muted">{snap.tools.map((tool) => <li key={tool} className="wrap-anywhere">{tool}</li>)}</ul></details>
+        </div>
+        <div hidden={tab !== "appearance"}>
+          <header className="mb-6"><h2>Apariencia</h2><p className="resource-description">Elige el tema que mejor se adapte a tu espacio.</p></header>
+          <div className="resource-top"><div className="resource-info"><strong>Tema {theme === "dark" ? "oscuro" : "claro"}</strong><p className="resource-description">Se recuerda en este dispositivo.</p></div><button type="button" className={btn.secondary} onClick={onTheme}>Usar tema {theme === "dark" ? "claro" : "oscuro"}</button></div>
+          <p className="resource-description mt-6">El movimiento respeta la preferencia de accesibilidad del sistema. Durante la lectura, las respuestas permanecen quietas.</p>
+        </div>
+        {busy && <p className="resource-result flex items-center gap-2 text-muted" role="status"><Activity />Guardando…</p>}
+        {error && <p className="resource-result text-danger" role="alert">{error}</p>}
+        {notice && <p className="resource-result text-listen" role="status">{notice}</p>}
+      </div>
+    </div>
+  </Workspace>;
 }
 
-function ProviderEditor({
-  provider,
-  models,
-  activeModelId,
-  canDelete,
-  busy,
-  onOp,
-  onCodexLogin,
-}: {
-  provider: Provider;
-  models: Model[];
-  activeModelId: string | null;
-  canDelete: boolean;
-  busy: boolean;
-  onOp: (op: Op) => Promise<void>;
-  onCodexLogin: (
-    providerId: string,
-    onReady: (login: CodexLogin) => void,
-  ) => Promise<void>;
+function ProviderEditor({ provider, onOp, onCodexLogin, canDelete, onClose }: {
+  provider: Provider; onOp: Props["onOp"]; onCodexLogin: Props["onCodexLogin"]; canDelete: boolean; onClose: () => void;
 }) {
   const [name, setName] = useState(provider.name);
+  const [kind, setKind] = useState(provider.kind);
   const [url, setUrl] = useState(provider.base_url ?? "");
   const [key, setKey] = useState("");
-  const [pendingDelete, setPendingDelete] = useState<"provider" | string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [login, setLogin] = useState<CodexLogin | null>(null);
-  const [authBusy, setAuthBusy] = useState(false);
-  const [authErr, setAuthErr] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
-  const isCodex = provider.kind === "codex";
-  const filteredModels = models.filter((model) => `${model.display_name} ${model.name}`.toLowerCase().includes(query.trim().toLowerCase()));
-
-  return (
-    <div aria-busy={busy}>
-      <header className="[&_h3]:m-0 [&_h3]:text-[1.3rem] [&_h3]:leading-[1.3] [&_h3]:tracking-[-0.02em] [&_h3]:wrap-anywhere [&_p]:mt-[0.4rem] [&_p]:text-[0.9rem] [&_p]:text-muted [&_p_span]:mx-1">
-        <h3>{provider.name}</h3>
-        <p>{KIND_LABEL[provider.kind] ?? provider.kind} <span>·</span> {isCodex ? (provider.key === "db" ? "Cuenta conectada" : "Sin conectar") : KEY_LABEL[provider.key]}</p>
-      </header>
-      <section className="mt-6" aria-label="Modelos disponibles">
-        <div className={sectionHead}><h4>Modelos.dev</h4><span>{models.length} disponibles</span></div>
-        {models.length > 0 && <Input label="Buscar modelo" icon={<IconSearch />} type="search" placeholder="Buscar por nombre…" value={query} onChange={(e) => setQuery(e.target.value)} />}
-        <ul className="m-0 list-none p-0 [&_li]:flex [&_li]:items-center [&_li]:gap-1 [&_li]:border-b [&_li]:border-line">
-          {filteredModels.map((m) => (
-            <li key={m.id} className={m.id === activeModelId ? "rounded-lg border-b-transparent bg-[color-mix(in_srgb,var(--color-accent)_8%,var(--color-surface))]" : undefined}>
-              <button type="button" className={cx(modelPick, m.id === activeModelId && "disabled:cursor-default")} disabled={busy || m.id === activeModelId} onClick={() => void onOp({ op: "activate_model", id: m.id })} aria-label={`${m.id === activeModelId ? "Modelo en uso:" : "Usar modelo"} ${m.display_name}`}>
-                <span className="min-w-0 flex-1"><strong className="block wrap-anywhere text-[0.95rem] font-[550]">{m.display_name}</strong><small className="block wrap-anywhere text-[0.72rem] text-muted">{m.name}{m.context_window ? ` · ${(m.context_window / 1000).toLocaleString()}k contexto` : ""}</small></span>
-                <span className={cx("shrink-0 text-[0.8rem] text-muted", m.id === activeModelId && "font-[650] text-accent")}>{m.id === activeModelId ? "En uso" : "Usar"}</span>
-              </button>
-              {m.effort_options.length > 0 ? (
-                <select className={effortCatalog} aria-label={`Potencia de ${m.display_name}`} disabled={busy || m.id !== activeModelId} value={m.effort || m.effort_options[0]} onChange={(event) => void onOp({ op: "set_model_effort", id: m.id, effort: event.target.value })}>
-                  {m.effort_options.map((effort) => <option key={effort} value={effort}>{effort}</option>)}
-                </select>
-              ) : <span className="px-3 text-xs text-muted">{m.reasoning ? "Razonamiento" : "Potencia fija"}</span>}
-            </li>
-          ))}
-        </ul>
-        {filteredModels.length === 0 && <div className={catalogEmpty}><p>{models.length === 0 ? "Este proveedor todavía no tiene modelos." : "No hay modelos con ese nombre."}</p>{query && <button type="button" className={btn.secondary} onClick={() => setQuery("")}>Limpiar búsqueda</button>}</div>}
-      </section>
-
-      <details className={cx(settings, "mt-6")}>
-      <summary>Configuración del proveedor <span>Conexión y credenciales</span></summary>
-      <div className={settingsBody}>
-      <p className="mb-4 text-[0.8rem] text-muted">Los cambios se guardan al salir de cada campo.</p>
-      <div className="mb-[0.85rem] flex gap-[0.45rem]">
-        <button type="button" className={btn.secondary} disabled={busy} onClick={() => void onOp({ op: "activate_provider", id: provider.id })}>
-          Activar proveedor
-        </button>
-      </div>
-        <Input label="Nombre del proveedor" disabled={busy}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => {
-            if (name.trim() && name !== provider.name) {
-              void onOp({ op: "rename_provider", id: provider.id, name: name.trim() });
-            }
-          }}
-        />
-        <Select label="Tipo de conexión" value={provider.kind} disabled={busy} onChange={(e) => void onOp({ op: "set_kind", id: provider.id, kind: e.target.value })}>
-          {!KINDS.some((kind) => kind === provider.kind) && <option value={provider.kind}>{provider.kind}</option>}
-          {KINDS.map((kind) => <option key={kind} value={kind}>{KIND_LABEL[kind]}</option>)}
+  const [confirm, setConfirm] = useState(false);
+  const isCodex = kind === "codex";
+  const dirty = name !== provider.name || kind !== provider.kind || url !== (provider.base_url ?? "") || key.length > 0;
+  const submit = async (event: FormEvent) => {
+    event.preventDefault(); setBusy(true); setError(""); setNotice("");
+    try {
+      if (kind !== provider.kind) await onOp({ op: "set_kind", id: provider.id, kind });
+      if (name.trim() !== provider.name) await onOp({ op: "rename_provider", id: provider.id, name: name.trim() });
+      if (url !== (provider.base_url ?? "")) await onOp({ op: "set_base_url", id: provider.id, base_url: url });
+      if (key && !isCodex) { await onOp({ op: "set_api_key", id: provider.id, api_key: key }); setKey(""); }
+      setNotice("Configuración guardada. Credenciales guardadas no equivalen a acceso verificado.");
+    } catch (e) { setError(`${e instanceof Error ? e.message : String(e)} Revisa los datos y reintenta; los cambios anteriores pueden haberse guardado.`); }
+    finally { setBusy(false); }
+  };
+  const authorize = async () => {
+    setBusy(true); setError(""); setNotice(""); setLogin(null);
+    try { await onCodexLogin(provider.id, setLogin); setLogin(null); setNotice("Cuenta de ChatGPT conectada."); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
+  return <section className="resource-editor" aria-label={`Configurar ${provider.name}`}>
+    <h3>{provider.name}</h3>
+    <form onSubmit={(e) => void submit(e)}>
+      <fieldset disabled={busy}>
+        <Input autoFocus label="Nombre del proveedor" required value={name} onChange={(e) => setName(e.target.value)} />
+        <Select label="Tipo de conexión" value={kind} onChange={(e) => { setKind(e.target.value); setKey(""); setLogin(null); }}>
+          {!KINDS.some((k) => k === kind) && <option value={kind}>{kind}</option>}{KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
         </Select>
+        {!isCodex && kind !== "ollama" && <Input label="Clave API" type="password" autoComplete="off" hint={`${KEY_LABEL[provider.key]}. Vacía conserva la clave actual.`} placeholder="Introduce una clave para guardarla" value={key} onChange={(e) => setKey(e.target.value)} />}
+        {kind === "ollama" && <p className="resource-description mb-4">Ollama usa modelos instalados en tu equipo. Asegúrate de que su servidor esté iniciado.</p>}
+        <details className="advanced"><summary>Avanzado · URL base</summary><div className="advanced-body"><Input label="URL base" type="url" placeholder="Predeterminada del proveedor" value={url} onChange={(e) => setUrl(e.target.value)} /></div></details>
+      </fieldset>
+      <div className="form-actions"><button type="submit" className={btn.primary} disabled={busy || !dirty || !name.trim()}>{busy ? <Activity /> : <IconCheck />}Guardar cambios</button><button type="button" className={btn.ghost} disabled={busy} onClick={onClose}>Cancelar</button></div>
+    </form>
+    {isCodex && <div className="mt-6 border-t border-line pt-5"><h4 className="font-semibold">Cuenta de ChatGPT</h4><p className="resource-description mb-3">Autoriza Ira en ChatGPT para usar Codex.</p><button type="button" className={btn.secondary} disabled={busy || kind !== provider.kind} onClick={() => void authorize()}>{busy && login ? "Esperando autorización…" : provider.key === "db" ? "Volver a conectar ChatGPT" : "Iniciar sesión con ChatGPT"}</button>{kind !== provider.kind && <p className="resource-description">Guarda el tipo de conexión antes de autorizar.</p>}
+      {login && <div className="form-actions" role="status"><span>Código: <strong className="font-mono">{login.user_code}</strong></span><button type="button" className={btn.secondary} onClick={() => void openExternal(login.verification_url).catch((e) => setError(String(e)))}>Abrir ChatGPT</button></div>}
+    </div>}
+    {notice && <p className="resource-result text-listen" role="status">{notice}</p>}{error && <p className="resource-result text-danger" role="alert">{error}</p>}
+    {canDelete && <details className="advanced"><summary>Eliminar proveedor</summary><div className="advanced-body"><p className="resource-description">También elimina sus modelos del catálogo.</p><div className="form-actions">{confirm ? <><button type="button" className={btn.danger} disabled={busy} onClick={() => {
+      setBusy(true); void onOp({ op: "delete_provider", id: provider.id }).then(onClose).catch((e) => setError(String(e))).finally(() => setBusy(false));
+    }}>Confirmar eliminación</button><button type="button" className={btn.ghost} disabled={busy} onClick={() => setConfirm(false)}>Cancelar</button></> : <button type="button" className={btn.danger} disabled={busy} onClick={() => setConfirm(true)}>Eliminar {provider.name}</button>}</div></div></details>}
+  </section>;
+}
 
-      {isCodex ? (
-        <section className="mb-[0.9rem] grid gap-[0.65rem] rounded-xl border border-line bg-elevated p-[0.8rem]" aria-live="polite">
-          <div className="flex items-center gap-[0.55rem]">
-            <span className="font-[650]">ChatGPT Plus</span>
-            <span className={cx("ml-auto text-[0.78rem] text-muted", provider.key === "db" && "text-listen")}>
-              {provider.key === "db" ? "conectado" : "sin conectar"}
-            </span>
-          </div>
-          <p className="m-0 text-[0.82rem] text-muted">Inicia sesión con ChatGPT para usar Codex. Ira nunca muestra tus tokens.</p>
-          <button
-            type="button"
-            className={btn.primary}
-            disabled={busy || authBusy}
-            onClick={() => {
-              setAuthBusy(true);
-              setAuthErr(null);
-              setLogin(null);
-              void onCodexLogin(provider.id, setLogin)
-                .catch((e) => setAuthErr(e instanceof Error ? e.message : String(e)))
-                .finally(() => setAuthBusy(false));
-            }}
-          >
-            {authBusy ? "Esperando autorización…" : provider.key === "db" ? "Volver a conectar" : "Iniciar sesión con ChatGPT"}
-          </button>
-          {login && (
-            <div className="flex flex-wrap items-center gap-[0.55rem] pt-[0.2rem]">
-              <span className="text-[0.78rem] text-muted">Código</span>
-              <strong className="tracking-[0.12em]">{login.user_code}</strong>
-              <button
-                type="button"
-                className={cx(btn.secondary, "ml-auto")}
-                onClick={() => void openExternal(login.verification_url)}
-              >
-                Abrir ChatGPT
-              </button>
-            </div>
-          )}
-          {authErr && <p className={sheetErr}>{authErr}</p>}
-        </section>
-      ) : (
-          <Input label={`Clave API · ${KEY_LABEL[provider.key]}`} disabled={busy}
-            type="password"
-            autoComplete="off"
-            value={key}
-            placeholder="Introduce una clave para guardarla"
-            onChange={(e) => setKey(e.target.value)}
-            onBlur={() => {
-              if (key.length > 0) {
-                void onOp({ op: "set_api_key", id: provider.id, api_key: key }).then(() =>
-                  setKey(""),
-                );
-              }
-            }}
-          />
-      )}
+const BLOCK_LABEL: Record<string, string> = { "persona:chat": "Personalidad y respuestas", "persona:voice": "Conversación por voz", "memory:chat": "Memoria", "tools:chat": "Uso de herramientas", "web_search:chat": "Búsqueda web" };
+function InstructionField({ block, onSave, onReset }: { block: Instruction; onSave: Props["onInstruction"]; onReset: Props["onInstructionReset"] }) {
+  const [content, setContent] = useState(block.content);
+  const [active, setActive] = useState(block.active);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [reset, setReset] = useState(false);
+  useEffect(() => { setContent(block.content); setActive(block.active); setReset(false); }, [block.content, block.active]);
+  const dirty = content !== block.content || active !== block.active;
+  const run = async (action: () => Promise<void>) => {
+    setBusy(true); setError(""); setNotice("");
+    try { await action(); setNotice("Instrucciones guardadas."); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
+  return <form className="mb-6 border-b border-line pb-5" onSubmit={(e) => { e.preventDefault(); void run(() => onSave({ key: block.key, channel: block.channel, content, active })); }}>
+    <TextArea label={BLOCK_LABEL[`${block.key}:${block.channel}`] ?? block.key} hint={block.channel === "voice" ? "Se aplica a voz." : "Se aplica a los modelos del canal correspondiente."} rows={block.key === "persona" ? 4 : 3} disabled={busy} value={content} onChange={(e) => setContent(e.target.value)} />
+    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={active} disabled={busy} onChange={(e) => setActive(e.target.checked)} />Instrucción activa</label>
+    <div className="form-actions"><button type="submit" className={btn.secondary} disabled={busy || !dirty}>{busy ? <Activity /> : <IconCheck />}Guardar instrucciones</button><button type="button" className={btn.ghost} disabled={busy || !dirty} onClick={() => { setContent(block.content); setActive(block.active); setError(""); }}>Cancelar cambios</button>
+      {reset ? <><span className="text-sm">¿Restaurar valores predeterminados?</span><button type="button" className={btn.danger} disabled={busy} onClick={() => void run(() => onReset(block.key, block.channel))}>Confirmar restauración</button><button type="button" className={btn.ghost} onClick={() => setReset(false)}>Conservar</button></> : <button type="button" className={btn.ghost} disabled={busy} onClick={() => setReset(true)}>Restaurar</button>}
+    </div>{error && <p role="alert" className="resource-result text-danger">{error}</p>}{notice && <p role="status" className="resource-result text-listen">{notice}</p>}
+  </form>;
+}
 
-        <Input label="URL base" disabled={busy}
-          value={url}
-          placeholder="URL predeterminada del proveedor"
-          onChange={(e) => setUrl(e.target.value)}
-          onBlur={() => {
-            if (url !== (provider.base_url ?? "")) {
-              void onOp({ op: "set_base_url", id: provider.id, base_url: url });
-            }
-          }}
-        />
-
-      {canDelete &&
-        (pendingDelete === "provider" ? (
-          <p className={confirm}>
-            ¿borrar {provider.name}?
-            <button
-              type="button"
-              className={cx(btn.danger, btn.sm)}
-              disabled={busy}
-              onClick={() => void onOp({ op: "delete_provider", id: provider.id })}
-            >
-              Borrar
-            </button>
-            <button type="button" className={cx(btn.secondary, btn.sm)} onClick={() => setPendingDelete(null)}>
-              Cancelar
-            </button>
-          </p>
-        ) : (
-          <button
-            type="button"
-            className={btn.danger}
-            disabled={busy}
-            onClick={() => setPendingDelete("provider")}
-          >
-            Borrar proveedor
-          </button>
-        ))}
-      </div>
-      </details>
-    </div>
-  );
+function PromptField({ label, value, onSave }: { label: string; value: string; onSave: (text: string) => Promise<void> }) {
+  const [draft, setDraft] = useState(value);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  return <form className="mb-6" onSubmit={(e) => { e.preventDefault(); setBusy(true); setError(""); setNotice(""); void onSave(draft).then(() => setNotice("Instrucciones guardadas.")).catch((e) => setError(String(e))).finally(() => setBusy(false)); }}>
+    <TextArea label={label} value={draft} disabled={busy} rows={4} onChange={(e) => setDraft(e.target.value)} /><div className="form-actions"><button type="submit" className={btn.secondary} disabled={busy || draft === value}>Guardar instrucciones</button><button type="button" className={btn.ghost} disabled={busy || draft === value} onClick={() => setDraft(value)}>Cancelar cambios</button></div>{error && <p className="resource-result text-danger" role="alert">{error}</p>}{notice && <p className="resource-result text-listen" role="status">{notice}</p>}
+  </form>;
 }

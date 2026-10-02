@@ -54,6 +54,16 @@ export type Snapshot = {
   tools_enabled: boolean;
   tools_mutate: boolean;
   tools: string[];
+  instructions?: Instruction[];
+};
+
+export type Instruction = {
+  key: string;
+  channel: "chat" | "voice" | "all" | string;
+  content: string;
+  active: boolean;
+  position: number;
+  updated_at: string;
 };
 
 export type Service = {
@@ -151,11 +161,17 @@ export type ChatTurn = {
   content: string;
 };
 
+export type MemoryNote = {
+  action: "saved" | "forgotten";
+  text: string;
+};
+
 export type Bubble = {
   id: string;
   kind: "user" | "ira" | "error";
   text: string;
   mcps?: string[];
+  notes?: MemoryNote[];
 };
 
 /** Catalog mutation serialized with the `op` discriminator expected by Tauri. */

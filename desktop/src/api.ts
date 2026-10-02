@@ -13,6 +13,7 @@ import type {
   DatabaseTest,
   McpInput,
   McpServer,
+  Instruction,
   Op,
   Services,
   Snapshot,
@@ -93,6 +94,31 @@ export async function updateWebSearch(enabled: boolean, contextSize: string): Pr
     body: JSON.stringify({ enabled, context_size: contextSize }),
     },
   );
+}
+
+export async function updateInstruction(input: {
+  key: string;
+  channel: string;
+  content: string;
+  active: boolean;
+}): Promise<Instruction> {
+  if (inTauri) return invoke<Instruction>("update_instruction", { input });
+  return http<Instruction>(`/api/instructions/${encodeURIComponent(input.key)}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      channel: input.channel,
+      content: input.content,
+      active: input.active,
+    }),
+  });
+}
+
+export async function resetInstruction(key: string, channel: string): Promise<Instruction> {
+  if (inTauri) return invoke<Instruction>("reset_instruction", { key, channel });
+  return http<Instruction>(`/api/instructions/${encodeURIComponent(key)}/reset`, {
+    method: "POST",
+    body: JSON.stringify({ channel }),
+  });
 }
 
 export async function beginCodexLogin(providerId: string): Promise<CodexLogin> {
@@ -211,6 +237,7 @@ export type ChatStreamEvent =
   | { type: "delta"; text: string }
   | { type: "reset" }
   | { type: "mcp_used"; server_id: string; tool_name: string }
+  | { type: "memory"; action: "saved" | "forgotten"; content: string }
   | { type: "done" }
   | { type: "error"; error: string };
 

@@ -17,6 +17,8 @@ import {
   setService,
   startServices,
   updateWebSearch,
+  updateInstruction,
+  resetInstruction,
   loadSnapshot,
   newChat,
   openChat,
@@ -24,28 +26,26 @@ import {
 
 } from "./api";
 import { Catalog } from "./Catalog";
-import { Databases } from "./Databases";
 import { DocsSheet } from "./Docs";
 import { Message } from "./components/Message";
 import { Composer } from "./components/Composer";
 import { Activity } from "./components/Activity";
 import { useSidebar } from "./components/useSidebar";
 import { useSheetFocus } from "./components/useSheetFocus";
-import { ServicesSheet } from "./Services";
+import { ServicesSheet, type ConnectionsTab } from "./Services";
 import { btn, cx, scrim, scrimSettings } from "./ui";
 import {
   IconSidebar,
   IconChat,
   IconDown,
-  IconDatabase,
+  IconLink,
   IconMenu,
   IconMoon,
   IconPlus,
-  IconPower,
   IconSliders,
   IconSun,
-  IconTools,
   IconBook,
+  IconDelete,
 } from "./icons";
 import { VoiceStage, type VoicePhase } from "./VoiceStage";
 import { startVoice, type VoiceSession } from "./voice";
@@ -58,6 +58,7 @@ import type {
   Services,
   Snapshot,
   Turn,
+  MemoryNote,
 } from "./types";
 
 function uid() {
@@ -71,12 +72,34 @@ function mergeReply(prev: string, next: string): string {
   return `${prev} ${next}`.replace(/\s+/g, " ").trim();
 }
 
+function attachNote(bubbles: Bubble[], action: string, text: string): Bubble[] {
+  if (action !== "saved" && action !== "forgotten") return bubbles;
+  const note: MemoryNote = { action, text };
+  for (let i = bubbles.length - 1; i >= 0; i -= 1) {
+    if (bubbles[i].kind !== "user") continue;
+    const notes = bubbles[i].notes ?? [];
+    if (notes.some((item) => item.action === note.action && item.text === note.text)) return bubbles;
+    const next = bubbles.slice();
+    next[i] = { ...bubbles[i], notes: [...notes, note] };
+    return next;
+  }
+  return bubbles;
+}
+
 function turnsToBubbles(turns: Turn[]): Bubble[] {
   const out: Bubble[] = [];
   for (const t of turns) {
     if (t.role === "user") out.push({ id: t.id, kind: "user", text: t.content });
     else if (t.role === "assistant") out.push({ id: t.id, kind: "ira", text: t.content });
     else if (t.role === "error") out.push({ id: t.id, kind: "error", text: t.content });
+    else if (t.role === "memory") {
+      const [action, ...rest] = t.content.split("\n");
+      const text = rest.join("\n").trim();
+      if (text) {
+        const next = attachNote(out, action, text);
+        out.splice(0, out.length, ...next);
+      }
+    }
   }
   return out;
 }
@@ -91,10 +114,9 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   const [busy, setBusy] = useState(false);
   const [receiving, setReceiving] = useState(false);
   const [catalog, setCatalog] = useState(false);
-  const [databases, setDatabases] = useState(false);
   const [docs, setDocs] = useState(false);
   const [servicesOpen, setServicesOpen] = useState(false);
-  const [servicesTab, setServicesTab] = useState<"service" | "mcp">("service");
+  const [servicesTab, setServicesTab] = useState<ConnectionsTab>("all");
   const [rail, setRail] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 860px)").matches);
   const railRef = useSheetFocus(rail && isMobile, '[data-mobile-menu="true"]');
@@ -228,8 +250,9 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (document.querySelector("dialog[open]")) return;
         setCatalog(false);
-        setDatabases(false);
+        setServicesOpen(false);
         setDocs(false);
         setRail(false);
         stopVoice();
@@ -241,6 +264,21 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
 
   const onOp = async (op: Op) => {
     setSnap(await applyOp(op));
+  };
+
+  const onInstruction = async (input: {
+    key: string;
+    channel: string;
+    content: string;
+    active: boolean;
+  }) => {
+    await updateInstruction(input);
+    setSnap(await loadSnapshot());
+  };
+
+  const onInstructionReset = async (key: string, channel: string) => {
+    await resetInstruction(key, channel);
+    setSnap(await loadSnapshot());
   };
 
   const onWebSearchChange = async (enabled: boolean, contextSize: string) => {
@@ -307,7 +345,10 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
           replyVisible = false;
           setReceiving(false);
           setBubbles((current) => current.filter((bubble) => bubble.id !== replyId));
+        } else if (event.type === "memory") {
+          setBubbles((current) => attachNote(current, event.action, event.content));
         } else if (event.type === "mcp_used") {
+          replyVisible = true;
           setBubbles((current) => {
             const bubble = current.find((item) => item.id === replyId);
             const names = new Set(bubble?.mcps ?? []);
@@ -426,6 +467,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   };
 
   const clear = async () => {
+    setCatalog(false); setServicesOpen(false); setDocs(false);
     setDemo(false);
     setAnnouncement("");
     followReply.current = true;
@@ -449,6 +491,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   };
 
   const open = async (id: string) => {
+    setCatalog(false); setServicesOpen(false); setDocs(false);
     setDemo(false);
     setAnnouncement("");
     const run = ++chatRunRef.current;
@@ -517,13 +560,16 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
     description?: string,
   ) => {
     setSvcBusy(id || "boot");
+    setServices((prev) => prev && ({ ...prev, error: null }));
     try {
       const next = action === "boot" ? await startServices() : await setService(id, action, port, name, description);
       setServices(next);
       if (next.error) setBoot(next.error);
       if (action === "port" && id === "postgres") await refresh();
     } catch (e) {
-      setBoot(e instanceof Error ? e.message : String(e));
+      const error = e instanceof Error ? e.message : String(e);
+      setServices((prev) => ({ ok: false, services: prev?.services ?? [], gateway_port: prev?.gateway_port, error }));
+      setBoot(error);
     } finally {
       setSvcBusy(null);
     }
@@ -531,6 +577,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
 
   const toggleService = async (id: string, running: boolean) => {
     setSvcBusy(id);
+    setServices((prev) => prev && ({ ...prev, error: null }));
     try {
       const next = await setService(id, running ? "stop" : "start");
       setServices(next);
@@ -573,12 +620,10 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   const useTools = snap?.tools_enabled ?? true;
   const useMutate = snap?.tools_mutate ?? false;
   const model = snap?.models.find((m) => m.id === snap.active_model_id);
-  const effort = model?.effort || "low";
-  const thinking = effort !== "low";
   const provider = snap?.providers.find((p) => p.id === model?.provider_id);
   const chatting = bubbles.length > 0 || busy || listening;
   const catalogOpen = catalog && snap !== null;
-  const canSend = Boolean(snap) && Boolean(conversationId) && !busy && !listening && input.trim().length > 0;
+  const canSend = Boolean(snap) && Boolean(model) && provider?.key !== "falta" && Boolean(conversationId) && !busy && !listening && input.trim().length > 0;
   const canTalk = Boolean(snap) && Boolean(conversationId) && (listening || !busy);
 
   const changeMode = (op: Op) => {
@@ -587,14 +632,15 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   const composer = <Composer input={input} onInput={setInput} boxRef={boxRef} snap={snap}
     busy={busy} listening={listening} canTalk={canTalk} canSend={canSend}
     onSend={() => void send()} onTalk={() => void talk()}
-    onModel={(id) => { if (id) changeMode({ op: "activate_model", id }); }}
+    onModel={(id) => onOp({ op: "activate_model", id })}
+    onSettings={() => { setCatalog(true); setServicesOpen(false); setDocs(false); setRail(false); }}
     onEffort={(id, effort) => changeMode({ op: "set_model_effort", id, effort })}
     onTools={() => changeMode({ op: "set_tools_enabled", value: !useTools })}
     onMutate={() => changeMode({ op: "set_tools_mutate", value: !useMutate })} />;
 
   return (
-    <MotionConfig reducedMotion="user" transition={{ type: "spring", stiffness: 380, damping: 36 }}>
-    <div style={{ "--rail-width": `${sidebar.width}px` } as CSSProperties} className={cx("app flex h-full overflow-hidden bg-bg", rail && "rail-open", railCollapsed && "rail-collapsed", sidebar.dragging && "rail-resizing cursor-col-resize select-none", (catalogOpen || databases || docs || servicesOpen || voiceOpen) && "sheet-open")}>
+    <MotionConfig reducedMotion="user" transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}>
+    <div style={{ "--rail-width": `${sidebar.width}px` } as CSSProperties} className={cx("app flex h-full overflow-clip bg-bg", rail && "rail-open", railCollapsed && "rail-collapsed", sidebar.dragging && "rail-resizing cursor-col-resize select-none", (docs || voiceOpen) && "sheet-open")}>
       <AnimatePresence>
       {rail && (
         <motion.button
@@ -609,7 +655,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
       )}
       </AnimatePresence>
 
-      <aside ref={railRef} className={cx("rail relative z-[4] flex w-[var(--rail-width,272px)] shrink-0 flex-col gap-3 border-r border-line bg-sidebar px-[0.9rem] pt-[1.2rem] pb-4 transition-[width,padding] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!w-[76px] collapsed:!px-3 dragging:!transition-none mobile:fixed mobile:inset-y-0 mobile:left-0 mobile:z-[6] mobile:w-[min(310px,calc(100vw-48px))] mobile:-translate-x-[105%] mobile:transition-transform mobile:duration-200 mobile:ease-[ease] mobile:pt-[max(1.2rem,env(safe-area-inset-top))] mobile:pb-[max(1rem,env(safe-area-inset-bottom))]", isMobile && !rail && "invisible", isMobile && rail && "visible !translate-x-0")} aria-label="navegación" role={isMobile && rail ? "dialog" : undefined} aria-modal={isMobile && rail ? true : undefined} inert={catalogOpen || databases || docs || servicesOpen || voiceOpen}>
+      <aside ref={railRef} className={cx("rail relative z-[4] flex w-[var(--rail-width,272px)] shrink-0 flex-col gap-3 border-r border-line bg-sidebar px-[0.9rem] pt-[1.2rem] pb-4 transition-[width,padding] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!w-[76px] collapsed:!px-3 dragging:!transition-none mobile:fixed mobile:inset-y-0 mobile:left-0 mobile:z-[6] mobile:w-[min(310px,calc(100vw-48px))] mobile:-translate-x-[105%] mobile:transition-transform mobile:duration-200 mobile:ease-[ease] mobile:pt-[max(1.2rem,env(safe-area-inset-top))] mobile:pb-[max(1rem,env(safe-area-inset-bottom))]", isMobile && !rail && "invisible", isMobile && rail && "visible !translate-x-0")} aria-label="navegación" role={isMobile && rail ? "dialog" : undefined} aria-modal={isMobile && rail ? true : undefined} inert={docs || voiceOpen}>
         <div className="flex items-center justify-between gap-[0.3rem] px-1 pt-[0.15rem] pb-[0.35rem] desk:relative desk:h-[54px] desk:shrink-0 desk:p-0 desk:transition-[height] desk:duration-[420ms] desk:ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!h-[106px]">
           <p className="m-0 flex items-center gap-[0.65rem] text-[1.25rem] font-[650] tracking-[-0.03em] [&_img]:h-[3.2rem] [&_img]:w-[2.8rem] [&_img]:object-contain desk:absolute desk:top-1/2 desk:left-1 desk:-translate-y-1/2 desk:transition-[left,top,transform] desk:duration-[420ms] desk:ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!top-[26px] collapsed:!left-1/2 collapsed:!-translate-x-1/2 collapsed:!-translate-y-1/2">
              <img src="/ira-cabeza-recortada.png" alt="" />
@@ -633,11 +679,12 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
           <span className="min-w-0 truncate collapsed:!hidden">Nueva conversación</span>
         </button>
 
-        <nav className="flex min-h-0 flex-1 flex-col gap-[0.15rem] overflow-auto pr-[0.1rem] transition-[flex-grow,opacity,visibility] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!grow-0 collapsed:!opacity-0 collapsed:!invisible collapsed:![transition:flex-grow_420ms_cubic-bezier(0.22,1,0.36,1),opacity_180ms_ease,visibility_0s_180ms]" aria-label="conversaciones">
-          <div className="mt-[1.15rem] mb-[0.6rem] flex items-center justify-between px-[0.7rem] collapsed:!hidden">
+        <nav className="flex min-h-0 flex-1 flex-col overflow-hidden transition-[flex-grow,opacity,visibility] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] collapsed:!grow-0 collapsed:!opacity-0 collapsed:!invisible collapsed:![transition:flex-grow_420ms_cubic-bezier(0.22,1,0.36,1),opacity_180ms_ease,visibility_0s_180ms]" aria-label="conversaciones">
+          <div className="mt-[1.15rem] mb-[0.6rem] flex shrink-0 items-center justify-between px-[0.7rem] collapsed:!hidden">
             <p className="m-0 truncate text-[0.78rem] font-semibold text-muted">Conversaciones</p>
              {chats.length > 0 && <button type="button" className="min-h-11 px-2 text-xs text-muted hover:text-ink" title="Eliminar todas las conversaciones" aria-label="Eliminar todas las conversaciones" onClick={() => void removeAllConversations()}>Eliminar todo</button>}
           </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-[0.15rem] overflow-y-auto pr-[0.1rem] [overscroll-behavior:contain]">
           {chats.length === 0 && <p className="px-[0.7rem] text-[0.82rem] whitespace-normal text-muted collapsed:!hidden">Tu próxima idea empieza aquí.</p>}
           {chats.map((c) => (
              <div key={c.id} className={cx("group relative flex min-h-11 w-full items-center rounded-[10px] hover:bg-elevated", c.id === conversationId && "bg-[color-mix(in_srgb,var(--color-accent)_12%,var(--color-sidebar))]")}>
@@ -645,67 +692,48 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
                 <IconChat /><span className="min-w-0 truncate collapsed:!hidden">{c.title?.trim() || "Nuevo chat"}</span>
               </button>
               <div className="flex shrink-0 items-center pr-1 collapsed:!hidden">
-                 <button type="button" className="flex size-11 items-center justify-center rounded text-muted hover:text-ink" title="Editar nombre" aria-label={`Editar nombre: ${c.title || "Nuevo chat"}`} onClick={() => void renameConversation(c)}>✎</button>
-                 <button type="button" className="flex size-11 items-center justify-center rounded text-muted hover:text-danger" title="Eliminar conversación" aria-label={`Eliminar: ${c.title || "Nuevo chat"}`} onClick={() => void removeConversation(c)}>×</button>
+                 <button type="button" className="flex size-11 items-center justify-center rounded text-muted hover:text-ink [&_svg]:size-4" title="Editar nombre" aria-label={`Editar nombre: ${c.title || "Nuevo chat"}`} onClick={() => void renameConversation(c)}><IconSliders /></button>
+                 <button type="button" className="flex size-11 items-center justify-center rounded text-muted hover:text-danger [&_svg]:size-4" title="Eliminar conversación" aria-label={`Eliminar: ${c.title || "Nuevo chat"}`} onClick={() => void removeConversation(c)}><IconDelete /></button>
               </div>
             </div>
           ))}
+          </div>
         </nav>
 
-         <nav className="flex shrink-0 flex-col gap-1 overflow-y-auto border-t border-line pt-3 mobile:max-h-[min(45vh,19rem)]">
+         <nav className="flex shrink-0 flex-col gap-1 border-t border-line pt-3" aria-label="Secciones de Ira">
           <button
             type="button"
             className={cx("flex min-h-11 w-full items-center gap-[0.6rem] rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.55rem] text-left font-[550] text-ink hover:bg-elevated [&_svg]:size-[18px] collapsed:!justify-center collapsed:!px-0", catalog && "bg-elevated")}
             data-sheet-trigger={catalog ? "true" : undefined}
-            title="Modelos y configuración" aria-label="Modelos y configuración"
+            title="Ajustes" aria-label="Ajustes"
             onClick={() => {
               if (!snap) {
                 setBoot("No se pudo cargar la configuración. Comprueba la conexión e inténtalo de nuevo.");
                 setRail(false);
                 return;
               }
-              setCatalog(true); setDatabases(false); setServicesOpen(false); setDocs(false); setRail(false);
+              setCatalog(true); setServicesOpen(false); setDocs(false); setRail(false);
             }}
           >
             <IconSliders />
-            <span className="min-w-0 truncate collapsed:!hidden">Modelos y configuración</span>
+            <span className="min-w-0 truncate collapsed:!hidden">Ajustes</span>
           </button>
           <button
             type="button"
-            className={cx("flex min-h-11 w-full items-center gap-[0.6rem] rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.55rem] text-left font-[550] text-ink hover:bg-elevated [&_svg]:size-[18px] collapsed:!justify-center collapsed:!px-0", databases && "bg-elevated")}
-            data-sheet-trigger={databases ? "true" : undefined}
-            title="Bases de datos" aria-label="Bases de datos"
-            onClick={() => { setDatabases(true); setCatalog(false); setServicesOpen(false); setDocs(false); setRail(false); }}
+            className={cx("flex min-h-11 w-full items-center gap-[0.6rem] rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.55rem] text-left font-[550] text-ink hover:bg-elevated [&_svg]:size-[18px] collapsed:!justify-center collapsed:!px-0", servicesOpen && "bg-elevated")}
+            data-sheet-trigger={servicesOpen ? "true" : undefined}
+            title="Conexiones" aria-label="Conexiones"
+            onClick={() => { setServicesTab("all"); setServicesOpen(true); setCatalog(false); setDocs(false); setRail(false); }}
           >
-            <IconDatabase />
-            <span className="min-w-0 truncate collapsed:!hidden">Bases de datos</span>
-          </button>
-          <button
-            type="button"
-            className={cx("flex min-h-11 w-full items-center gap-[0.6rem] rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.55rem] text-left font-[550] text-ink hover:bg-elevated [&_svg]:size-[18px] collapsed:!justify-center collapsed:!px-0", servicesOpen && servicesTab === "service" && "bg-elevated")}
-            data-sheet-trigger={servicesOpen && servicesTab === "service" ? "true" : undefined}
-            title="Servicios" aria-label="Servicios"
-            onClick={() => { setServicesTab("service"); setServicesOpen(true); setCatalog(false); setDatabases(false); setDocs(false); setRail(false); }}
-          >
-            <IconPower />
-            <span className="min-w-0 truncate collapsed:!hidden">Servicios</span>
-          </button>
-          <button
-            type="button"
-            className={cx("flex min-h-11 w-full items-center gap-[0.6rem] rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.55rem] text-left font-[550] text-ink hover:bg-elevated [&_svg]:size-[18px] collapsed:!justify-center collapsed:!px-0", servicesOpen && servicesTab === "mcp" && "bg-elevated")}
-            data-sheet-trigger={servicesOpen && servicesTab === "mcp" ? "true" : undefined}
-            title="MCP" aria-label="MCP"
-            onClick={() => { setServicesTab("mcp"); setServicesOpen(true); setCatalog(false); setDatabases(false); setDocs(false); setRail(false); }}
-          >
-            <IconTools />
-            <span className="min-w-0 truncate collapsed:!hidden">MCP</span>
+            <IconLink />
+            <span className="min-w-0 truncate collapsed:!hidden">Conexiones</span>
           </button>
           <button
             type="button"
             className={cx("flex min-h-11 w-full items-center gap-[0.6rem] rounded-[10px] border-0 bg-transparent px-[0.7rem] py-[0.55rem] text-left font-[550] text-ink hover:bg-elevated [&_svg]:size-[18px] collapsed:!justify-center collapsed:!px-0", docs && "bg-elevated")}
             data-sheet-trigger={docs ? "true" : undefined}
             title="Documentación" aria-label="Documentación"
-            onClick={() => { setDocs(true); setCatalog(false); setDatabases(false); setServicesOpen(false); setRail(false); }}
+            onClick={() => { setDocs(true); setCatalog(false); setServicesOpen(false); setRail(false); }}
           >
             <IconBook />
             <span className="min-w-0 truncate collapsed:!hidden">Documentación</span>
@@ -725,7 +753,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
         {!railCollapsed && <div className="absolute inset-y-0 -right-1 z-[5] w-[9px] cursor-col-resize touch-none after:absolute after:top-[42%] after:bottom-[42%] after:left-1 after:w-0.5 after:rounded-sm after:bg-transparent after:transition-colors after:duration-150 hover:after:bg-accent focus-visible:after:bg-accent dragging:after:bg-accent mobile:hidden" {...sidebar.resizeProps} />}
       </aside>
 
-      <div className="stage flex min-w-0 flex-1 flex-col bg-bg" inert={catalogOpen || databases || docs || servicesOpen || voiceOpen || rail}>
+      <div className={cx("stage flex min-w-0 flex-1 flex-col bg-bg", (catalogOpen || servicesOpen) && "!hidden")} inert={catalogOpen || docs || servicesOpen || voiceOpen || rail}>
          <header className="flex min-h-[76px] items-center gap-2 border-b border-[color-mix(in_srgb,var(--color-line)_55%,transparent)] px-[1.8rem] py-4 mobile:min-h-16 mobile:px-4 mobile:py-3 mobile:pt-[max(0.75rem,env(safe-area-inset-top))]">
           <button
             type="button"
@@ -786,7 +814,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
                    <span className="m-0 flex items-center [&_img]:size-[34px] [&_img]:object-contain"><img src="/ira-cabeza-recortada.png" alt="" /></span>
                   <div className="flex min-w-0 items-center gap-2 pl-0 leading-[1.7] text-muted">
                     <Activity />
-                    {thinking ? `Razonando · ${effort}` : "Preparando tu respuesta"}
+                    Preparando tu respuesta
                   </div>
                 </motion.article>
               )}
@@ -807,58 +835,24 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
       </div>
 
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</div>
-      <AnimatePresence>
-      {catalogOpen && snap && (
-          <motion.button
-            type="button"
-            className={scrimSettings}
-            aria-label="cerrar catálogo"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setCatalog(false)}
-          />
-      )}
-      </AnimatePresence>
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
       {catalogOpen && snap && (
           <Catalog
+            key="settings"
             snap={snap}
             onOp={onOp}
             onWebSearchChange={onWebSearchChange}
+            onInstruction={onInstruction}
+            onInstructionReset={onInstructionReset}
             onCodexLogin={onCodexLogin}
+            theme={theme}
+            onTheme={toggleTheme}
             onClose={() => setCatalog(false)}
           />
       )}
-      </AnimatePresence>
-      <AnimatePresence>
-      {databases && (
-          <motion.button type="button" className={scrimSettings} aria-label="cerrar bases de datos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDatabases(false)} />
-      )}
-      </AnimatePresence>
-      <AnimatePresence>
-      {databases && (
-          <Databases onClose={() => setDatabases(false)} />
-      )}
-      </AnimatePresence>
-      <AnimatePresence>
-      {docs && (
-          <motion.button type="button" className={scrimSettings} aria-label="cerrar documentación" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDocs(false)} />
-      )}
-      </AnimatePresence>
-      <AnimatePresence>
-      {docs && (
-          <DocsSheet onClose={() => setDocs(false)} />
-      )}
-      </AnimatePresence>
-      <AnimatePresence>
-      {servicesOpen && (
-          <motion.button type="button" className={scrimSettings} aria-label="cerrar servicios" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setServicesOpen(false)} />
-      )}
-      </AnimatePresence>
-      <AnimatePresence>
       {servicesOpen && (
           <ServicesSheet
+            key="connections"
             tab={servicesTab}
             onTab={setServicesTab}
             data={services}
@@ -870,6 +864,16 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
             onMeta={(id, name, description) => void configureService(id, "meta", undefined, name, description)}
             onStartSelected={() => void configureService("", "boot")}
           />
+      )}
+      </AnimatePresence>
+      <AnimatePresence>
+      {docs && (
+          <motion.button type="button" className={scrimSettings} aria-label="cerrar documentación" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDocs(false)} />
+      )}
+      </AnimatePresence>
+      <AnimatePresence>
+      {docs && (
+          <DocsSheet onClose={() => setDocs(false)} />
       )}
       </AnimatePresence>
       <AnimatePresence>
