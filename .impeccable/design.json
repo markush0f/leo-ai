@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-23T00:00:00.000Z",
+  "generatedAt": "2026-10-02T00:00:00.000Z",
   "title": "Design System: Ira",
   "extensions": {
     "colorMeta": {
@@ -33,35 +33,35 @@
     },
     "typographyMeta": {
       "display": { "displayName": "Bienvenida", "purpose": "Título fluido de bienvenida; hasta 860px usa clamp(1.9rem, 5vw, 2.6rem)." },
-      "title": { "displayName": "Panel", "purpose": "Cabecera de Catálogo y Bases de datos; 1.4rem hasta 600px." },
+      "title": { "displayName": "Panel", "purpose": "Cabecera del panel de documentación; 1.4rem hasta 600px. No es el título de los workspaces." },
+      "workspace-title": { "displayName": "Espacio de trabajo", "purpose": "Cabecera de Ajustes y Conexiones; hereda Source Sans 3, 1.4rem hasta 600px." },
       "body": { "displayName": "Interfaz", "purpose": "Familia heredada por títulos y controles." },
       "reply": { "displayName": "Respuesta", "purpose": "Lectura abierta de Ira." },
-      "button": { "displayName": "Acción", "purpose": "Botones; dentro de Catálogo line-height 1.25 y mínimo 2.75rem." },
+      "button": { "displayName": "Acción", "purpose": "Botones compartidos; mínimo 44px hasta 600px y en el panel de documentación. Navegación por tarea mide al menos 44px en todos los tamaños." },
       "label": { "displayName": "Etiqueta", "purpose": "Label persistente de Field." },
       "field": { "displayName": "Entrada", "purpose": "Contenido de Input, Select y TextArea." },
       "code": { "displayName": "Código", "purpose": "Bloques Markdown con desplazamiento horizontal." }
     },
     "shadows": [
-      { "name": "sheet", "value": "-18px 0 70px rgba(9, 4, 18, 0.22)", "purpose": "Panel lateral en ambos temas." },
-      { "name": "shadow-dark", "value": "0 16px 48px rgba(7, 3, 15, 0.3)", "purpose": "--shadow de tarjeta de voz oscura; compositor sin sombra." },
-      { "name": "shadow-light", "value": "0 16px 48px rgba(62, 29, 101, 0.1)", "purpose": "--shadow de tarjeta de voz clara." }
+      { "name": "sheet", "value": "-18px 0 70px rgba(9, 4, 18, 0.22)", "purpose": "Panel lateral de documentación en ambos temas; Ajustes/Conexiones son workspaces sin sombra ni scrim." },
+      { "name": "shadow-dark", "value": "0 16px 48px rgba(7, 3, 15, 0.3)", "purpose": "--shadow-float del selector de modelo y tarjeta de voz oscuros; compositor sin sombra." },
+      { "name": "shadow-light", "value": "0 16px 48px rgba(62, 29, 101, 0.1)", "purpose": "--shadow-float del selector de modelo y tarjeta de voz claros." }
     ],
     "motion": [
-      { "name": "spring-default", "value": "type: spring; stiffness: 380; damping: 36", "purpose": "MotionConfig reducedMotion=user; dock usa layout de posición." },
-      { "name": "spring-sheet", "value": "type: spring; stiffness: 360; damping: 38", "purpose": "Entrada y salida de Catálogo/Bases de datos." },
-      { "name": "spring-message", "value": "type: spring; stiffness: 420; damping: 34", "purpose": "Entrada única de Message; no animar deltas." },
-      { "name": "spring-selection", "value": "type: spring; stiffness: 420; damping: 38", "purpose": "Selección compartida de conversación." },
-      { "name": "sidebar-collapse", "value": "width 300ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Excepción acotada: contraer/expandir; transition:none durante arrastre por puntero y con movimiento reducido." },
+      { "name": "transition-default", "value": "220ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "MotionConfig reducedMotion=user; navegación y dock con layout de posición." },
+      { "name": "workspace-entry", "value": "200ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Entrada de Ajustes/Conexiones: opacity 0→1 y x 10px→0; sección no modal." },
+      { "name": "message-entry", "value": "200ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Entrada única de Message; no animar deltas ni lectura." },
+      { "name": "sidebar-collapse", "value": "width 420ms cubic-bezier(0.22, 1, 0.36, 1), padding 420ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Contraer/expandir sidebar con marca, botón y distribución coordinados; transition:none durante arrastre por puntero y con movimiento reducido." },
       { "name": "mobile-drawer", "value": "transform 0.2s ease", "purpose": "Drawer hasta 860px; sin transición con movimiento reducido." },
       { "name": "field-focus", "value": "transform 250ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Línea inferior de Field; contorno de teclado permanece visible." },
       { "name": "composer-focus", "value": "transform 280ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Línea inferior del compositor." },
-      { "name": "activity", "value": "1200ms cubic-bezier(0.65, 0, 0.35, 1) infinite; receiving: 650ms", "purpose": "Cuatro barras para actividad real; estáticas con movimiento reducido." },
+      { "name": "activity", "value": "1600ms linear infinite; receiving: 900ms", "purpose": "SVG orbital decorativo de 20px para espera/recepción reales; estático con movimiento reducido, estado explicado por texto." },
       { "name": "reduced-motion", "value": "animation: none; transition: none; scroll-behavior: auto", "purpose": "CSS global bajo prefers-reduced-motion; Message omite entrada y dock omite layout." }
     ],
     "breakpoints": [
       { "name": "composer-labels", "value": "1080px" },
       { "name": "mobile-drawer", "value": "860px" },
-      { "name": "stacked-panels", "value": "600px" },
+      { "name": "stacked-workspaces", "value": "600px" },
       { "name": "short-window-max-height", "value": "680px" }
     ]
   },
@@ -75,7 +75,7 @@
     {
       "name": "Acción secundaria", "kind": "button", "refersTo": "button-secondary",
       "description": "Plano elevado con borde para acciones auxiliares.",
-      "html": "<button class=\"ds-secondary\">Completar desde URL</button>",
+      "html": "<button class=\"ds-secondary\">Revisar datos de URL</button>",
       "css": ".ds-secondary { background:var(--elevated,#30263e); color:var(--text,#f4effa); border:1px solid var(--border,#443650); border-radius:10px; padding:0.5rem 0.85rem; font:600 0.9rem/1 'Source Sans 3 Variable','Source Sans 3',system-ui,sans-serif; cursor:pointer; transition:background .15s ease,border-color .15s ease; } .ds-secondary:hover:not(:disabled) { background:var(--surface,#231d30); border-color:var(--muted,#b7abc8); } .ds-secondary:focus-visible { outline:2px solid var(--accent,#c1a5ff); outline-offset:2px; } .ds-secondary:active:not(:disabled) { translate:0 1px; } .ds-secondary:disabled { opacity:.38; cursor:not-allowed; } @media(prefers-reduced-motion:reduce) { .ds-secondary { transition:none; } }"
     },
     {
@@ -99,28 +99,41 @@
     {
       "name": "Navegación lateral", "kind": "nav", "refersTo": "navigation",
       "description": "Acceso de 44px con plano de hover o selección.",
-      "html": "<nav aria-label=\"Configuración\"><button class=\"ds-nav\">Bases de datos</button></nav>",
+      "html": "<nav aria-label=\"Navegación\"><button class=\"ds-nav\">Conexiones</button></nav>",
       "css": ".ds-nav { display:flex; align-items:center; gap:.6rem; width:100%; min-height:44px; padding:.55rem .7rem; border:0; border-radius:10px; background:transparent; color:var(--text,#f4effa); text-align:left; font:550 1rem/1.5 'Source Sans 3 Variable','Source Sans 3',system-ui,sans-serif; cursor:pointer; } .ds-nav:hover,.ds-nav[aria-current] { background:var(--elevated,#30263e); } .ds-nav:focus-visible { outline:2px solid var(--accent,#c1a5ff); outline-offset:2px; } .ds-nav:active { translate:0 1px; }"
     },
     {
       "name": "Modo de conversación", "kind": "chip", "refersTo": "mode-chip",
       "description": "Chip de modo; muestra estado activo sin forma de pill.",
-      "html": "<button class=\"ds-chip\" aria-pressed=\"true\">Pensar</button>",
+      "html": "<button class=\"ds-chip\" aria-pressed=\"true\">Herramientas</button>",
       "css": ".ds-chip { display:inline-flex; align-items:center; justify-content:center; gap:.35rem; min-height:34px; padding:.4rem .55rem; border:0; border-radius:8px; background:transparent; color:var(--muted,#b7abc8); font:600 .82rem/1.5 'Source Sans 3 Variable','Source Sans 3',system-ui,sans-serif; cursor:pointer; } .ds-chip:hover { color:var(--text,#f4effa); } .ds-chip[aria-pressed=true] { background:color-mix(in srgb,var(--accent,#c1a5ff) 12%,var(--surface,#231d30)); color:var(--accent,#c1a5ff); } .ds-chip:focus-visible { outline:2px solid var(--accent,#c1a5ff); outline-offset:2px; } .ds-chip:active { translate:0 1px; }"
     },
     {
       "name": "Compositor", "kind": "card", "refersTo": "composer",
-      "description": "Muestra de contenedor editable sin sombra; lógica de envío en Composer.tsx.",
+      "description": "Muestra de contenedor editable sin sombra; lógica de envío en Composer.tsx. Dock hasta 48rem en bienvenida y 50rem al conversar. ModelPicker asociado usa portal/showModal, ancho hasta 400px limitado a viewport menos 32px, separación de 8px y margen de 16px; mide alto real con ResizeObserver, máximo hasta 480px y lista con scroll hasta 280px.",
       "html": "<div class=\"ds-composer\"><textarea aria-label=\"Mensaje para Ira\" placeholder=\"¿Qué hacemos hoy?\" rows=\"2\"></textarea></div>",
       "css": ".ds-composer { position:relative; display:flex; flex-direction:column; gap:.85rem; padding:1rem 1rem .8rem; border:1px solid var(--border,#443650); border-radius:16px; background:var(--surface,#231d30); color:var(--text,#f4effa); transition:border-color 180ms ease; } .ds-composer textarea { width:100%; min-height:2.6rem; max-height:176px; resize:none; border:0; background:transparent; color:inherit; padding:.15rem .25rem; font:450 1.06rem/1.5 'Source Sans 3 Variable','Source Sans 3',system-ui,sans-serif; } .ds-composer textarea::placeholder { color:var(--muted,#b7abc8); } .ds-composer textarea:focus { outline:none; } .ds-composer:focus-within { border-color:var(--accent,#c1a5ff); } .ds-composer::after { content:''; position:absolute; bottom:-1px; left:20%; right:20%; height:2px; background:var(--accent,#c1a5ff); transform:scaleX(0); transition:transform 280ms cubic-bezier(.16,1,.3,1); } .ds-composer:focus-within::after { transform:scaleX(1); } @media(prefers-reduced-motion:reduce) { .ds-composer,.ds-composer::after { transition:none; } }"
+    },
+    {
+      "name": "Navegación por tarea", "kind": "nav", "refersTo": "task-navigation",
+      "description": "Filtros de Conexiones y secciones de Ajustes; hidden conserva borradores dentro del workspace montado. Cuerpo hasta 1060px, Ajustes con navegación de 11rem y gap de 2.5rem; hasta 600px una columna y navegación envolvente.",
+      "html": "<nav class=\"ds-task-nav\" aria-label=\"Filtrar conexiones\"><button type=\"button\" aria-pressed=\"true\">Todas</button><button type=\"button\" aria-pressed=\"false\">Integraciones</button><button type=\"button\" aria-pressed=\"false\">Bases de datos</button><button type=\"button\" aria-pressed=\"false\">Sistema de Ira</button></nav>",
+      "css": ".ds-task-nav { display:flex; flex-wrap:wrap; gap:.35rem; margin-bottom:2rem; padding-bottom:1rem; border-bottom:1px solid var(--color-line); font-family:var(--font-sans); } .ds-task-nav button { min-height:44px; padding:.6rem 1rem; border:0; border-radius:10px; background:transparent; color:var(--color-muted); font:inherit; cursor:pointer; transition:background 150ms,color 150ms; } .ds-task-nav button:hover { background:var(--color-elevated); color:var(--color-ink); } .ds-task-nav button[aria-pressed=true] { background:color-mix(in srgb,var(--color-accent) 12%,var(--color-bg)); color:var(--color-accent); font-weight:600; } .ds-task-nav button:focus-visible { outline:2px solid var(--color-accent); outline-offset:2px; } .ds-task-nav button:active { translate:0 1px; } @media(max-width:600px) { .ds-task-nav button { padding:.5rem .75rem; } } @media(prefers-reduced-motion:reduce) { .ds-task-nav button { transition:none; } }"
+    },
+    {
+      "name": "Estado de recurso", "kind": "custom",
+      "description": "Status textual compartido: habilitado no equivale a comprobado; éxito y fallo junto al recurso. MCP anuncia cada prueba en región viva persistente y muestra cantidad real de herramientas. Muestra estática de estado, sin simular comprobación.",
+      "html": "<span class=\"ds-resource-status\"><span class=\"ds-status-dot\" aria-hidden=\"true\"></span>Sin comprobar</span>",
+      "css": ".ds-resource-status { display:inline-flex; align-items:center; gap:.45rem; color:var(--color-muted); font-family:var(--font-sans); font-size:.8rem; } .ds-status-dot { width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0; } .ds-resource-status[data-tone=success] { color:var(--color-listen); } .ds-resource-status[data-tone=error] { color:var(--color-danger); }"
     }
   ],
   "narrative": {
     "northStar": "Conversación violeta, expresiva y precisa",
-    "overview": "Berenjena oscura y lavanda clara prolongan la identidad del logo existente. Controles esculpidos, superficies abiertas y respuestas sin tarjeta mantienen el contenido por delante de la interfaz. Dirección fijada por el usuario y construida desde código; sin assets generados. Se conserva `/ira-logo.png` sin cambios.\n\nEl movimiento señala navegación, envío y actividad real. Durante la lectura, los mensajes permanecen en reposo y el desplazamiento respeta a quien vuelve atrás.",
+    "overview": "Berenjena oscura y lavanda clara prolongan la identidad del logo existente. Controles esculpidos, superficies abiertas y respuestas sin tarjeta mantienen el contenido por delante de la interfaz. Dirección fijada por el usuario y construida desde código; sin assets generados. Se conservan los assets de marca; la interfaz usa `/ira-cabeza-recortada.png`.\n\nEl movimiento señala navegación, envío y actividad real. Durante la lectura, los mensajes permanecen en reposo y el desplazamiento respeta a quien vuelve atrás.",
     "keyCharacteristics": [
       "Dos temas semánticos con acento violeta.",
       "Sidebar ajustable y compactable; campos compartidos con etiquetas persistentes.",
+      "Espacios de trabajo no modales; listas de recursos con estado, acción y detalles progresivos.",
       "Burbuja violeta para Tú; avatar y texto abierto para Ira.",
       "Movimiento breve, streaming agrupado y reducción de movimiento respetada."
     ],
@@ -128,12 +141,14 @@
     "dos": [
       "**Do** conservar logo existente, Hugeicons y etiquetas accesibles.",
       "**Do** reutilizar Field y roles de color en ambos temas.",
-      "**Do** distinguir guardar de comprobar y mantener lectura quieta durante streaming."
+      "**Do** distinguir guardar de comprobar y mantener lectura quieta durante streaming.",
+      "**Do** conservar borradores entre filtros y tras fallos, con resultado local y retorno de foco."
     ],
     "donts": [
       "**Don't** recuperar la estética Grok monocroma ni las antiguas franjas iridiscentes.",
       "**Don't** persistir URL o credenciales crudas en almacenamiento frontend.",
-      "**Don't** convertir movimiento continuo o sombras en decoración de cada mensaje."
+      "**Don't** convertir movimiento continuo o sombras en decoración de cada mensaje.",
+      "**Don't** presentar credenciales presentes como acceso verificado ni inventar fases de herramientas."
     ]
   }
 }
