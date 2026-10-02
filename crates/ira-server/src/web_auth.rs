@@ -24,6 +24,7 @@ pub(crate) struct WebAuth {
     password_hash: Option<String>,
     state: Arc<Mutex<AuthState>>,
     secure_cookie: bool,
+    reveal_password: Option<String>,
 }
 
 #[derive(Default)]
@@ -38,13 +39,26 @@ pub(crate) struct LoginIn {
 }
 
 impl WebAuth {
-    pub(crate) fn new(token: String, password_hash: Option<String>, secure_cookie: bool) -> Self {
+    pub(crate) fn new(
+        token: String,
+        password_hash: Option<String>,
+        secure_cookie: bool,
+        reveal_password: Option<String>,
+    ) -> Self {
         Self {
             token,
             password_hash,
             state: Arc::new(Mutex::new(AuthState::default())),
             secure_cookie,
+            reveal_password,
         }
+    }
+
+    pub(crate) fn reveal(&self) -> Response {
+        let Some(password) = &self.reveal_password else {
+            return StatusCode::NOT_FOUND.into_response();
+        };
+        Json(serde_json::json!({ "password": password })).into_response()
     }
 
     pub(crate) async fn login(&self, headers: HeaderMap, Json(body): Json<LoginIn>) -> Response {
@@ -135,6 +149,12 @@ impl WebAuth {
             return next.run(req).await;
         }
         if path == "/api/auth/login" && req.method() == Method::POST {
+            return next.run(req).await;
+        }
+        if path == "/api/auth/password"
+            && req.method() == Method::GET
+            && self.reveal_password.is_some()
+        {
             return next.run(req).await;
         }
         let bearer = req

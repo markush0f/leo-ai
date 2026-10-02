@@ -77,10 +77,22 @@ async fn main() {
         eprintln!("no se pudo preparar el token HTTP: {err}");
         std::process::exit(1);
     });
-    let password_hash = std::env::var("IRA_PASSWORD_HASH_FILE")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .map(|path| {
+    let secure = std::env::var("IRA_COOKIE_SECURE").is_ok_and(|s| s == "true");
+    let (password_hash, reveal_password) = match std::env::var("IRA_PASSWORD_HASH_FILE") {
+        Ok(path) if !path.trim().is_empty() && !secure => {
+            let path = PathBuf::from(path);
+            let password = ira_server::ensure_local_password(&path).unwrap_or_else(|err| {
+                eprintln!("no se pudo preparar la contraseña: {err}");
+                std::process::exit(1);
+            });
+            tracing::info!("contraseña de Ira: {password}");
+            let hash = std::fs::read_to_string(&path).unwrap_or_else(|err| {
+                eprintln!("no se pudo leer IRA_PASSWORD_HASH_FILE: {err}");
+                std::process::exit(1);
+            });
+            (Some(hash.trim().to_string()), Some(password))
+        }
+        Ok(path) if !path.trim().is_empty() => {
             let hash = std::fs::read_to_string(&path).unwrap_or_else(|err| {
                 eprintln!("no se pudo leer IRA_PASSWORD_HASH_FILE: {err}");
                 std::process::exit(1);
@@ -90,8 +102,10 @@ async fn main() {
                 eprintln!("IRA_PASSWORD_HASH_FILE debe contener un hash Argon2id");
                 std::process::exit(1);
             }
-            hash
-        });
+            (Some(hash), None)
+        }
+        _ => (None, None),
+    };
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .unwrap_or_else(|err| {
@@ -101,7 +115,7 @@ async fn main() {
     tracing::info!(%addr, web = ?web_root, "ira-server");
     axum::serve(
         listener,
-        ira_server::router(app, web_root, token, password_hash)
+        ira_server::router(app, web_root, token, password_hash, reveal_password)
             .into_make_service_with_connect_info::<SocketAddr>(),
     )
     .await

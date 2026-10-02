@@ -3,9 +3,11 @@
 //! Browsers cannot call Ollama (CORS). This process does: it owns the catalog
 //! and provider HTTP, then returns the same DTOs as the Tauri bridge.
 
+mod password;
 mod token;
 mod web_auth;
 
+pub use password::ensure_local_password;
 pub use token::load_http_token;
 
 use std::path::PathBuf;
@@ -70,12 +72,14 @@ pub fn router(
     web_root: Option<PathBuf>,
     token: impl Into<String>,
     password_hash: Option<String>,
+    reveal_password: Option<String>,
 ) -> Router {
     let token = token.into();
     let auth = WebAuth::new(
         token,
         password_hash,
         std::env::var("IRA_COOKIE_SECURE").is_ok_and(|s| s == "true"),
+        reveal_password,
     );
     let login_auth = auth.clone();
     let logout_auth = auth.clone();
@@ -84,6 +88,16 @@ pub fn router(
         .route(
             "/auth/status",
             get(|| async { Json(serde_json::json!({ "authenticated": true })) }),
+        )
+        .route(
+            "/auth/password",
+            get({
+                let auth = auth.clone();
+                move || {
+                    let auth = auth.clone();
+                    async move { auth.reveal() }
+                }
+            }),
         )
         .route(
             "/auth/login",
@@ -107,9 +121,18 @@ pub fn router(
             "/preferences/web-search",
             axum::routing::put(update_web_search),
         )
-        .route("/instructions", get(list_instructions))
-        .route("/instructions/{key}", put(update_instruction))
-        .route("/instructions/{key}/reset", post(reset_instruction))
+        .route(
+            "/instructions",
+            get(list_instructions),
+        )
+        .route(
+            "/instructions/{key}",
+            put(update_instruction),
+        )
+        .route(
+            "/instructions/{key}/reset",
+            post(reset_instruction),
+        )
         .route("/databases", get(list_databases).post(create_database))
         .route(
             "/databases/{id}",
@@ -468,6 +491,7 @@ mod tests {
             None,
             TOKEN,
             Some(test_hash()),
+            None,
         )
     }
 
@@ -523,6 +547,7 @@ mod tests {
             Some(root.clone()),
             TOKEN,
             Some(test_hash()),
+            None,
         );
         let page = web
             .clone()

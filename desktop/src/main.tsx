@@ -15,9 +15,40 @@ function WebEntry() {
 
   useEffect(() => {
     if (inTauri) return;
-    void fetch("/api/auth/status")
-      .then((response) => setState(response.ok ? "ready" : response.status === 401 ? "login" : "error"))
-      .catch(() => setState("error"));
+    void (async () => {
+      try {
+        const status = await fetch("/api/auth/status");
+        if (status.ok) {
+          setState("ready");
+          return;
+        }
+        if (status.status !== 401) {
+          setState("error");
+          return;
+        }
+        const revealed = await fetch("/api/auth/password");
+        if (revealed.ok) {
+          const body = await revealed.json() as { password?: string };
+          if (body.password) {
+            setPassword(body.password);
+            setState("login");
+            const response = await fetch("/api/auth/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ password: body.password }),
+            });
+            if (response.ok) {
+              setPassword("");
+              setState("ready");
+              return;
+            }
+          }
+        }
+        setState("login");
+      } catch {
+        setState("error");
+      }
+    })();
   }, []);
 
   async function signIn(event: FormEvent) {
@@ -58,7 +89,7 @@ function WebEntry() {
       {state === "loading" && <p className="text-muted" role="status">Comprobando acceso…</p>}
       {state === "error" && <p className="text-danger" role="alert">No se pudo conectar con Ira. Comprueba que el servidor esté activo y recarga la página.</p>}
       {state === "login" && <form onSubmit={(event) => void signIn(event)} className="mt-7 flex flex-col gap-5">
-        <p className="m-0 text-muted">Introduce tu contraseña para continuar.</p>
+        <p className="m-0 text-muted">{password ? `Contraseña: ${password}` : "Introduce tu contraseña para continuar."}</p>
         <Input label="Contraseña" type="password" value={password} onChange={(event) => setPassword(event.target.value)}
           required autoComplete="current-password" autoFocus disabled={busy} error={error || undefined} />
         <button className={`${btn.primary} min-h-12 w-full`} type="submit" disabled={busy || !password}>
