@@ -126,6 +126,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = try_client(&snapshot, &pool);
     let tools = ira_tools::Registry::from_env();
     let tools = ira_tools::attach_configured(tools, &ira_tools::file_servers()).await;
+    let tools = ira_tools::attach_memory(tools, pool.clone());
     let mut app = App::from_store(snapshot, conv.id, messages);
     let mut terminal = ratatui::init();
     let _restore = Restore;
@@ -153,7 +154,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             if db::uses_ollama(&app.snapshot) {
                 refresh_ollama(&pool, &mut app, &mut client).await;
             }
-            let req = match persist_user_and_context(&pool, &app, req).await {
+            let tools_for_turn = ira_tools::attach_memory(tools.clone(), pool.clone());
+            let names = tools_for_turn.names();
+            let req = match persist_user_and_context(&pool, &app, req, &names).await {
                 Ok(req) => req,
                 Err(err) => {
                     app.busy = false;
@@ -164,7 +167,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             match client.clone() {
                 Some(client) => {
                     let tx = tx.clone();
-                    let tools = tools.clone();
+                    let tools = tools_for_turn;
                     tokio::spawn(async move {
                         let _ = tx.send(ira_tools::chat(&client, req, &tools).await);
                     });
@@ -246,6 +249,7 @@ async fn persist_user_and_context(
     pool: &sqlx::PgPool,
     app: &App,
     req: ira_llm::ChatRequest,
+    tool_names: &[String],
 ) -> Result<ira_llm::ChatRequest, sqlx::Error> {
     if app.conversation_id.is_nil() {
         return Ok(req);
@@ -256,7 +260,33 @@ async fn persist_user_and_context(
         db::append_message(pool, app.conversation_id, NewMessage::user(content.clone())).await?;
     }
     let history = db::context_messages(pool, app.conversation_id, CONTEXT_LIMIT).await?;
-    let mut req = ira_llm::ChatRequest::with_history(app.system(), history);
+    let user_text = history
+        .iter()
+        .rev()
+        .find(|message| message.role == Role::User)
+        .map(|message| message.content.as_str())
+        .unwrap_or("");
+    let memory = db::prepare_turn(pool, user_text)
+        .await
+        .map_err(|err| sqlx::Error::Protocol(err.to_string()))?
+        .prompt;
+    let model = app
+        .snapshot
+        .active_model()
+        .map(|model| model.name.clone())
+        .unwrap_or_else(|| "desconocido".into());
+    let system = db::compose_prompt(
+        pool,
+        "chat",
+        &db::PromptDynamic {
+            model: &model,
+            tool_names,
+            memories: &memory,
+            extra: "",
+        },
+    )
+    .await?;
+    let mut req = ira_llm::ChatRequest::with_history(&system, history);
     app.snapshot.apply_reasoning(&mut req);
     Ok(req)
 }

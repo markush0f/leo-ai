@@ -27,8 +27,8 @@ use uuid::Uuid;
 
 pub use dto::{
     ChatOut, CodexLoginDto, ConversationDto, DatabaseConnectionDto, DatabaseExportRequest,
-    DatabaseInput, DatabaseTestDto, DeleteDto, EngineDto, ModelDto, Op, ProviderDto, SnapshotDto,
-    TurnDto,
+    DatabaseInput, DatabaseTestDto, DeleteDto, EngineDto, InstructionDto, ModelDto, Op, ProviderDto,
+    SnapshotDto, TurnDto,
 };
 pub use host::{ServiceDto, ServicesDto};
 pub use ira_pgjson::Dump as DatabaseDump;
@@ -45,6 +45,10 @@ pub enum ChatStreamEvent {
     McpUsed {
         server_id: String,
         tool_name: String,
+    },
+    Memory {
+        action: String,
+        content: String,
     },
     Done,
     Error { error: String },
@@ -360,18 +364,32 @@ impl App {
         host::builtin_catalog()
     }
 
-    async fn system_text(&self, base: &str, model: &str) -> String {
+    async fn prompt_for(
+        &self,
+        pool: &PgPool,
+        model: &str,
+        tool_names: &[String],
+        memories: &str,
+    ) -> Result<String, String> {
         let note = host::catalog_note(&self.service_catalog().await);
-        let model_context = format!(
-            "El modelo de IA que estás usando actualmente es \"{model}\". Si te preguntan qué modelo eres o cuál estás usando, responde de forma natural y honesta con este nombre. No digas que eres el modelo; explica que es el modelo que te impulsa."
-        );
-        let tools_context = "Usa las herramientas disponibles cuando sean útiles para responder, incluidas herramientas MCP locales y externas. La lista de servicios locales no representa todos los MCP conectados: comprueba las herramientas disponibles en esta conversación y úsalas según su descripción. Para resultados deportivos actuales, consulta herramientas deportivas disponibles antes de responder. No afirmes que un MCP no está conectado si no lo verificaste intentando usar sus herramientas; si no hay herramienta pertinente o falla, explica esa limitación concreta.";
-        let web_search_context = "Cuando el usuario pida buscar en internet, consultar la web o información reciente, usa la herramienta web_search si está disponible. Para noticias o datos que cambian, prioriza páginas recién publicadas o actualizadas, comprueba su fecha y distingue fecha de publicación de fecha del evento. Si las fuentes no son suficientemente recientes, dilo claramente en vez de presentar datos antiguos como actuales. Haz la búsqueda en segundo plano: no abras ni controles el navegador local del usuario. Después, responde en este mismo turno con un resumen útil y menciona fuentes cuando estén disponibles; no te limites a iniciar una búsqueda ni dejes al usuario esperando.";
-        [base, &model_context, tools_context, web_search_context, &note]
-            .into_iter()
-            .filter(|text| !text.is_empty())
-            .collect::<Vec<_>>()
-            .join("\n\n")
+        db::compose_prompt(
+            pool,
+            "chat",
+            &db::PromptDynamic {
+                model,
+                tool_names,
+                memories,
+                extra: &note,
+            },
+        )
+        .await
+        .map_err(|error| error.to_string())
+    }
+
+    async fn preferences_for_turn(&self, pool: &PgPool) -> Result<AssistantPreferences, String> {
+        let mut preferences = preferences::load()?;
+        absorb_local_prompt(pool, &mut preferences).await?;
+        Ok(preferences)
     }
 
     async fn host_status(&self) -> ServicesDto {
@@ -576,8 +594,8 @@ impl App {
 
     pub async fn snapshot(&self) -> Result<SnapshotDto, String> {
         let pool = self.pool().await?;
+        let stored_preferences = self.preferences_for_turn(&pool).await?;
         let mut snap = db::load(&pool).await.map_err(|e| e.to_string())?;
-        let stored_preferences = preferences::load()?;
         let catalog = models_dev::load().await?;
         let (preferences, model_dtos) = apply_models_dev(&mut snap, stored_preferences, &catalog);
         if preferences != preferences::load()? {
@@ -598,8 +616,39 @@ impl App {
         preferences::save_web_search(enabled, context_size)
     }
 
+    pub async fn list_instructions(&self) -> Result<Vec<InstructionDto>, String> {
+        let pool = self.pool().await?;
+        let blocks = db::list_instructions(&pool)
+            .await
+            .map_err(|error| error.to_string())?;
+        Ok(blocks.into_iter().map(instruction_dto).collect())
+    }
+
+    pub async fn update_instruction(
+        &self,
+        key: &str,
+        channel: &str,
+        content: &str,
+        active: Option<bool>,
+    ) -> Result<InstructionDto, String> {
+        let pool = self.pool().await?;
+        db::upsert_instruction(&pool, key, channel, content, active)
+            .await
+            .map(instruction_dto)
+            .map_err(|error| error.to_string())
+    }
+
+    pub async fn reset_instruction(&self, key: &str, channel: &str) -> Result<InstructionDto, String> {
+        let pool = self.pool().await?;
+        db::reset_instruction(&pool, key, channel)
+            .await
+            .map(instruction_dto)
+            .map_err(|error| error.to_string())
+    }
+
     pub async fn apply(&self, op: Op) -> Result<SnapshotDto, String> {
         let pool = self.pool().await?;
+        let _ = self.preferences_for_turn(&pool).await?;
         if let Some(snapshot) = self.apply_model_preference(&pool, &op).await? {
             return Ok(snapshot);
         }
@@ -608,10 +657,6 @@ impl App {
             .map_err(|e| e.to_string())?;
         let mut preferences = preferences::load()?;
         let persist_preferences = match op {
-            Op::SetSystem { text } => {
-                preferences.system_prompt = Some(text);
-                true
-            }
             Op::ActivateModel { .. } | Op::ActivateProvider { .. } => {
                 if let (Some(provider), Some(model)) = (snap.active_provider(), snap.active_model())
                 {
@@ -1067,8 +1112,8 @@ impl App {
         let conversation_lock = self.conversation_lock(conversation_id).await;
         let _turn = conversation_lock.lock().await;
         let pool = self.pool().await?;
+        let preferences = self.preferences_for_turn(&pool).await?;
         let mut snap = db::load(&pool).await.map_err(|e| e.to_string())?;
-        let preferences = preferences::load()?;
         let catalog = models_dev::load().await?;
         let (preferences, _) = apply_models_dev(&mut snap, preferences, &catalog);
         let client = db::client_with_pool(&snap, &pool).map_err(|e| match e {
@@ -1077,22 +1122,34 @@ impl App {
             }
             other => other.to_string(),
         })?;
+        let memory = db::prepare_turn(&pool, &text)
+            .await
+            .map_err(|e| e.to_string())?;
         db::append_message(&pool, conversation_id, NewMessage::user(text))
             .await
             .map_err(|e| e.to_string())?;
+        persist_memory_notes(&pool, conversation_id, &memory.notes).await;
         let history = db::context_messages(&pool, conversation_id, CONTEXT_LIMIT)
             .await
             .map_err(|e| e.to_string())?;
         let model = snap
             .active_model()
-            .map_or("desconocido", |model| model.name.as_str());
-        let mut req =
-            ChatRequest::with_history(&self.system_text(&snap.system, model).await, history);
-        if preferences.web_search_enabled
+            .map(|model| model.name.clone())
+            .unwrap_or_else(|| "desconocido".into());
+        let registry = ira_tools::attach_memory(chat_tools(self.tools().await, &snap), pool.clone());
+        let mut names = registry.names();
+        let web_search = preferences.web_search_enabled
             && snap
                 .active_provider()
-                .is_some_and(|provider| provider.kind.eq_ignore_ascii_case("codex"))
-        {
+                .is_some_and(|provider| provider.kind.eq_ignore_ascii_case("codex"));
+        if web_search {
+            names.push("web_search".into());
+        }
+        let system = self
+            .prompt_for(&pool, &model, &names, &memory.prompt)
+            .await?;
+        let mut req = ChatRequest::with_history(&system, history);
+        if web_search {
             req.tools.push(ira_llm::ToolSpec {
                 name: "web_search".into(),
                 description:
@@ -1106,7 +1163,6 @@ impl App {
             });
         }
         req.reasoning_effort = preferences.active_effort.clone();
-        let registry = chat_tools(self.tools().await, &snap);
         let mut result = ira_tools::chat(&client, req.clone(), &registry).await;
         if let Err(err) = &result
             && !registry.is_empty()
@@ -1145,19 +1201,19 @@ impl App {
                 return;
             }
         };
+        let preferences = match self.preferences_for_turn(&pool).await {
+            Ok(preferences) => preferences,
+            Err(error) => {
+                sink(ChatStreamEvent::Error { error });
+                return;
+            }
+        };
         let mut snap = match db::load(&pool).await {
             Ok(snapshot) => snapshot,
             Err(error) => {
                 sink(ChatStreamEvent::Error {
                     error: error.to_string(),
                 });
-                return;
-            }
-        };
-        let preferences = match preferences::load() {
-            Ok(preferences) => preferences,
-            Err(error) => {
-                sink(ChatStreamEvent::Error { error });
                 return;
             }
         };
@@ -1182,6 +1238,21 @@ impl App {
                 return;
             }
         };
+        let memory = match db::prepare_turn(&pool, &text).await {
+            Ok(memory) => memory,
+            Err(error) => {
+                sink(ChatStreamEvent::Error {
+                    error: error.to_string(),
+                });
+                return;
+            }
+        };
+        for note in &memory.notes {
+            sink(ChatStreamEvent::Memory {
+                action: note.action.to_string(),
+                content: note.content.clone(),
+            });
+        }
         if let Err(error) = db::append_message(&pool, conversation_id, NewMessage::user(text)).await
         {
             sink(ChatStreamEvent::Error {
@@ -1189,6 +1260,7 @@ impl App {
             });
             return;
         }
+        persist_memory_notes(&pool, conversation_id, &memory.notes).await;
 
         let result = async {
             let history = db::context_messages(&pool, conversation_id, CONTEXT_LIMIT)
@@ -1196,14 +1268,23 @@ impl App {
                 .map_err(|error| error.to_string())?;
             let model = snap
                 .active_model()
-                .map_or("desconocido", |model| model.name.as_str());
-            let mut req =
-                ChatRequest::with_history(&self.system_text(&snap.system, model).await, history);
-            if preferences.web_search_enabled
+                .map(|model| model.name.clone())
+                .unwrap_or_else(|| "desconocido".into());
+            let registry =
+                ira_tools::attach_memory(chat_tools(self.tools().await, &snap), pool.clone());
+            let mut names = registry.names();
+            let web_search = preferences.web_search_enabled
                 && snap
-                .active_provider()
-                .is_some_and(|provider| provider.kind.eq_ignore_ascii_case("codex"))
-            {
+                    .active_provider()
+                    .is_some_and(|provider| provider.kind.eq_ignore_ascii_case("codex"));
+            if web_search {
+                names.push("web_search".into());
+            }
+            let system = self
+                .prompt_for(&pool, &model, &names, &memory.prompt)
+                .await?;
+            let mut req = ChatRequest::with_history(&system, history);
+            if web_search {
                 req.tools.push(ira_llm::ToolSpec {
                     name: "web_search".into(),
                     description: "Busca en internet cuando el usuario solicite información web o actualizada.".into(),
@@ -1215,15 +1296,37 @@ impl App {
                 });
             }
             req.reasoning_effort = preferences.active_effort.clone();
-            let registry = chat_tools(self.tools().await, &snap);
             let event_sink = sink.clone();
+            let noted = memory
+                .notes
+                .iter()
+                .map(|note| (note.action.to_string(), note.content.clone()))
+                .collect::<std::collections::HashSet<_>>();
+            let pool_for_notes = pool.clone();
             let tool_sink: ira_tools::StreamSink = Arc::new(move |event| match event {
                 ira_tools::StreamEvent::Delta(text) => event_sink(ChatStreamEvent::Delta { text }),
                 ira_tools::StreamEvent::Reset => event_sink(ChatStreamEvent::Reset),
                 ira_tools::StreamEvent::McpUsed { server_id, tool_name } => {
                     event_sink(ChatStreamEvent::McpUsed { server_id, tool_name })
                 }
-                ira_tools::StreamEvent::Memory { .. } => {}
+                ira_tools::StreamEvent::Memory { action, content } => {
+                    if noted.contains(&(action.to_string(), content.clone())) {
+                        return;
+                    }
+                    let pool = pool_for_notes.clone();
+                    let action = action.to_string();
+                    let stored_action = action.clone();
+                    let stored_content = content.clone();
+                    tokio::spawn(async move {
+                        let _ = db::append_message(
+                            &pool,
+                            conversation_id,
+                            NewMessage::memory(&stored_action, &stored_content),
+                        )
+                        .await;
+                    });
+                    event_sink(ChatStreamEvent::Memory { action, content });
+                }
             });
             let mut response =
                 ira_tools::chat_stream(&client, req.clone(), &registry, tool_sink.clone()).await;
@@ -1400,6 +1503,48 @@ async fn wait_for_toolbox(expected: &[String], require_empty: bool) -> Result<()
     }))
 }
 
+fn instruction_dto(block: db::Instruction) -> InstructionDto {
+    InstructionDto {
+        key: block.key,
+        channel: block.channel,
+        content: block.content,
+        active: block.active,
+        position: block.position,
+        updated_at: block.updated_at,
+    }
+}
+
+async fn absorb_local_prompt(
+    pool: &PgPool,
+    preferences: &mut AssistantPreferences,
+) -> Result<(), String> {
+    let Some(text) = preferences.system_prompt.clone() else {
+        return Ok(());
+    };
+    let mut text = text.trim().to_string();
+    if text.is_empty() {
+        preferences.system_prompt = None;
+        preferences::save(preferences)?;
+        return Ok(());
+    }
+    if text.chars().count() > db::INSTRUCTION_MAX {
+        text = text.chars().take(db::INSTRUCTION_MAX).collect();
+    }
+    db::upsert_instruction(pool, "persona", "chat", &text, Some(true))
+        .await
+        .map_err(|error| error.to_string())?;
+    preferences.system_prompt = None;
+    preferences::save(preferences)?;
+    Ok(())
+}
+
+async fn persist_memory_notes(pool: &PgPool, conversation_id: Uuid, notes: &[db::MemoryNote]) {
+    for note in notes {
+        let _ = db::append_message(pool, conversation_id, NewMessage::memory(note.action, &note.content))
+            .await;
+    }
+}
+
 fn chat_tools(registry: Registry, snap: &ira_store::Snapshot) -> Registry {
     if !snap.settings.tools_enabled {
         return Registry::default();
@@ -1491,10 +1636,6 @@ fn apply_models_dev(
         snap.models.clear();
         snap.active_model_id = None;
         snap.settings.active_model_id = None;
-        if let Some(system_prompt) = &preferences.system_prompt {
-            snap.system.clone_from(system_prompt);
-            snap.settings.system_prompt.clone_from(system_prompt);
-        }
         return (preferences, Vec::new());
     };
 
@@ -1533,10 +1674,6 @@ fn apply_models_dev(
     snap.models = models;
     snap.active_model_id = Some(active_id);
     snap.settings.active_model_id = Some(active_id);
-    if let Some(system_prompt) = &preferences.system_prompt {
-        snap.system.clone_from(system_prompt);
-        snap.settings.system_prompt.clone_from(system_prompt);
-    }
 
     let model_dtos = snap
         .providers

@@ -252,9 +252,33 @@ async fn reply_llm(
     }
     let history = store::context_messages(pool, session.conversation_id, CONTEXT_LIMIT).await?;
     session.history = history.clone();
-    let mut req = ChatRequest::with_history(&snap.system, history);
+    let user_text = history
+        .iter()
+        .rev()
+        .find(|message| message.role == ira_llm::Role::User)
+        .map(|message| message.content.as_str())
+        .unwrap_or("");
+    let memory = store::prepare_turn(pool, user_text).await?.prompt;
+    let tools = ira_tools::attach_memory(tools.clone(), pool.clone());
+    let model = snap
+        .active_model()
+        .map(|model| model.name.clone())
+        .unwrap_or_else(|| "desconocido".into());
+    let names = tools.names();
+    let system = store::compose_prompt(
+        pool,
+        "chat",
+        &store::PromptDynamic {
+            model: &model,
+            tool_names: &names,
+            memories: &memory,
+            extra: "",
+        },
+    )
+    .await?;
+    let mut req = ChatRequest::with_history(&system, history);
     snap.apply_reasoning(&mut req);
-    match ira_tools::chat(&client, req, tools).await {
+    match ira_tools::chat(&client, req, &tools).await {
         Ok(resp) => {
             store::append_message(
                 pool,

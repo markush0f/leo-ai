@@ -256,12 +256,7 @@ pub(crate) fn build_llm(
     rt: Handle,
 ) -> Result<Box<dyn LlmEngine>, Box<dyn std::error::Error>> {
     let client = store::client_with_pool(snap, pool)?;
-    Ok(Box::new(BlockingLlm::new(
-        client,
-        snap.settings.voice_system_prompt.clone(),
-        snap.reasoning_effort(),
-        rt,
-    )))
+    Ok(Box::new(BlockingLlm::new(client, pool.clone(), rt)))
 }
 
 fn build_stt(snap: &Snapshot, rt: Handle) -> Box<dyn SttEngine> {

@@ -8,31 +8,43 @@ use tokio::runtime::Handle;
 /// Call from a blocking thread while the associated Tokio runtime remains active.
 pub struct BlockingLlm {
     client: Client,
-    system: String,
-    reasoning_effort: Option<String>,
+    pool: sqlx::PgPool,
     rt: Handle,
 }
 
 impl BlockingLlm {
-    pub fn new(
-        client: Client,
-        system: String,
-        reasoning_effort: Option<String>,
-        rt: Handle,
-    ) -> Self {
-        Self {
-            client,
-            system,
-            reasoning_effort,
-            rt,
-        }
+    pub fn new(client: Client, pool: sqlx::PgPool, rt: Handle) -> Self {
+        Self { client, pool, rt }
     }
 }
 
 impl LlmEngine for BlockingLlm {
     fn reply(&self, user_text: &str) -> Result<String, String> {
-        let mut req = ChatRequest::user(user_text).with_system(&self.system);
-        req.reasoning_effort = self.reasoning_effort.clone();
+        let (system, effort) = self.rt.block_on(async {
+            let snap = ira_store::load(&self.pool).await.map_err(|e| e.to_string())?;
+            let model = snap
+                .active_model()
+                .map(|model| model.name.clone())
+                .unwrap_or_else(|| "desconocido".into());
+            let memory = ira_store::prepare_turn(&self.pool, user_text)
+                .await
+                .map_err(|e| e.to_string())?;
+            let system = ira_store::compose_prompt(
+                &self.pool,
+                "voice",
+                &ira_store::PromptDynamic {
+                    model: &model,
+                    tool_names: &[],
+                    memories: &memory.prompt,
+                    extra: "",
+                },
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+            Ok::<_, String>((system, snap.reasoning_effort()))
+        })?;
+        let mut req = ChatRequest::user(user_text).with_system(&system);
+        req.reasoning_effort = effort;
         let response = self
             .rt
             .block_on(self.client.chat(req))

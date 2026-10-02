@@ -76,6 +76,34 @@ async fn update_web_search(
     state.api.update_web_search(enabled, &context_size)
 }
 
+#[derive(serde::Deserialize)]
+struct InstructionUpdate {
+    key: String,
+    channel: String,
+    content: String,
+    active: bool,
+}
+
+#[tauri::command]
+async fn update_instruction(
+    state: tauri::State<'_, AppState>,
+    input: InstructionUpdate,
+) -> Result<ira_api::InstructionDto, String> {
+    state
+        .api
+        .update_instruction(&input.key, &input.channel, &input.content, Some(input.active))
+        .await
+}
+
+#[tauri::command]
+async fn reset_instruction(
+    state: tauri::State<'_, AppState>,
+    key: String,
+    channel: String,
+) -> Result<ira_api::InstructionDto, String> {
+    state.api.reset_instruction(&key, &channel).await
+}
+
 #[tauri::command]
 async fn begin_codex_login(
     state: tauri::State<'_, AppState>,
@@ -280,6 +308,8 @@ pub fn run() {
             snapshot,
             apply,
             update_web_search,
+            update_instruction,
+            reset_instruction,
             begin_codex_login,
             finish_codex_login,
             list_chats,

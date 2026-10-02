@@ -107,6 +107,9 @@ pub fn router(
             "/preferences/web-search",
             axum::routing::put(update_web_search),
         )
+        .route("/instructions", get(list_instructions))
+        .route("/instructions/{key}", put(update_instruction))
+        .route("/instructions/{key}/reset", post(reset_instruction))
         .route("/databases", get(list_databases).post(create_database))
         .route(
             "/databases/{id}",
@@ -233,6 +236,42 @@ async fn apply(State(app): State<App>, Json(op): Json<Op>) -> Response {
 
 async fn update_web_search(State(app): State<App>, Json(input): Json<WebSearchIn>) -> Response {
     send(app.update_web_search(input.enabled, &input.context_size))
+}
+
+#[derive(Deserialize)]
+struct InstructionUpdate {
+    channel: String,
+    content: String,
+    #[serde(default)]
+    active: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct InstructionChannel {
+    channel: String,
+}
+
+async fn list_instructions(State(app): State<App>) -> Response {
+    send(app.list_instructions().await)
+}
+
+async fn update_instruction(
+    State(app): State<App>,
+    Path(key): Path<String>,
+    Json(input): Json<InstructionUpdate>,
+) -> Response {
+    send(
+        app.update_instruction(&key, &input.channel, &input.content, input.active)
+            .await,
+    )
+}
+
+async fn reset_instruction(
+    State(app): State<App>,
+    Path(key): Path<String>,
+    Json(input): Json<InstructionChannel>,
+) -> Response {
+    send(app.reset_instruction(&key, &input.channel).await)
 }
 
 async fn list_databases(State(app): State<App>) -> Response {
@@ -403,6 +442,7 @@ fn status_for(msg: &str) -> StatusCode {
         || msg.contains("fuera de rango")
         || msg.contains("modo SSL inválido")
         || msg.contains("conexión inválida")
+        || msg.contains("instrucción")
     {
         StatusCode::BAD_REQUEST
     } else if msg.contains("duplicate key") || msg.contains("database_connections_name_key") {
