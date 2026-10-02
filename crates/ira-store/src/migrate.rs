@@ -38,6 +38,17 @@ const MIGRATIONS: &[(i32, &str)] = &[
 ];
 
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
+    sqlx::query("SELECT pg_advisory_lock(8142014)")
+        .execute(pool)
+        .await?;
+    let result = migrate_locked(pool).await;
+    let _ = sqlx::query("SELECT pg_advisory_unlock(8142014)")
+        .execute(pool)
+        .await;
+    result
+}
+
+async fn migrate_locked(pool: &PgPool) -> Result<(), sqlx::Error> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS schema_migrations (
             version INT PRIMARY KEY,
