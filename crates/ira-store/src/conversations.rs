@@ -62,6 +62,17 @@ impl NewMessage {
         }
     }
 
+    pub fn memory(action: &str, content: &str) -> Self {
+        Self {
+            role: "memory".into(),
+            content: format!("{action}\n{content}"),
+            tool_call_id: None,
+            name: None,
+            tool_calls: serde_json::json!([]),
+            model_id: None,
+        }
+    }
+
     pub fn error(content: impl Into<String>) -> Self {
         Self {
             role: "error".into(),

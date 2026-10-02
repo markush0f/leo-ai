@@ -21,6 +21,7 @@ const MIGRATION_010: &str =
 const MIGRATION_011: &str =
     include_str!("../../../deploy/postgres/migrations/011_secrets_and_tool_policy.sql");
 const MIGRATION_012: &str = include_str!("../../../deploy/postgres/migrations/012_drop_veritas.sql");
+const MIGRATION_013: &str = include_str!("../../../deploy/postgres/migrations/013_memories.sql");
 
 const MIGRATIONS: &[(i32, &str)] = &[
     (1, MIGRATION_001),
@@ -35,6 +36,7 @@ const MIGRATIONS: &[(i32, &str)] = &[
     (10, MIGRATION_010),
     (11, MIGRATION_011),
     (12, MIGRATION_012),
+    (13, MIGRATION_013),
 ];
 
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {

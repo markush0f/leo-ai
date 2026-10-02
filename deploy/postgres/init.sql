@@ -184,5 +184,16 @@ INSERT INTO settings (
 )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4), (11)
+CREATE TABLE IF NOT EXISTS memories (
+    id UUID PRIMARY KEY,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (length(btrim(content)) BETWEEN 1 AND 8000)
+);
+
+CREATE INDEX IF NOT EXISTS memories_search
+    ON memories USING GIN (to_tsvector('simple', content));
+
+INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4), (11), (13)
 ON CONFLICT (version) DO NOTHING;

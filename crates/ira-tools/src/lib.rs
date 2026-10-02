@@ -13,6 +13,7 @@ mod chat;
 mod context;
 mod error;
 mod mcp;
+mod memory;
 mod registry;
 mod tool;
 
@@ -21,5 +22,6 @@ pub use mcp::{attach_configured, attach_mcp, file_servers};
 pub use context::Context;
 pub use error::ToolError;
 pub use catalog::is_mutating;
+pub use memory::attach_memory;
 pub use registry::{Registry, ToolProvider};
 pub use tool::{DynTool, Tool};

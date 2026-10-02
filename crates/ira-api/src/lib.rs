@@ -1223,6 +1223,7 @@ impl App {
                 ira_tools::StreamEvent::McpUsed { server_id, tool_name } => {
                     event_sink(ChatStreamEvent::McpUsed { server_id, tool_name })
                 }
+                ira_tools::StreamEvent::Memory { .. } => {}
             });
             let mut response =
                 ira_tools::chat_stream(&client, req.clone(), &registry, tool_sink.clone()).await;

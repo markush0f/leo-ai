@@ -8,6 +8,7 @@ description = "Registro y bucle de tools que el LLM puede llamar"
 [dependencies]
 ira-llm.workspace = true
 ira-mcp.workspace = true
+ira-store.workspace = true
 ira-tools-appflowy.workspace = true
 ira-tools-db.workspace = true
 ira-tools-files.workspace = true
@@ -20,6 +21,7 @@ ira-tools-weather.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sqlx.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["sync", "time"] }
 tracing.workspace = true

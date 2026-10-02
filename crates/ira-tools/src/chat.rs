@@ -22,6 +22,13 @@ pub enum StreamEvent {
         /// Tool name reported by that MCP server.
         tool_name: String,
     },
+    /// A stored fact was saved or deleted during this turn.
+    Memory {
+        /// `saved` or `forgotten`.
+        action: &'static str,
+        /// Fact shown to the user.
+        content: String,
+    },
 }
 
 /// Callback invoked for streaming chat events.
@@ -112,6 +119,9 @@ where
                 });
             }
             let result = tools.call(&call.name, args).await;
+            if let Some((action, content)) = memory_note(&call.name, &result) {
+                sink(StreamEvent::Memory { action, content });
+            }
             req.messages
                 .push(ChatMessage::tool(&call.id, &call.name, result));
         }
@@ -195,6 +205,22 @@ fn parse_args(raw: &str) -> serde_json::Value {
         return serde_json::json!({});
     }
     serde_json::from_str(trimmed).unwrap_or_else(|_| serde_json::json!({}))
+}
+
+fn memory_note(name: &str, result: &str) -> Option<(&'static str, String)> {
+    if result.starts_with('{') {
+        return None;
+    }
+    match name {
+        "remember_fact" => result
+            .split_once(": ")
+            .filter(|(head, _)| head.starts_with("Guardado"))
+            .map(|(_, content)| ("saved", content.trim().to_string())),
+        "forget_memory" => result
+            .strip_prefix("Olvidado: ")
+            .map(|content| ("forgotten", content.trim().to_string())),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

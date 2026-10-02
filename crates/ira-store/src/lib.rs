@@ -10,6 +10,7 @@ mod databases;
 mod home;
 mod host_services;
 mod mcp;
+mod memories;
 mod migrate;
 mod secrets;
 
@@ -35,6 +36,10 @@ pub use databases::{
 };
 pub use home::ira_home;
 pub use host_services::{HostServiceRow, list_host_services, sync_host_services};
+pub use memories::{
+    INSTRUCTION, Memory, MemoryError, MemoryNote, TurnPrep, forget_memory, prepare_turn,
+    recall_memory, remember,
+};
 pub use mcp::{
     McpServer, McpServerConfig, McpTransport, delete_mcp, insert_missing_mcp, list_enabled_mcp,
     list_mcp, upsert_mcp,
