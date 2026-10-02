@@ -25,6 +25,17 @@ pub struct SnapshotDto {
     pub tools_enabled: bool,
     pub tools_mutate: bool,
     pub tools: Vec<String>,
+    pub instructions: Vec<InstructionDto>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct InstructionDto {
+    pub key: String,
+    pub channel: String,
+    pub content: String,
+    pub active: bool,
+    pub position: i32,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -281,6 +292,18 @@ pub fn snapshot_dto(snap: Snapshot, tools: &[String]) -> SnapshotDto {
         tools_enabled: snap.settings.tools_enabled,
         tools_mutate: snap.settings.tools_mutate,
         tools: tools.to_vec(),
+        instructions: snap
+            .instructions
+            .iter()
+            .map(|block| InstructionDto {
+                key: block.key.clone(),
+                channel: block.channel.clone(),
+                content: block.content.clone(),
+                active: block.active,
+                position: block.position,
+                updated_at: block.updated_at.clone(),
+            })
+            .collect(),
     }
 }
 

@@ -22,6 +22,7 @@ const MIGRATION_011: &str =
     include_str!("../../../deploy/postgres/migrations/011_secrets_and_tool_policy.sql");
 const MIGRATION_012: &str = include_str!("../../../deploy/postgres/migrations/012_drop_veritas.sql");
 const MIGRATION_013: &str = include_str!("../../../deploy/postgres/migrations/013_memories.sql");
+const MIGRATION_014: &str = include_str!("../../../deploy/postgres/migrations/014_instructions.sql");
 
 const MIGRATIONS: &[(i32, &str)] = &[
     (1, MIGRATION_001),
@@ -37,6 +38,7 @@ const MIGRATIONS: &[(i32, &str)] = &[
     (11, MIGRATION_011),
     (12, MIGRATION_012),
     (13, MIGRATION_013),
+    (14, MIGRATION_014),
 ];
 
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
@@ -75,6 +77,7 @@ async fn migrate_locked(pool: &PgPool) -> Result<(), sqlx::Error> {
         sqlx::query("INSERT INTO schema_migrations (version) VALUES (1) ON CONFLICT DO NOTHING")
             .execute(pool)
             .await?;
+        seed_instructions(pool).await?;
         return seal_keys(pool).await;
     }
 
@@ -96,7 +99,12 @@ async fn migrate_locked(pool: &PgPool) -> Result<(), sqlx::Error> {
             .await?;
         tx.commit().await?;
     }
+    seed_instructions(pool).await?;
     seal_keys(pool).await
+}
+
+async fn seed_instructions(pool: &PgPool) -> Result<(), sqlx::Error> {
+    crate::instructions::seed_missing(pool).await
 }
 
 async fn seal_keys(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {

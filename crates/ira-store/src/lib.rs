@@ -10,6 +10,7 @@ mod databases;
 mod home;
 mod host_services;
 mod mcp;
+mod instructions;
 mod memories;
 mod migrate;
 mod secrets;
@@ -36,6 +37,10 @@ pub use databases::{
 };
 pub use home::ira_home;
 pub use host_services::{HostServiceRow, list_host_services, sync_host_services};
+pub use instructions::{
+    Instruction, InstructionError, PromptDynamic, active_content, compose, compose_prompt,
+    list_instructions, reset_instruction, upsert_instruction, MAX_CONTENT as INSTRUCTION_MAX,
+};
 pub use memories::{
     INSTRUCTION, Memory, MemoryError, MemoryNote, TurnPrep, forget_memory, prepare_turn,
     recall_memory, remember,
@@ -55,8 +60,8 @@ pub const ENGINE_STT_NONE: Uuid = Uuid::from_u128(0x0000_0000_0000_4000_8000_000
 pub const ENGINE_TTS_TONE: Uuid = Uuid::from_u128(0x0000_0000_0000_4000_8000_0000_0000_0601);
 pub const ENGINE_WAKE_NONE: Uuid = Uuid::from_u128(0x0000_0000_0000_4000_8000_0000_0000_0701);
 
-const DEFAULT_SYSTEM: &str = "Eres Ira, un asistente. Responde en español, claro y directo.";
-const DEFAULT_VOICE_SYSTEM: &str = "Eres Ira, un asistente de voz. Responde en español, breve y claro, para ser leído en voz alta.";
+const DEFAULT_SYSTEM: &str = instructions::DEFAULT_PERSONA_CHAT;
+const DEFAULT_VOICE_SYSTEM: &str = instructions::DEFAULT_PERSONA_VOICE;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EngineRole {
@@ -222,6 +227,7 @@ pub struct Snapshot {
     pub settings: SettingsRow,
     pub active_model_id: Option<Uuid>,
     pub system: String,
+    pub instructions: Vec<Instruction>,
 }
 
 #[derive(Debug, Clone)]
@@ -445,9 +451,14 @@ pub async fn load(pool: &PgPool) -> Result<Snapshot, sqlx::Error> {
     })
     .collect();
 
-    let settings = load_settings(pool).await?;
+    let mut settings = load_settings(pool).await?;
+    let instructions = instructions::list_instructions(pool).await?;
     let active_model_id = settings.active_model_id;
-    let system = settings.system_prompt.clone();
+    let system = instructions::active_content(&instructions, "persona", "chat")
+        .unwrap_or_else(|| settings.system_prompt.clone());
+    if let Some(voice) = instructions::active_content(&instructions, "persona", "voice") {
+        settings.voice_system_prompt = voice;
+    }
 
     Ok(Snapshot {
         providers,
@@ -456,6 +467,7 @@ pub async fn load(pool: &PgPool) -> Result<Snapshot, sqlx::Error> {
         settings,
         active_model_id,
         system,
+        instructions,
     })
 }
 
@@ -536,10 +548,9 @@ pub async fn apply(pool: &PgPool, op: DbOp) -> Result<Snapshot, sqlx::Error> {
                 .await?;
         }
         DbOp::SetSystem(text) => {
-            sqlx::query("UPDATE settings SET system_prompt = $1 WHERE id = 1")
-                .bind(text)
-                .execute(pool)
-                .await?;
+            instructions::upsert_instruction(pool, "persona", "chat", &text, Some(true))
+                .await
+                .map_err(instructions::to_sqlx)?;
         }
         DbOp::SetApiKey { id, api_key } => {
             let _ = databases::write_provider_secret(pool, id, empty_to_none(&api_key))
@@ -598,10 +609,9 @@ pub async fn apply(pool: &PgPool, op: DbOp) -> Result<Snapshot, sqlx::Error> {
                 .await?;
         }
         DbOp::SetVoiceSystem(text) => {
-            sqlx::query("UPDATE settings SET voice_system_prompt = $1 WHERE id = 1")
-                .bind(text)
-                .execute(pool)
-                .await?;
+            instructions::upsert_instruction(pool, "persona", "voice", &text, Some(true))
+                .await
+                .map_err(instructions::to_sqlx)?;
         }
         DbOp::SetEngine { role, id } => {
             let sql = format!("UPDATE settings SET {} = $1 WHERE id = 1", role.column());
@@ -867,6 +877,7 @@ pub fn stub_snapshot(provider: &str, model: &str, system: &str) -> Snapshot {
         settings,
         active_model_id: Some(mid),
         system: system.into(),
+        instructions: Vec::new(),
     }
 }
 
